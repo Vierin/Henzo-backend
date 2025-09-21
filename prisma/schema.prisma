@@ -21,20 +21,24 @@ model User {
 }
 
 model Salon {
-  id          String    @id @default(cuid())
-  name        String
-  address     String?
-  phone       String?
-  logo        String?   // URL to salon logo
-  workingHours Json?    // Store working hours as JSON
-  owner       User      @relation("UserSalons", fields: [ownerId], references: [id])
-  ownerId     String
-  staff       Staff[]
-  services    Service[]
-  categories  Category[]
-  bookings    Booking[]
-  reviews     Review[]
-  createdAt   DateTime  @default(now())
+  id            String    @id @default(cuid())
+  name          String
+  description   String?   // Salon description
+  address       String?
+  phone         String?
+  email         String?   // Salon email
+  website       String?   // Salon website URL
+  instagram     String?   // Instagram handle
+  logo          String?   // URL to salon logo
+  workingHours  Json?     // Store working hours as JSON
+  owner         User      @relation("UserSalons", fields: [ownerId], references: [id])
+  ownerId       String
+  staff         Staff[]
+  services      Service[]
+  categories    Category[]
+  bookings      Booking[]
+  reviews       Review[]
+  createdAt     DateTime  @default(now())
 }
 
 model Staff {

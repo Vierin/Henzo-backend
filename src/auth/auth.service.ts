@@ -6,6 +6,47 @@ import { supabase } from '../lib/supabase';
 export class AuthService {
   constructor(private prisma: PrismaService) {}
 
+  async registerOwner(data: {
+    userId: string;
+    email: string;
+    name?: string;
+    phone?: string;
+  }) {
+    try {
+      // Проверяем, существует ли пользователь в нашей базе данных
+      const existingUser = await this.prisma.user.findUnique({
+        where: { id: data.userId },
+      });
+
+      if (existingUser) {
+        throw new Error('User already exists in database');
+      }
+
+      // Создаем запись пользователя в нашей базе данных
+      const user = await this.prisma.user.create({
+        data: {
+          id: data.userId,
+          email: data.email,
+          name: data.name,
+          phone: data.phone,
+          role: 'OWNER',
+        },
+      });
+
+      return {
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          phone: user.phone,
+          role: user.role,
+        },
+      };
+    } catch (error) {
+      throw new Error(`Owner registration failed: ${error.message}`);
+    }
+  }
+
   async registerClient(data: {
     email: string;
     password: string;

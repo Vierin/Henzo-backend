@@ -13,6 +13,27 @@ import { AuthService } from './auth.service';
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  @Post('register')
+  async registerOwner(
+    @Body()
+    data: {
+      userId: string;
+      email: string;
+      name?: string;
+      phone?: string;
+    },
+  ) {
+    try {
+      const result = await this.authService.registerOwner(data);
+      return result;
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Registration failed',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
   @Post('register-client')
   async registerClient(
     @Body()
