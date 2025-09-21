@@ -29,7 +29,8 @@ model Salon {
   email         String?   // Salon email
   website       String?   // Salon website URL
   instagram     String?   // Instagram handle
-  logo          String?   // URL to salon logo
+  logo          String?   // Supabase file path to salon logo
+  photos        String[]  // Array of Supabase file paths to salon photos (max 3)
   workingHours  Json?     // Store working hours as JSON
   owner         User      @relation("UserSalons", fields: [ownerId], references: [id])
   ownerId       String

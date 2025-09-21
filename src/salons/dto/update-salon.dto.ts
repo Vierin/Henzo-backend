@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsEmail, IsUrl } from 'class-validator';
+import { IsOptional, IsString, IsEmail, IsUrl, IsArray } from 'class-validator';
 
 export class UpdateSalonDto {
   @IsOptional()
@@ -32,6 +32,11 @@ export class UpdateSalonDto {
   @IsOptional()
   @IsString()
   logo?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  photos?: string[];
 
   @IsOptional()
   workingHours?: any;
