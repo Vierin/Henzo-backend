@@ -42,7 +42,7 @@ export class SalonsService {
       },
     });
 
-    return { salon };
+    return salon; // Возвращаем салон напрямую, а не объект { salon }
   }
 
   async createCurrentUserSalon(createSalonDto: CreateSalonDto) {

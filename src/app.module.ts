@@ -8,6 +8,7 @@ import { ServicesModule } from './services/services.module';
 import { CategoriesModule } from './categories/categories.module';
 import { AuthModule } from './auth/auth.module';
 import { ReviewsModule } from './reviews/reviews.module';
+import { GeocodingModule } from './geocoding/geocoding.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { ReviewsModule } from './reviews/reviews.module';
     CategoriesModule,
     AuthModule,
     ReviewsModule,
+    GeocodingModule,
   ],
   controllers: [AppController],
   providers: [AppService],
