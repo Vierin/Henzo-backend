@@ -9,6 +9,8 @@ import {
   Query,
 } from '@nestjs/common';
 import { ServicesService } from './services.service';
+import { CreateServiceDto } from './dto/create-service.dto';
+import { UpdateServiceDto } from './dto/update-service.dto';
 
 @Controller('services')
 export class ServicesController {
@@ -33,32 +35,16 @@ export class ServicesController {
   }
 
   @Post()
-  async createService(
-    @Body()
-    data: {
-      name: string;
-      description?: string;
-      duration: number;
-      price: number;
-      salonId: string;
-      categoryId?: string;
-    },
-  ) {
-    return this.servicesService.create(data);
+  async createService(@Body() createServiceDto: CreateServiceDto) {
+    return this.servicesService.create(createServiceDto);
   }
 
   @Put(':id')
   async updateService(
     @Param('id') id: string,
-    @Body()
-    data: {
-      name?: string;
-      description?: string;
-      duration?: number;
-      price?: number;
-    },
+    @Body() updateServiceDto: UpdateServiceDto,
   ) {
-    return this.servicesService.update(id, data);
+    return this.servicesService.update(id, updateServiceDto);
   }
 
   @Delete(':id')
