@@ -16,7 +16,8 @@ export class SalonsController {
   async getCurrentUserSalon() {
     // Временное решение - возвращаем первый салон или null
     // В реальном приложении здесь будет аутентификация пользователя
-    return this.salonsService.getCurrentUserSalon();
+    const result = await this.salonsService.getCurrentUserSalon();
+    return result; // Сервис уже возвращает салон напрямую
   }
 
   @Post('current')

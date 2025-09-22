@@ -72,7 +72,7 @@ export class SalonsService {
       },
     });
 
-    return { salon };
+    return salon; // Возвращаем салон напрямую
   }
 
   async updateCurrentUserSalon(updateSalonDto: UpdateSalonDto) {
@@ -100,7 +100,7 @@ export class SalonsService {
       },
     });
 
-    return { salon: updatedSalon };
+    return updatedSalon; // Возвращаем салон напрямую
   }
 
   async findById(id: string) {
