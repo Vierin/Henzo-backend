@@ -2,20 +2,31 @@ import { Injectable } from '@nestjs/common';
 import { createClient } from '@supabase/supabase-js';
 import { ConfigService } from '@nestjs/config';
 
+interface MulterFile {
+  fieldname: string;
+  originalname: string;
+  encoding: string;
+  mimetype: string;
+  size: number;
+  destination: string;
+  filename: string;
+  path: string;
+  buffer: Buffer;
+}
+
 @Injectable()
 export class StorageService {
   private supabase;
 
   constructor(private configService: ConfigService) {
-    const supabaseUrl = this.configService.get<string>('SUPABASE_URL');
-    const supabaseServiceKey = this.configService.get<string>(
-      'SUPABASE_SERVICE_ROLE_KEY',
-    );
+    const supabaseUrl = this.configService.get<string>('SUPABASE_URL') || '';
+    const supabaseServiceKey =
+      this.configService.get<string>('SUPABASE_SERVICE_ROLE_KEY') || '';
 
     this.supabase = createClient(supabaseUrl, supabaseServiceKey);
   }
 
-  async uploadFile(file: Express.Multer.File): Promise<string> {
+  async uploadFile(file: MulterFile): Promise<string> {
     try {
       // Generate unique filename
       const fileExt = file.originalname.split('.').pop();

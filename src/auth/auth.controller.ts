@@ -38,9 +38,18 @@ export class AuthController {
   @Post('register-client')
   async registerClient(@Body() data: RegisterClientDto) {
     try {
+      console.log('📝 Received client registration request:', {
+        email: data.email,
+        name: data.name,
+      });
       const result = await this.authService.registerClient(data);
+      console.log('✅ Client registration successful:', {
+        email: data.email,
+        userId: result.user.id,
+      });
       return result;
     } catch (error) {
+      console.error('❌ Client registration failed:', error.message);
       throw new HttpException(
         error.message || 'Registration failed',
         HttpStatus.BAD_REQUEST,
@@ -64,9 +73,15 @@ export class AuthController {
   @Get('user')
   async getUser(@Headers('authorization') authHeader: string) {
     try {
+      console.log(
+        '📝 Received get user request, authHeader:',
+        authHeader ? 'Present' : 'Missing',
+      );
       const result = await this.authService.getCurrentUser(authHeader);
+      console.log('✅ Get user successful:', result.user.email);
       return result;
     } catch (error) {
+      console.error('❌ Get user failed:', error.message);
       throw new HttpException(
         error.message || 'Failed to get user data',
         HttpStatus.UNAUTHORIZED,

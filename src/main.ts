@@ -3,26 +3,42 @@ import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  try {
+    console.log('🚀 Starting backend server...');
 
-  // Enable global validation
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-    }),
-  );
+    const app = await NestFactory.create(AppModule);
+    console.log('✅ App module created successfully');
 
-  // Enable CORS for frontend communication
-  app.enableCors({
-    origin: ['http://localhost:3000', 'http://localhost:3001'],
-    credentials: true,
-  });
+    // Enable global validation
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
+    );
+    console.log('✅ Global validation pipes enabled');
 
-  await app.listen(process.env.PORT ?? 3001);
-  console.log(
-    `🚀 Backend is running on: http://localhost:${process.env.PORT ?? 3001}`,
-  );
+    // Enable CORS for frontend communication
+    app.enableCors({
+      origin: ['http://localhost:3000', 'http://localhost:3001'],
+      credentials: true,
+    });
+    console.log('✅ CORS enabled');
+
+    const port = process.env.PORT ?? 3001;
+    await app.listen(port);
+
+    console.log(`🚀 Backend is running on: http://localhost:${port}`);
+    console.log(`📝 Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`🔗 Health check: http://localhost:${port}/health`);
+  } catch (error) {
+    console.error('❌ Failed to start server:', error);
+    process.exit(1);
+  }
 }
-bootstrap();
+
+bootstrap().catch((error) => {
+  console.error('❌ Bootstrap failed:', error);
+  process.exit(1);
+});
