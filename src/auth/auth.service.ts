@@ -63,10 +63,13 @@ export class AuthService {
         throw new Error('User with this email already exists');
       }
 
-      // Создаем пользователя в Supabase
+      // Создаем пользователя в Supabase (отключаем подтверждение email для разработки)
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: data.email,
         password: data.password,
+        options: {
+          emailRedirectTo: undefined, // Отключаем перенаправление
+        },
       });
 
       if (authError) {

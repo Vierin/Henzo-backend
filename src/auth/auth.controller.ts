@@ -8,6 +8,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
+import { RegisterClientDto } from './dto/register-client.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -35,15 +36,7 @@ export class AuthController {
   }
 
   @Post('register-client')
-  async registerClient(
-    @Body()
-    data: {
-      email: string;
-      password: string;
-      name?: string;
-      phone?: string;
-    },
-  ) {
+  async registerClient(@Body() data: RegisterClientDto) {
     try {
       const result = await this.authService.registerClient(data);
       return result;
