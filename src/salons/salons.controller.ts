@@ -1,11 +1,23 @@
-import { Controller, Get, Post, Put, Body, Param } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Body,
+  Param,
+  Headers,
+} from '@nestjs/common';
 import { SalonsService } from './salons.service';
 import { UpdateSalonDto } from './dto/update-salon.dto';
 import { CreateSalonDto } from './dto/create-salon.dto';
+import { AuthService } from '../auth/auth.service';
 
 @Controller('salons')
 export class SalonsController {
-  constructor(private readonly salonsService: SalonsService) {}
+  constructor(
+    private readonly salonsService: SalonsService,
+    private readonly authService: AuthService,
+  ) {}
 
   @Get('with-services')
   async getSalonsWithServices() {
@@ -13,25 +25,36 @@ export class SalonsController {
   }
 
   @Get('current')
-  async getCurrentUserSalon() {
-    // Временное решение - возвращаем первый салон или null
-    // В реальном приложении здесь будет аутентификация пользователя
-    const result = await this.salonsService.getCurrentUserSalon();
-    return result; // Сервис уже возвращает салон напрямую
+  async getCurrentUserSalon(@Headers('authorization') authHeader: string) {
+    const currentUser = await this.authService.getCurrentUser(authHeader);
+    const result = await this.salonsService.getCurrentUserSalon(
+      currentUser.user.id,
+    );
+    return result;
   }
 
   @Post('current')
-  async createCurrentUserSalon(@Body() createSalonDto: CreateSalonDto) {
-    // Временное решение - создаем салон для первого пользователя
-    // В реальном приложении здесь будет аутентификация пользователя
-    return this.salonsService.createCurrentUserSalon(createSalonDto);
+  async createCurrentUserSalon(
+    @Body() createSalonDto: CreateSalonDto,
+    @Headers('authorization') authHeader: string,
+  ) {
+    const currentUser = await this.authService.getCurrentUser(authHeader);
+    return this.salonsService.createCurrentUserSalon(
+      createSalonDto,
+      currentUser.user.id,
+    );
   }
 
   @Put('current')
-  async updateCurrentUserSalon(@Body() updateSalonDto: UpdateSalonDto) {
-    // Временное решение - обновляем первый салон
-    // В реальном приложении здесь будет аутентификация пользователя
-    return this.salonsService.updateCurrentUserSalon(updateSalonDto);
+  async updateCurrentUserSalon(
+    @Body() updateSalonDto: UpdateSalonDto,
+    @Headers('authorization') authHeader: string,
+  ) {
+    const currentUser = await this.authService.getCurrentUser(authHeader);
+    return this.salonsService.updateCurrentUserSalon(
+      updateSalonDto,
+      currentUser.user.id,
+    );
   }
 
   @Get(':id')

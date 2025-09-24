@@ -25,10 +25,11 @@ export class SalonsService {
     });
   }
 
-  async getCurrentUserSalon() {
-    // Временное решение - возвращаем первый салон
-    // В реальном приложении здесь будет аутентификация пользователя
+  async getCurrentUserSalon(userId: string) {
     const salon = await this.prisma.salon.findFirst({
+      where: {
+        ownerId: userId,
+      },
       include: {
         services: true,
         staff: true,
@@ -42,22 +43,14 @@ export class SalonsService {
       },
     });
 
-    return salon; // Возвращаем салон напрямую, а не объект { salon }
+    return salon;
   }
 
-  async createCurrentUserSalon(createSalonDto: CreateSalonDto) {
-    // Временное решение - создаем салон для первого пользователя
-    // В реальном приложении здесь будет аутентификация пользователя
-    const firstUser = await this.prisma.user.findFirst();
-
-    if (!firstUser) {
-      throw new Error('No user found');
-    }
-
+  async createCurrentUserSalon(createSalonDto: CreateSalonDto, userId: string) {
     const salon = await this.prisma.salon.create({
       data: {
         ...createSalonDto,
-        ownerId: firstUser.id,
+        ownerId: userId,
       },
       include: {
         services: true,
@@ -75,10 +68,10 @@ export class SalonsService {
     return salon; // Возвращаем салон напрямую
   }
 
-  async updateCurrentUserSalon(updateSalonDto: UpdateSalonDto) {
-    // Временное решение - обновляем первый салон
-    // В реальном приложении здесь будет аутентификация пользователя
-    const existingSalon = await this.prisma.salon.findFirst();
+  async updateCurrentUserSalon(updateSalonDto: UpdateSalonDto, userId: string) {
+    const existingSalon = await this.prisma.salon.findFirst({
+      where: { ownerId: userId },
+    });
 
     if (!existingSalon) {
       throw new Error('Salon not found');
