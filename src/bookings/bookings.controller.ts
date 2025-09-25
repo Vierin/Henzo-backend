@@ -2,6 +2,8 @@ import {
   Controller,
   Post,
   Get,
+  Put,
+  Param,
   Body,
   Headers,
   HttpException,
@@ -55,29 +57,55 @@ export class BookingsController {
   @Get('user')
   async getUserBookings(@Headers('authorization') authHeader: string) {
     try {
-      console.log('📅 Fetching user bookings:', {
-        hasAuthHeader: !!authHeader,
-      });
-
       const currentUser = await this.authService.getCurrentUser(authHeader);
-      console.log(
-        '✅ User authenticated for fetching bookings:',
-        currentUser.user.email,
-      );
 
       const bookings = await this.bookingsService.getUserBookings(
         currentUser.user.id,
       );
 
-      console.log('✅ User bookings fetched successfully:', bookings.length);
-      return {
-        success: true,
-        bookings,
-      };
+      return bookings;
     } catch (error) {
       console.error('❌ Fetch user bookings failed:', error.message);
       throw new HttpException(
         error.message || 'Failed to fetch user bookings',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Get('user/upcoming')
+  async getUpcomingBookings(@Headers('authorization') authHeader: string) {
+    try {
+      const currentUser = await this.authService.getCurrentUser(authHeader);
+
+      const bookings = await this.bookingsService.getUpcomingBookings(
+        currentUser.user.id,
+      );
+
+      return bookings;
+    } catch (error) {
+      console.error('❌ Fetch upcoming bookings failed:', error.message);
+      throw new HttpException(
+        error.message || 'Failed to fetch upcoming bookings',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Get('user/completed')
+  async getCompletedBookings(@Headers('authorization') authHeader: string) {
+    try {
+      const currentUser = await this.authService.getCurrentUser(authHeader);
+
+      const bookings = await this.bookingsService.getCompletedBookings(
+        currentUser.user.id,
+      );
+
+      return bookings;
+    } catch (error) {
+      console.error('❌ Fetch completed bookings failed:', error.message);
+      throw new HttpException(
+        error.message || 'Failed to fetch completed bookings',
         HttpStatus.BAD_REQUEST,
       );
     }
@@ -111,6 +139,32 @@ export class BookingsController {
       console.error('❌ Fetch salon bookings failed:', error.message);
       throw new HttpException(
         error.message || 'Failed to fetch salon bookings',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Put(':id/cancel')
+  async cancelBooking(
+    @Param('id') bookingId: string,
+    @Headers('authorization') authHeader: string,
+  ) {
+    try {
+      const currentUser = await this.authService.getCurrentUser(authHeader);
+
+      const result = await this.bookingsService.cancelBooking(
+        bookingId,
+        currentUser.user.id,
+      );
+
+      return {
+        success: true,
+        message: 'Booking canceled successfully',
+      };
+    } catch (error) {
+      console.error('❌ Cancel booking failed:', error.message);
+      throw new HttpException(
+        error.message || 'Failed to cancel booking',
         HttpStatus.BAD_REQUEST,
       );
     }

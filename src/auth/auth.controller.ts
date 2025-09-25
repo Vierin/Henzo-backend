@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Get,
+  Put,
   Body,
   Headers,
   HttpException,
@@ -9,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterClientDto } from './dto/register-client.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -85,6 +87,32 @@ export class AuthController {
       throw new HttpException(
         error.message || 'Failed to get user data',
         HttpStatus.UNAUTHORIZED,
+      );
+    }
+  }
+
+  @Put('profile')
+  async updateProfile(
+    @Body() data: UpdateProfileDto,
+    @Headers('authorization') authHeader: string,
+  ) {
+    try {
+      const currentUser = await this.authService.getCurrentUser(authHeader);
+
+      const updatedUser = await this.authService.updateUserProfile(
+        currentUser.user.id,
+        data,
+      );
+
+      return {
+        success: true,
+        user: updatedUser,
+      };
+    } catch (error) {
+      console.error('❌ Update profile failed:', error.message);
+      throw new HttpException(
+        error.message || 'Failed to update profile',
+        HttpStatus.BAD_REQUEST,
       );
     }
   }

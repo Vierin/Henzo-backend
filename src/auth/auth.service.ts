@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { supabase } from '../lib/supabase';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 
 @Injectable()
 export class AuthService {
@@ -220,6 +221,33 @@ export class AuthService {
       };
     } catch (error) {
       throw new Error(`Failed to get user: ${error.message}`);
+    }
+  }
+
+  async updateUserProfile(userId: string, data: UpdateProfileDto) {
+    try {
+      // Update user in database
+      const updatedUser = await this.prisma.user.update({
+        where: {
+          id: userId,
+        },
+        data: {
+          name: data.name,
+          email: data.email,
+          phone: data.phone,
+        },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          phone: true,
+          role: true,
+        },
+      });
+
+      return updatedUser;
+    } catch (error) {
+      throw new Error(`Failed to update user profile: ${error.message}`);
     }
   }
 }

@@ -93,7 +93,66 @@ export class BookingsService {
 
       return bookings;
     } catch (error) {
-      console.error('❌ Error fetching user bookings:', error.message);
+      throw error;
+    }
+  }
+
+  async getUpcomingBookings(userId: string) {
+    try {
+      const now = new Date();
+      const bookings = await this.prisma.booking.findMany({
+        where: {
+          userId: userId,
+          time: {
+            gte: now,
+          },
+          status: {
+            in: ['PENDING', 'CONFIRMED'],
+          },
+        },
+        include: {
+          service: true,
+          staff: true,
+          salon: true,
+          user: true,
+        },
+        orderBy: {
+          time: 'asc',
+        },
+      });
+
+      return bookings;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async getCompletedBookings(userId: string) {
+    try {
+      const now = new Date();
+      const bookings = await this.prisma.booking.findMany({
+        where: {
+          userId: userId,
+          time: {
+            lt: now,
+          },
+          status: {
+            in: ['CONFIRMED', 'CANCELED'],
+          },
+        },
+        include: {
+          service: true,
+          staff: true,
+          salon: true,
+          user: true,
+        },
+        orderBy: {
+          time: 'desc',
+        },
+      });
+
+      return bookings;
+    } catch (error) {
       throw error;
     }
   }
@@ -261,6 +320,54 @@ export class BookingsService {
       console.log('✅ All booking notifications sent successfully');
     } catch (error) {
       console.error('❌ Error sending booking notifications:', error);
+      throw error;
+    }
+  }
+
+  async cancelBooking(bookingId: string, userId: string) {
+    try {
+      // Check if booking exists and belongs to user
+      const booking = await this.prisma.booking.findFirst({
+        where: {
+          id: bookingId,
+          userId: userId,
+        },
+      });
+
+      if (!booking) {
+        throw new Error(
+          'Booking not found or you do not have permission to cancel it',
+        );
+      }
+
+      // Check if booking can be canceled (not already canceled or past)
+      if (booking.status === 'CANCELED') {
+        throw new Error('Booking is already canceled');
+      }
+
+      const now = new Date();
+      if (booking.time < now) {
+        throw new Error('Cannot cancel a booking that has already passed');
+      }
+
+      // Update booking status to CANCELED
+      const updatedBooking = await this.prisma.booking.update({
+        where: {
+          id: bookingId,
+        },
+        data: {
+          status: 'CANCELED',
+        },
+        include: {
+          service: true,
+          staff: true,
+          salon: true,
+          user: true,
+        },
+      });
+
+      return updatedBooking;
+    } catch (error) {
       throw error;
     }
   }
