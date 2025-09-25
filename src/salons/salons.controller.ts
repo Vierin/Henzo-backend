@@ -38,11 +38,26 @@ export class SalonsController {
     @Body() createSalonDto: CreateSalonDto,
     @Headers('authorization') authHeader: string,
   ) {
-    const currentUser = await this.authService.getCurrentUser(authHeader);
-    return this.salonsService.createCurrentUserSalon(
-      createSalonDto,
-      currentUser.user.id,
-    );
+    try {
+      console.log('📝 Received create salon request:', {
+        hasAuthHeader: !!authHeader,
+        dataKeys: Object.keys(createSalonDto),
+      });
+
+      const currentUser = await this.authService.getCurrentUser(authHeader);
+      console.log('✅ User authenticated:', currentUser.user.email);
+
+      const result = await this.salonsService.createCurrentUserSalon(
+        createSalonDto,
+        currentUser.user.id,
+      );
+
+      console.log('✅ Salon created successfully:', result.id);
+      return result;
+    } catch (error) {
+      console.error('❌ Create salon failed:', error.message);
+      throw error;
+    }
   }
 
   @Put('current')
@@ -50,11 +65,26 @@ export class SalonsController {
     @Body() updateSalonDto: UpdateSalonDto,
     @Headers('authorization') authHeader: string,
   ) {
-    const currentUser = await this.authService.getCurrentUser(authHeader);
-    return this.salonsService.updateCurrentUserSalon(
-      updateSalonDto,
-      currentUser.user.id,
-    );
+    try {
+      console.log('📝 Received update salon request:', {
+        hasAuthHeader: !!authHeader,
+        dataKeys: Object.keys(updateSalonDto),
+      });
+
+      const currentUser = await this.authService.getCurrentUser(authHeader);
+      console.log('✅ User authenticated:', currentUser.user.email);
+
+      const result = await this.salonsService.updateCurrentUserSalon(
+        updateSalonDto,
+        currentUser.user.id,
+      );
+
+      console.log('✅ Salon updated successfully:', result.id);
+      return result;
+    } catch (error) {
+      console.error('❌ Update salon failed:', error.message);
+      throw error;
+    }
   }
 
   @Get(':id')

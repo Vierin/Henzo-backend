@@ -1,4 +1,5 @@
 import { IsOptional, IsString, IsEmail, IsUrl, IsArray } from 'class-validator';
+import { InputJsonValue } from '@prisma/client/runtime/library';
 
 export class CreateSalonDto {
   @IsString()
@@ -17,11 +18,11 @@ export class CreateSalonDto {
   phone?: string;
 
   @IsOptional()
-  @IsEmail()
+  @IsString()
   email?: string;
 
   @IsOptional()
-  @IsUrl()
+  @IsString()
   website?: string;
 
   @IsOptional()
@@ -38,5 +39,5 @@ export class CreateSalonDto {
   photos?: string[];
 
   @IsOptional()
-  workingHours?: any;
+  workingHours?: InputJsonValue;
 }

@@ -47,25 +47,34 @@ export class SalonsService {
   }
 
   async createCurrentUserSalon(createSalonDto: CreateSalonDto, userId: string) {
-    const salon = await this.prisma.salon.create({
-      data: {
-        ...createSalonDto,
-        ownerId: userId,
-      },
-      include: {
-        services: true,
-        staff: true,
-        owner: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
+    try {
+      console.log('🔧 Creating salon for user:', userId);
+      console.log('📋 Salon data:', JSON.stringify(createSalonDto, null, 2));
+
+      const salon = await this.prisma.salon.create({
+        data: {
+          ...createSalonDto,
+          ownerId: userId,
+        },
+        include: {
+          services: true,
+          staff: true,
+          owner: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
           },
         },
-      },
-    });
+      });
 
-    return salon; // Возвращаем салон напрямую
+      console.log('✅ Salon created in database:', salon.id);
+      return salon;
+    } catch (error) {
+      console.error('❌ Database error creating salon:', error.message);
+      throw error;
+    }
   }
 
   async updateCurrentUserSalon(updateSalonDto: UpdateSalonDto, userId: string) {

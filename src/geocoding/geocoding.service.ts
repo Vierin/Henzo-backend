@@ -2,36 +2,46 @@ import { Injectable } from '@nestjs/common';
 
 @Injectable()
 export class GeocodingService {
-  async geocodeAddress(address: string) {
+  async geocodeAddress(address: string): Promise<{ lat: number; lon: number; display_name: string } | null> {
     try {
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`,
-        {
-          headers: {
-            'User-Agent': 'Henzo Salon Booking App',
-            Accept: 'application/json',
-          },
+      console.log('🔍 Geocoding address:', address);
+      
+      const nominatimUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1&addressdetails=1`;
+      
+      const response = await fetch(nominatimUrl, {
+        method: 'GET',
+        headers: {
+          'User-Agent': 'Henzo Salon Booking App',
+          'Accept': 'application/json',
         },
-      );
+      });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        console.error('❌ Nominatim API error:', response.status);
+        return null;
       }
 
       const data = await response.json();
-
+      
       if (data && data.length > 0) {
-        const { lat, lon, display_name } = data[0];
+        const result = data[0];
+        console.log('✅ Geocoding successful:', {
+          lat: result.lat,
+          lon: result.lon,
+          display_name: result.display_name,
+        });
+        
         return {
-          latitude: parseFloat(lat),
-          longitude: parseFloat(lon),
-          address: display_name,
+          lat: parseFloat(result.lat),
+          lon: parseFloat(result.lon),
+          display_name: result.display_name,
         };
+      } else {
+        console.warn('⚠️ No geocoding results found for:', address);
+        return null;
       }
-
-      return null;
     } catch (error) {
-      console.error('Error geocoding address:', error);
+      console.error('❌ Error geocoding address:', error);
       return null;
     }
   }
