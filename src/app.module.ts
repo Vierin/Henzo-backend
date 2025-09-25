@@ -9,6 +9,7 @@ import { CategoriesModule } from './categories/categories.module';
 import { AuthModule } from './auth/auth.module';
 import { ReviewsModule } from './reviews/reviews.module';
 import { GeocodingModule } from './geocoding/geocoding.module';
+import { BookingsModule } from './bookings/bookings.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { GeocodingModule } from './geocoding/geocoding.module';
     AuthModule,
     ReviewsModule,
     GeocodingModule,
+    BookingsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
