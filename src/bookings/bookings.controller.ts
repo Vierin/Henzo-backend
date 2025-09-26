@@ -186,13 +186,20 @@ export class BookingsController {
     @Headers('authorization') authHeader: string,
   ) {
     try {
+      console.log('🚫 Cancel booking request:', {
+        bookingId,
+        hasAuthHeader: !!authHeader,
+      });
+
       const currentUser = await this.authService.getCurrentUser(authHeader);
+      console.log('✅ User authenticated for cancel:', currentUser.user.email);
 
       const result = await this.bookingsService.cancelBooking(
         bookingId,
         currentUser.user.id,
       );
 
+      console.log('✅ Booking cancelled successfully:', bookingId);
       return {
         success: true,
         message: 'Booking canceled successfully',

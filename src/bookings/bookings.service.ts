@@ -46,7 +46,7 @@ export class BookingsService {
           serviceId: data.serviceId,
           staffId: selectedStaffId,
           time: new Date(data.time),
-          status: 'PENDING',
+          status: 'CONFIRMED',
           notes: data.notes,
         },
         include: {
@@ -106,9 +106,7 @@ export class BookingsService {
           time: {
             gte: now,
           },
-          status: {
-            in: ['PENDING', 'CONFIRMED'],
-          },
+          status: 'CONFIRMED',
         },
         include: {
           service: true,
@@ -245,8 +243,56 @@ export class BookingsService {
         },
       });
 
-      console.log('✅ Owner bookings fetched successfully:', bookings.length);
-      return bookings;
+      // Update status to PASSED for past bookings
+      const now = new Date();
+      const updatedBookings: any[] = [];
+      
+      for (const booking of bookings) {
+        if (booking.status === 'CONFIRMED' && booking.time < now) {
+          // Update booking status to PASSED
+          const updatedBooking = await this.prisma.booking.update({
+            where: { id: booking.id },
+            data: { status: 'PASSED' as any },
+            include: {
+              service: {
+                select: {
+                  id: true,
+                  name: true,
+                  duration: true,
+                  price: true,
+                },
+              },
+              staff: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                },
+              },
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                  phone: true,
+                },
+              },
+              salon: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          });
+          updatedBookings.push(updatedBooking);
+        } else {
+          updatedBookings.push(booking);
+        }
+      }
+
+      console.log('✅ Owner bookings fetched successfully:', updatedBookings.length);
+      return updatedBookings;
     } catch (error) {
       console.error('❌ Error fetching owner bookings:', error.message);
       throw error;
@@ -399,18 +445,42 @@ export class BookingsService {
 
   async cancelBooking(bookingId: string, userId: string) {
     try {
-      // Check if booking exists and belongs to user
+      console.log('🚫 Cancelling booking:', { bookingId, userId });
+
+      // Check if booking exists
       const booking = await this.prisma.booking.findFirst({
         where: {
           id: bookingId,
-          userId: userId,
+        },
+        include: {
+          salon: true,
+          user: true,
         },
       });
 
       if (!booking) {
-        throw new Error(
-          'Booking not found or you do not have permission to cancel it',
-        );
+        console.log('❌ Booking not found:', bookingId);
+        throw new Error('Booking not found');
+      }
+
+      console.log('📅 Found booking:', {
+        bookingId: booking.id,
+        clientId: booking.userId,
+        salonOwnerId: booking.salon.ownerId,
+        currentUserId: userId,
+        salonId: booking.salonId,
+        salonName: booking.salon.name,
+      });
+
+      // Check if user has permission to cancel (either the client or salon owner)
+      const isClient = booking.userId === userId;
+      const isOwner = booking.salon.ownerId === userId;
+
+      console.log('🔐 Permission check:', { isClient, isOwner });
+
+      if (!isClient && !isOwner) {
+        console.log('❌ No permission to cancel booking');
+        throw new Error('You do not have permission to cancel this booking');
       }
 
       // Check if booking can be canceled (not already canceled or past)
@@ -418,6 +488,11 @@ export class BookingsService {
         throw new Error('Booking is already canceled');
       }
 
+      if (booking.status === 'PASSED' as any) {
+        throw new Error('Cannot cancel a booking that has already passed');
+      }
+
+      // Check if booking time has passed
       const now = new Date();
       if (booking.time < now) {
         throw new Error('Cannot cancel a booking that has already passed');

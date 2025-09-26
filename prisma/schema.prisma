@@ -97,7 +97,7 @@ model Booking {
   staff     Staff?         @relation(fields: [staffId], references: [id])
   staffId   String?
   time      DateTime
-  status    BookingStatus  @default(PENDING)
+  status    BookingStatus  @default(CONFIRMED)
   notes     String?
   createdAt DateTime       @default(now())
   reviews   Review[]       @relation("BookingReviews")
@@ -158,14 +158,13 @@ model SmsUsage {
 }
 
 enum BookingStatus {
-  PENDING
   CONFIRMED
   CANCELED
+  PASSED
 }
 
 enum SubscriptionType {
   BASIC
-  PREMIUM
   ENTERPRISE
 }
 
