@@ -12,6 +12,7 @@ export class AuthService {
     email: string;
     name?: string;
     phone?: string;
+    role?: string;
   }) {
     try {
       // Проверяем, существует ли пользователь в нашей базе данных
@@ -30,7 +31,7 @@ export class AuthService {
           email: data.email,
           name: data.name,
           phone: data.phone,
-          role: 'OWNER',
+          role: (data.role as 'OWNER' | 'CLIENT' | 'ADMIN') || 'CLIENT',
         },
       });
 
@@ -199,13 +200,41 @@ export class AuthService {
 
       // Get user data from our database
       console.log('🔍 Looking up user in database...');
-      const dbUser = await this.prisma.user.findUnique({
+      let dbUser = await this.prisma.user.findUnique({
         where: { id: user.id },
       });
 
+      // Если пользователь не найден в базе данных, но существует в Supabase Auth,
+      // создаем его автоматически с ролью из метаданных или CLIENT по умолчанию
       if (!dbUser) {
-        console.error('❌ User not found in database:', user.id);
-        throw new Error('User not found in database');
+        console.log('⚠️ User not found in database, creating automatically...');
+        try {
+          // Определяем роль из метаданных пользователя
+          const userRole = user.user_metadata?.role || 'CLIENT';
+
+          dbUser = await this.prisma.user.create({
+            data: {
+              id: user.id,
+              email: user.email || '',
+              name:
+                user.user_metadata?.name ||
+                user.user_metadata?.full_name ||
+                null,
+              phone: user.user_metadata?.phone || null,
+              role: userRole as 'CLIENT' | 'OWNER' | 'ADMIN',
+            },
+          });
+          console.log(
+            `✅ User created automatically in database with role ${userRole}:`,
+            dbUser.id,
+          );
+        } catch (createError) {
+          console.error(
+            '❌ Failed to create user in database:',
+            createError.message,
+          );
+          throw new Error('Failed to create user in database');
+        }
       }
 
       console.log('✅ User found in database:', dbUser.id, dbUser.email);
@@ -248,6 +277,82 @@ export class AuthService {
       return updatedUser;
     } catch (error) {
       throw new Error(`Failed to update user profile: ${error.message}`);
+    }
+  }
+
+  async getUserRole(userId: string) {
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true },
+      });
+
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      return user.role;
+    } catch (error) {
+      throw new Error(`Failed to get user role: ${error.message}`);
+    }
+  }
+
+  async updateUserRole(userId: string, role: 'CLIENT' | 'OWNER' | 'ADMIN') {
+    try {
+      const updatedUser = await this.prisma.user.update({
+        where: { id: userId },
+        data: { role },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          phone: true,
+          role: true,
+        },
+      });
+
+      return updatedUser;
+    } catch (error) {
+      throw new Error(`Failed to update user role: ${error.message}`);
+    }
+  }
+
+  async syncUserFromSupabase(supabaseUserId: string) {
+    try {
+      // Получаем данные пользователя из Supabase Auth
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.admin.getUserById(supabaseUserId);
+
+      if (error || !user) {
+        throw new Error('User not found in Supabase Auth');
+      }
+
+      // Проверяем, существует ли пользователь в нашей базе данных
+      const existingUser = await this.prisma.user.findUnique({
+        where: { id: user.id },
+      });
+
+      if (existingUser) {
+        return existingUser;
+      }
+
+      // Создаем пользователя в нашей базе данных
+      const newUser = await this.prisma.user.create({
+        data: {
+          id: user.id,
+          email: user.email || '',
+          name:
+            user.user_metadata?.name || user.user_metadata?.full_name || null,
+          phone: user.user_metadata?.phone || null,
+          role: 'CLIENT', // По умолчанию CLIENT
+        },
+      });
+
+      return newUser;
+    } catch (error) {
+      throw new Error(`Failed to sync user: ${error.message}`);
     }
   }
 }
