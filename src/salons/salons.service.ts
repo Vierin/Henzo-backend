@@ -25,6 +25,14 @@ export class SalonsService {
     });
   }
 
+  async getSalonCategories() {
+    return this.prisma.salonCategory.findMany({
+      orderBy: {
+        id: 'asc',
+      },
+    });
+  }
+
   async getCurrentUserSalon(userId: string) {
     const salon = await this.prisma.salon.findFirst({
       where: {
@@ -33,6 +41,7 @@ export class SalonsService {
       include: {
         services: true,
         staff: true,
+        salonCategories: true,
         owner: {
           select: {
             id: true,
@@ -51,14 +60,22 @@ export class SalonsService {
       console.log('🔧 Creating salon for user:', userId);
       console.log('📋 Salon data:', JSON.stringify(createSalonDto, null, 2));
 
+      const { salonCategories, ...salonData } = createSalonDto;
+
       const salon = await this.prisma.salon.create({
         data: {
-          ...createSalonDto,
+          ...salonData,
           ownerId: userId,
+          salonCategories: salonCategories
+            ? {
+                connect: salonCategories.map((id) => ({ id })),
+              }
+            : undefined,
         },
         include: {
           services: true,
           staff: true,
+          salonCategories: true,
           owner: {
             select: {
               id: true,
@@ -86,12 +103,22 @@ export class SalonsService {
       throw new Error('Salon not found');
     }
 
+    const { salonCategories, ...salonData } = updateSalonDto;
+
     const updatedSalon = await this.prisma.salon.update({
       where: { id: existingSalon.id },
-      data: updateSalonDto,
+      data: {
+        ...salonData,
+        salonCategories: salonCategories
+          ? {
+              set: salonCategories.map((id) => ({ id })),
+            }
+          : undefined,
+      },
       include: {
         services: true,
         staff: true,
+        salonCategories: true,
         owner: {
           select: {
             id: true,

@@ -21,18 +21,19 @@ model User {
 }
 
 model Salon {
-  id            String    @id @default(cuid())
+  id            String         @id @default(cuid())
   name          String
-  description   String?   // Salon description
+  description   String?        // Salon description
   address       String?
   phone         String?
-  email         String?   // Salon email
-  website       String?   // Salon website URL
-  instagram     String?   // Instagram handle
-  logo          String?   // Supabase file path to salon logo
-  photos        String[]  // Array of Supabase file paths to salon photos (max 3)
-  workingHours  Json?     // Store working hours as JSON
-  owner         User      @relation("UserSalons", fields: [ownerId], references: [id])
+  email         String?        // Salon email
+  website       String?        // Salon website URL
+  instagram     String?        // Instagram handle
+  logo          String?        // Supabase file path to salon logo
+  photos        String[]       // Array of Supabase file paths to salon photos (max 3)
+  workingHours  Json?          // Store working hours as JSON
+  salonCategories SalonCategory[] @relation("SalonCategories") // Many-to-many with categories
+  owner         User           @relation("UserSalons", fields: [ownerId], references: [id])
   ownerId       String
   staff         Staff[]
   services      Service[]
@@ -41,7 +42,7 @@ model Salon {
   reviews       Review[]
   subscription  Subscription?
   smsUsage      SmsUsage[]
-  createdAt     DateTime  @default(now())
+  createdAt     DateTime       @default(now())
 }
 
 model Staff {
@@ -72,6 +73,13 @@ model Service {
   bookings    Booking[]
 
   @@unique([name, salonId])
+}
+
+model SalonCategory {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  salons    Salon[]  @relation("SalonCategories")
+  createdAt DateTime @default(now())
 }
 
 model Category {

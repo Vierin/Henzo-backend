@@ -24,6 +24,11 @@ export class SalonsController {
     return this.salonsService.findSalonsWithServices();
   }
 
+  @Get('categories')
+  async getSalonCategories() {
+    return this.salonsService.getSalonCategories();
+  }
+
   @Get('current')
   async getCurrentUserSalon(@Headers('authorization') authHeader: string) {
     const currentUser = await this.authService.getCurrentUser(authHeader);

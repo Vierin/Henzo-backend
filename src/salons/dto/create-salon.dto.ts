@@ -1,4 +1,11 @@
-import { IsOptional, IsString, IsEmail, IsUrl, IsArray } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsEmail,
+  IsUrl,
+  IsArray,
+  IsInt,
+} from 'class-validator';
 import { InputJsonValue } from '@prisma/client/runtime/library';
 
 export class CreateSalonDto {
@@ -40,4 +47,9 @@ export class CreateSalonDto {
 
   @IsOptional()
   workingHours?: InputJsonValue;
+
+  @IsOptional()
+  @IsArray()
+  @IsInt({ each: true })
+  salonCategories?: number[];
 }
