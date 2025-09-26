@@ -86,4 +86,47 @@ export class ServicesService {
       where: { id },
     });
   }
+
+  async searchServices(query: string) {
+    if (!query || query.trim().length < 3) {
+      return [];
+    }
+
+    return this.prisma.service.findMany({
+      where: {
+        OR: [
+          {
+            name: {
+              contains: query,
+              mode: 'insensitive',
+            },
+          },
+          {
+            category: {
+              name: {
+                contains: query,
+                mode: 'insensitive',
+              },
+            },
+          },
+        ],
+      },
+      include: {
+        category: {
+          select: {
+            name: true,
+          },
+        },
+        salon: {
+          select: {
+            name: true,
+          },
+        },
+      },
+      orderBy: {
+        name: 'asc',
+      },
+      take: 10, // Limit to 10 results
+    });
+  }
 }

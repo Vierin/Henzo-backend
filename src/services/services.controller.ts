@@ -29,6 +29,31 @@ export class ServicesController {
     return this.servicesService.findAllPublic();
   }
 
+  @Get('search')
+  async searchServices(@Query('q') query: string) {
+    if (!query || query.trim().length < 3) {
+      return {
+        success: true,
+        data: [],
+      };
+    }
+
+    try {
+      const results = await this.servicesService.searchServices(query);
+      return {
+        success: true,
+        data: results,
+      };
+    } catch (error) {
+      console.error('❌ Service search error:', error);
+      return {
+        success: false,
+        error: 'Failed to search services',
+        data: [],
+      };
+    }
+  }
+
   @Get(':id')
   async getServiceById(@Param('id') id: string) {
     return this.servicesService.findById(id);
