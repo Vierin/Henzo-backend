@@ -144,6 +144,42 @@ export class BookingsController {
     }
   }
 
+  @Get('owner')
+  async getOwnerBookings(@Headers('authorization') authHeader: string) {
+    try {
+      console.log('📅 Fetching owner bookings:', {
+        hasAuthHeader: !!authHeader,
+      });
+
+      const currentUser = await this.authService.getCurrentUser(authHeader);
+      console.log(
+        '✅ User authenticated for fetching owner bookings:',
+        currentUser.user.email,
+      );
+
+      // Проверяем, что пользователь является владельцем
+      if (currentUser.user.role !== 'OWNER') {
+        throw new HttpException(
+          'Access denied. Only salon owners can access this endpoint.',
+          HttpStatus.FORBIDDEN,
+        );
+      }
+
+      const bookings = await this.bookingsService.getOwnerBookings(
+        currentUser.user.id,
+      );
+
+      console.log('✅ Owner bookings fetched successfully:', bookings.length);
+      return bookings;
+    } catch (error) {
+      console.error('❌ Fetch owner bookings failed:', error.message);
+      throw new HttpException(
+        error.message || 'Failed to fetch owner bookings',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
   @Put(':id/cancel')
   async cancelBooking(
     @Param('id') bookingId: string,

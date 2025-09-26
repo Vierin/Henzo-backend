@@ -180,6 +180,79 @@ export class BookingsService {
     }
   }
 
+  async getOwnerBookings(ownerId: string) {
+    try {
+      console.log('📅 Fetching bookings for owner:', ownerId);
+
+      // Сначала находим салоны, принадлежащие владельцу
+      const ownerSalons = await this.prisma.salon.findMany({
+        where: {
+          ownerId: ownerId,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (ownerSalons.length === 0) {
+        console.log('⚠️ No salons found for owner');
+        return [];
+      }
+
+      const salonIds = ownerSalons.map((salon) => salon.id);
+      console.log('🏢 Found salons for owner:', salonIds);
+
+      // Получаем все бронирования для салонов владельца
+      const bookings = await this.prisma.booking.findMany({
+        where: {
+          salonId: {
+            in: salonIds,
+          },
+        },
+        include: {
+          service: {
+            select: {
+              id: true,
+              name: true,
+              duration: true,
+              price: true,
+            },
+          },
+          staff: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true,
+            },
+          },
+          salon: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+        orderBy: {
+          time: 'desc',
+        },
+      });
+
+      console.log('✅ Owner bookings fetched successfully:', bookings.length);
+      return bookings;
+    } catch (error) {
+      console.error('❌ Error fetching owner bookings:', error.message);
+      throw error;
+    }
+  }
+
   private async findAvailableStaff(
     salonId: string,
     bookingTime: Date,
