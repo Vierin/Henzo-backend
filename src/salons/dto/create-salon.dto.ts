@@ -51,5 +51,5 @@ export class CreateSalonDto {
   @IsOptional()
   @IsArray()
   @IsInt({ each: true })
-  salonCategories?: number[];
+  categoryIds?: number[];
 }

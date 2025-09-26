@@ -25,12 +25,16 @@ export class SalonsService {
     });
   }
 
+  // Static categories - no need for database query
   async getSalonCategories() {
-    return this.prisma.salonCategory.findMany({
-      orderBy: {
-        id: 'asc',
-      },
-    });
+    return [
+      { id: 1, name: 'Hair & Barber' },
+      { id: 2, name: 'Tattoo & Piercing' },
+      { id: 3, name: 'Massage & Spa' },
+      { id: 4, name: 'Manicure & Pedicure' },
+      { id: 5, name: 'Cosmetic Medicine' },
+      { id: 6, name: 'Other Services' },
+    ];
   }
 
   async getCurrentUserSalon(userId: string) {
@@ -41,7 +45,7 @@ export class SalonsService {
       include: {
         services: true,
         staff: true,
-        salonCategories: true,
+        categoryIds: true,
         owner: {
           select: {
             id: true,
@@ -60,22 +64,18 @@ export class SalonsService {
       console.log('🔧 Creating salon for user:', userId);
       console.log('📋 Salon data:', JSON.stringify(createSalonDto, null, 2));
 
-      const { salonCategories, ...salonData } = createSalonDto;
+      const { categoryIds, ...salonData } = createSalonDto;
 
       const salon = await this.prisma.salon.create({
         data: {
           ...salonData,
           ownerId: userId,
-          salonCategories: salonCategories
-            ? {
-                connect: salonCategories.map((id) => ({ id })),
-              }
-            : undefined,
+          categoryIds: categoryIds || [],
         },
         include: {
           services: true,
           staff: true,
-          salonCategories: true,
+          categoryIds: true,
           owner: {
             select: {
               id: true,
@@ -103,22 +103,18 @@ export class SalonsService {
       throw new Error('Salon not found');
     }
 
-    const { salonCategories, ...salonData } = updateSalonDto;
+    const { categoryIds, ...salonData } = updateSalonDto;
 
     const updatedSalon = await this.prisma.salon.update({
       where: { id: existingSalon.id },
       data: {
         ...salonData,
-        salonCategories: salonCategories
-          ? {
-              set: salonCategories.map((id) => ({ id })),
-            }
-          : undefined,
+        categoryIds: categoryIds || existingSalon.categoryIds,
       },
       include: {
         services: true,
         staff: true,
-        salonCategories: true,
+        categoryIds: true,
         owner: {
           select: {
             id: true,
