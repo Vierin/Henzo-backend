@@ -45,7 +45,7 @@ export class SalonsService {
       include: {
         services: true,
         staff: true,
-        categoryIds: true,
+        categories: true,
         owner: {
           select: {
             id: true,
@@ -75,7 +75,7 @@ export class SalonsService {
         include: {
           services: true,
           staff: true,
-          categoryIds: true,
+          categories: true,
           owner: {
             select: {
               id: true,
@@ -114,7 +114,7 @@ export class SalonsService {
       include: {
         services: true,
         staff: true,
-        categoryIds: true,
+        categories: true,
         owner: {
           select: {
             id: true,
