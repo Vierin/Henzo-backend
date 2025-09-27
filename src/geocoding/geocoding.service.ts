@@ -1,5 +1,19 @@
 import { Injectable } from '@nestjs/common';
 
+// Helper function to clean address from country indicators
+const cleanAddressFromCountry = (address: string): string => {
+  return address
+    .replace(/,\s*Vietnam$/i, '')
+    .replace(/,\s*Việt Nam$/i, '')
+    .replace(/,\s*VN$/i, '')
+    .replace(/,\s*Viet Nam$/i, '')
+    .replace(/\s*Vietnam$/i, '')
+    .replace(/\s*Việt Nam$/i, '')
+    .replace(/\s*VN$/i, '')
+    .replace(/\s*Viet Nam$/i, '')
+    .trim();
+};
+
 @Injectable()
 export class GeocodingService {
   async geocodeAddress(
@@ -37,26 +51,7 @@ export class GeocodingService {
           const result = data[0];
 
           // Remove country name from the end of the address
-          let cleanAddress = result.display_name;
-
-          // Remove various Vietnam country indicators
-          cleanAddress = cleanAddress
-            .replace(/,\s*Vietnam$/i, '')
-            .replace(/,\s*Việt Nam$/i, '')
-            .replace(/,\s*VN$/i, '')
-            .replace(/,\s*Viet Nam$/i, '')
-            .replace(/\s*Vietnam$/i, '')
-            .replace(/\s*Việt Nam$/i, '')
-            .replace(/\s*VN$/i, '')
-            .replace(/\s*Viet Nam$/i, '')
-            .trim();
-
-          console.log('✅ Geocoding successful:', {
-            lat: result.lat,
-            lon: result.lon,
-            display_name: cleanAddress,
-            searchVariant: i + 1,
-          });
+          const cleanAddress = cleanAddressFromCountry(result.display_name);
 
           return {
             lat: parseFloat(result.lat),
