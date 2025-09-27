@@ -8,7 +8,7 @@ export class GeocodingService {
     try {
       console.log('🔍 Geocoding address:', address);
 
-      const nominatimUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1&addressdetails=1`;
+      const nominatimUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1&addressdetails=1&countrycodes=vn`;
 
       const response = await fetch(nominatimUrl, {
         method: 'GET',
