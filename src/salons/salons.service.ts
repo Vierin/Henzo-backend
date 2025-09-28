@@ -85,7 +85,9 @@ export class SalonsService {
         data: {
           ...salonData,
           ownerId: userId,
-          categoryIds: categoryIds || [],
+          categoryIds: categoryIds
+            ? categoryIds.map((id) => id.toString())
+            : [],
         } as any,
         include: {
           services: true,
@@ -131,7 +133,9 @@ export class SalonsService {
       where: { id: existingSalon.id },
       data: {
         ...salonData,
-        categoryIds: categoryIds || (existingSalon as any).categoryIds,
+        categoryIds: categoryIds
+          ? categoryIds.map((id) => id.toString())
+          : (existingSalon as any).categoryIds,
       } as any,
       include: {
         services: true,
