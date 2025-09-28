@@ -38,6 +38,7 @@ export class SalonsService {
   }
 
   async getCurrentUserSalon(userId: string) {
+    console.log('🔍 Looking for salon for user:', userId);
     const salon = await this.prisma.salon.findFirst({
       where: {
         ownerId: userId,
@@ -56,6 +57,7 @@ export class SalonsService {
       },
     });
 
+    console.log('🔍 Salon found:', salon ? `ID: ${salon.id}` : 'None');
     return salon;
   }
 

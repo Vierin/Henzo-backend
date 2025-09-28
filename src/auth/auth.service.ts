@@ -209,8 +209,9 @@ export class AuthService {
       if (!dbUser) {
         console.log('⚠️ User not found in database, creating automatically...');
         try {
-          // Определяем роль из метаданных пользователя
-          const userRole = user.user_metadata?.role || 'CLIENT';
+          // Всегда создаем пользователя с ролью CLIENT по умолчанию
+          // Роль будет обновлена через PATCH запрос из frontend
+          const userRole = 'CLIENT';
 
           dbUser = await this.prisma.user.create({
             data: {

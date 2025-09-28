@@ -3,6 +3,7 @@ import {
   Post,
   Get,
   Put,
+  Patch,
   Body,
   Headers,
   HttpException,
@@ -128,6 +129,33 @@ export class AuthController {
       console.error('❌ Get user role failed:', error.message);
       throw new HttpException(
         error.message || 'Failed to get user role',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Patch('user-role')
+  async updateOwnRole(
+    @Body() data: { role: 'CLIENT' | 'OWNER' | 'ADMIN' },
+    @Headers('authorization') authHeader: string,
+  ) {
+    try {
+      // Получаем текущего пользователя
+      const currentUser = await this.authService.getCurrentUser(authHeader);
+
+      // Пользователь может обновить только свою роль
+      const updatedUser = await this.authService.updateUserRole(
+        currentUser.user.id,
+        data.role,
+      );
+      return {
+        success: true,
+        user: updatedUser,
+      };
+    } catch (error) {
+      console.error('❌ Update own role failed:', error.message);
+      throw new HttpException(
+        error.message || 'Failed to update role',
         HttpStatus.BAD_REQUEST,
       );
     }
