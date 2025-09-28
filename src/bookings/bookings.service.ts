@@ -243,16 +243,16 @@ export class BookingsService {
         },
       });
 
-      // Update status to PASSED for past bookings
+      // Update status to COMPLETED for past bookings
       const now = new Date();
       const updatedBookings: any[] = [];
-      
+
       for (const booking of bookings) {
         if (booking.status === 'CONFIRMED' && booking.time < now) {
-          // Update booking status to PASSED
+          // Update booking status to COMPLETED
           const updatedBooking = await this.prisma.booking.update({
             where: { id: booking.id },
-            data: { status: 'PASSED' as any },
+            data: { status: 'COMPLETED' as any },
             include: {
               service: {
                 select: {
@@ -291,7 +291,6 @@ export class BookingsService {
         }
       }
 
-      console.log('✅ Owner bookings fetched successfully:', updatedBookings.length);
       return updatedBookings;
     } catch (error) {
       console.error('❌ Error fetching owner bookings:', error.message);
@@ -488,8 +487,8 @@ export class BookingsService {
         throw new Error('Booking is already canceled');
       }
 
-      if (booking.status === 'PASSED' as any) {
-        throw new Error('Cannot cancel a booking that has already passed');
+      if (booking.status === ('COMPLETED' as any)) {
+        throw new Error('Cannot cancel a booking that has already completed');
       }
 
       // Check if booking time has passed
@@ -516,6 +515,168 @@ export class BookingsService {
 
       return updatedBooking;
     } catch (error) {
+      throw error;
+    }
+  }
+
+  async updateBooking(
+    bookingId: string,
+    data: {
+      serviceId?: string;
+      staffId?: string;
+      time?: string;
+      notes?: string;
+    },
+    ownerId: string,
+  ) {
+    try {
+      console.log('📝 Updating booking:', { bookingId, data, ownerId });
+
+      // First, verify that the booking belongs to one of the owner's salons
+      const existingBooking = await this.prisma.booking.findFirst({
+        where: { id: bookingId },
+        include: {
+          salon: true,
+          service: true,
+          staff: true,
+        },
+      });
+
+      if (!existingBooking) {
+        throw new Error('Booking not found');
+      }
+
+      if (existingBooking.salon.ownerId !== ownerId) {
+        throw new Error(
+          'Access denied. This booking does not belong to your salon.',
+        );
+      }
+
+      // Prepare update data
+      const updateData: any = {};
+
+      if (data.serviceId) {
+        // Validate that the service exists and belongs to the same salon
+        const service = await this.prisma.service.findFirst({
+          where: {
+            id: data.serviceId,
+            salonId: existingBooking.salonId,
+          },
+        });
+
+        if (!service) {
+          throw new Error('Service not found or does not belong to this salon');
+        }
+
+        updateData.serviceId = data.serviceId;
+      }
+
+      if (data.staffId) {
+        // Validate that the staff member exists and belongs to the same salon
+        const staff = await this.prisma.staff.findFirst({
+          where: {
+            id: data.staffId,
+            salonId: existingBooking.salonId,
+          },
+        });
+
+        if (!staff) {
+          throw new Error(
+            'Staff member not found or does not belong to this salon',
+          );
+        }
+
+        updateData.staffId = data.staffId;
+      }
+
+      if (data.time) {
+        updateData.time = new Date(data.time);
+      }
+
+      if (data.notes !== undefined) {
+        updateData.notes = data.notes;
+      }
+
+      // Update the booking
+      const updatedBooking = await this.prisma.booking.update({
+        where: { id: bookingId },
+        data: updateData,
+        include: {
+          service: {
+            select: {
+              id: true,
+              name: true,
+              duration: true,
+              price: true,
+            },
+          },
+          staff: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true,
+            },
+          },
+          salon: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      });
+
+      console.log('✅ Booking updated successfully:', updatedBooking.id);
+      return updatedBooking;
+    } catch (error) {
+      console.error('❌ Update booking error:', error);
+      throw error;
+    }
+  }
+
+  async updateBookingsToCompleted(bookingIds: string[], ownerId: string) {
+    try {
+      console.log('🔄 Updating bookings to completed:', {
+        bookingIds,
+        ownerId,
+      });
+
+      // Verify that all bookings belong to the owner's salons
+      const ownerSalons = await this.prisma.salon.findMany({
+        where: { ownerId },
+        select: { id: true },
+      });
+
+      const salonIds = ownerSalons.map((salon) => salon.id);
+
+      // Update bookings to COMPLETED status
+      const result = await this.prisma.booking.updateMany({
+        where: {
+          id: {
+            in: bookingIds,
+          },
+          salonId: {
+            in: salonIds,
+          },
+          status: 'CONFIRMED', // Only update confirmed bookings
+        },
+        data: {
+          status: 'COMPLETED' as any,
+        },
+      });
+
+      console.log('✅ Updated bookings to completed:', result.count);
+      return { count: result.count };
+    } catch (error) {
+      console.error('❌ Update bookings to completed error:', error);
       throw error;
     }
   }

@@ -212,4 +212,105 @@ export class BookingsController {
       );
     }
   }
+
+  @Put(':id')
+  async updateBooking(
+    @Param('id') bookingId: string,
+    @Body()
+    data: {
+      serviceId?: string;
+      staffId?: string;
+      time?: string;
+      notes?: string;
+    },
+    @Headers('authorization') authHeader: string,
+  ) {
+    try {
+      console.log('📝 Update booking request:', {
+        bookingId,
+        data,
+        hasAuthHeader: !!authHeader,
+      });
+
+      const currentUser = await this.authService.getCurrentUser(authHeader);
+      console.log(
+        '✅ User authenticated for update booking:',
+        currentUser.user.email,
+      );
+
+      // Проверяем, что пользователь является владельцем
+      if (currentUser.user.role !== 'OWNER') {
+        throw new HttpException(
+          'Access denied. Only salon owners can update bookings.',
+          HttpStatus.FORBIDDEN,
+        );
+      }
+
+      const updatedBooking = await this.bookingsService.updateBooking(
+        bookingId,
+        data,
+        currentUser.user.id,
+      );
+
+      console.log('✅ Booking updated successfully:', bookingId);
+      return {
+        success: true,
+        booking: updatedBooking,
+      };
+    } catch (error) {
+      console.error('❌ Update booking failed:', error.message);
+      throw new HttpException(
+        error.message || 'Failed to update booking',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Put('update-completed')
+  async updateCompletedBookings(
+    @Body() data: { bookingIds: string[] },
+    @Headers('authorization') authHeader: string,
+  ) {
+    try {
+      console.log('✅ Update completed bookings request:', {
+        bookingIds: data.bookingIds,
+        hasAuthHeader: !!authHeader,
+      });
+
+      const currentUser = await this.authService.getCurrentUser(authHeader);
+      console.log(
+        '✅ User authenticated for update completed:',
+        currentUser.user.email,
+      );
+
+      // Проверяем, что пользователь является владельцем
+      if (currentUser.user.role !== 'OWNER') {
+        throw new HttpException(
+          'Access denied. Only salon owners can access this endpoint.',
+          HttpStatus.FORBIDDEN,
+        );
+      }
+
+      const result = await this.bookingsService.updateBookingsToCompleted(
+        data.bookingIds,
+        currentUser.user.id,
+      );
+
+      console.log(
+        '✅ Bookings updated to completed successfully:',
+        result.count,
+      );
+      return {
+        success: true,
+        message: `${result.count} bookings updated to completed`,
+        updatedCount: result.count,
+      };
+    } catch (error) {
+      console.error('❌ Update completed bookings failed:', error.message);
+      throw new HttpException(
+        error.message || 'Failed to update completed bookings',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
 }

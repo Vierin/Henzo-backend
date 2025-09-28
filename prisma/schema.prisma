@@ -162,7 +162,7 @@ model SmsUsage {
 enum BookingStatus {
   CONFIRMED
   CANCELED
-  PASSED
+  COMPLETED
 }
 
 enum SubscriptionType {

@@ -64,10 +64,6 @@ export class SalonsService {
         (salon as any).categoryIds.includes(cat.id),
       );
 
-      console.log('🔍 Salon categoryIds:', (salon as any).categoryIds);
-      console.log('🔍 Static categories:', staticCategories);
-      console.log('🔍 Filtered salon categories:', salonCategories);
-
       // Add categories to salon object
       (salon as any).categories = salonCategories;
     }
@@ -76,18 +72,13 @@ export class SalonsService {
 
   async createCurrentUserSalon(createSalonDto: CreateSalonDto, userId: string) {
     try {
-      console.log('🔧 Creating salon for user:', userId);
-      console.log('📋 Salon data:', JSON.stringify(createSalonDto, null, 2));
-
       const { categoryIds, ...salonData } = createSalonDto;
 
       const salon = await this.prisma.salon.create({
         data: {
           ...salonData,
           ownerId: userId,
-          categoryIds: categoryIds
-            ? categoryIds.map((id) => id.toString())
-            : [],
+          categoryIds: categoryIds || [],
         } as any,
         include: {
           services: true,
@@ -101,8 +92,6 @@ export class SalonsService {
           },
         },
       });
-
-      console.log('✅ Salon created in database:', salon.id);
 
       // Add categories to salon object
       const staticCategories = this.getSalonCategories();
@@ -133,9 +122,7 @@ export class SalonsService {
       where: { id: existingSalon.id },
       data: {
         ...salonData,
-        categoryIds: categoryIds
-          ? categoryIds.map((id) => id.toString())
-          : (existingSalon as any).categoryIds,
+        categoryIds: categoryIds || (existingSalon as any).categoryIds,
       } as any,
       include: {
         services: true,

@@ -51,6 +51,6 @@ export class UpdateSalonDto {
 
   @IsOptional()
   @IsArray()
-  @IsInt({ each: true })
-  categoryIds?: number[];
+  @IsString({ each: true })
+  categoryIds?: string[];
 }
