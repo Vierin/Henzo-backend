@@ -26,14 +26,14 @@ export class SalonsService {
   }
 
   // Static categories - no need for database query
-  async getSalonCategories() {
+  getSalonCategories() {
     return [
-      { id: 1, name: 'Hair & Barber' },
-      { id: 2, name: 'Tattoo & Piercing' },
-      { id: 3, name: 'Massage & Spa' },
-      { id: 4, name: 'Manicure & Pedicure' },
-      { id: 5, name: 'Cosmetic Medicine' },
-      { id: 6, name: 'Other Services' },
+      { id: '1', name: 'Hair & Barber' },
+      { id: '2', name: 'Tattoo & Piercing' },
+      { id: '3', name: 'Massage & Spa' },
+      { id: '4', name: 'Manicure & Pedicure' },
+      { id: '5', name: 'Cosmetic Medicine' },
+      { id: '6', name: 'Other Services' },
     ];
   }
 
@@ -46,7 +46,6 @@ export class SalonsService {
       include: {
         services: true,
         staff: true,
-        categories: true,
         owner: {
           select: {
             id: true,
@@ -58,6 +57,20 @@ export class SalonsService {
     });
 
     console.log('🔍 Salon found:', salon ? `ID: ${salon.id}` : 'None');
+    if (salon) {
+      // Get static categories based on categoryIds
+      const staticCategories = this.getSalonCategories();
+      const salonCategories = staticCategories.filter((cat) =>
+        (salon as any).categoryIds.includes(cat.id),
+      );
+
+      console.log('🔍 Salon categoryIds:', (salon as any).categoryIds);
+      console.log('🔍 Static categories:', staticCategories);
+      console.log('🔍 Filtered salon categories:', salonCategories);
+
+      // Add categories to salon object
+      (salon as any).categories = salonCategories;
+    }
     return salon;
   }
 
@@ -73,11 +86,10 @@ export class SalonsService {
           ...salonData,
           ownerId: userId,
           categoryIds: categoryIds || [],
-        },
+        } as any,
         include: {
           services: true,
           staff: true,
-          categories: true,
           owner: {
             select: {
               id: true,
@@ -89,6 +101,14 @@ export class SalonsService {
       });
 
       console.log('✅ Salon created in database:', salon.id);
+
+      // Add categories to salon object
+      const staticCategories = this.getSalonCategories();
+      const salonCategories = staticCategories.filter((cat) =>
+        (salon as any).categoryIds.includes(cat.id),
+      );
+      (salon as any).categories = salonCategories;
+
       return salon;
     } catch (error) {
       console.error('❌ Database error creating salon:', error.message);
@@ -111,12 +131,11 @@ export class SalonsService {
       where: { id: existingSalon.id },
       data: {
         ...salonData,
-        categoryIds: categoryIds || existingSalon.categoryIds,
-      },
+        categoryIds: categoryIds || (existingSalon as any).categoryIds,
+      } as any,
       include: {
         services: true,
         staff: true,
-        categories: true,
         owner: {
           select: {
             id: true,
@@ -127,11 +146,18 @@ export class SalonsService {
       },
     });
 
+    // Add categories to salon object
+    const staticCategories = this.getSalonCategories();
+    const salonCategories = staticCategories.filter((cat) =>
+      (updatedSalon as any).categoryIds.includes(cat.id),
+    );
+    (updatedSalon as any).categories = salonCategories;
+
     return updatedSalon; // Возвращаем салон напрямую
   }
 
   async findById(id: string) {
-    return this.prisma.salon.findUnique({
+    const salon = await this.prisma.salon.findUnique({
       where: { id },
       include: {
         services: true,
@@ -145,5 +171,16 @@ export class SalonsService {
         },
       },
     });
+
+    if (salon) {
+      // Add categories to salon object
+      const staticCategories = this.getSalonCategories();
+      const salonCategories = staticCategories.filter((cat) =>
+        (salon as any).categoryIds.includes(cat.id),
+      );
+      (salon as any).categories = salonCategories;
+    }
+
+    return salon;
   }
 }
