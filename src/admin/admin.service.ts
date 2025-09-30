@@ -5,39 +5,86 @@ import { PrismaService } from '../prisma/prisma.service';
 export class AdminService {
   constructor(private prisma: PrismaService) {}
 
-  async getDashboardStats() {
+  async getDashboardStats(period: string = '30d') {
     try {
+      // Calculate date range based on period
+      const getDateRange = (period: string) => {
+        const now = new Date();
+        const startDate = new Date();
+
+        switch (period) {
+          case '7d':
+            startDate.setDate(now.getDate() - 7);
+            break;
+          case '30d':
+            startDate.setDate(now.getDate() - 30);
+            break;
+          case '3m':
+            startDate.setMonth(now.getMonth() - 3);
+            break;
+          case '1y':
+            startDate.setFullYear(now.getFullYear() - 1);
+            break;
+          default:
+            startDate.setDate(now.getDate() - 30);
+        }
+
+        return { startDate, endDate: now };
+      };
+
+      const { startDate, endDate } = getDateRange(period);
+
       // Get total salons
       const totalSalons = await this.prisma.salon.count();
 
-      // Get new salons (created in last 30 days)
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      // Get new salons (created in selected period)
       const newSalons = await this.prisma.salon.count({
         where: {
           createdAt: {
-            gte: thirtyDaysAgo,
+            gte: startDate,
+            lte: endDate,
           },
         },
       });
 
-      // Get total bookings in last 30 days
+      // Get total bookings in selected period
       const totalBookings = await this.prisma.booking.count({
         where: {
           createdAt: {
-            gte: thirtyDaysAgo,
+            gte: startDate,
+            lte: endDate,
           },
         },
       });
 
-      // Get bookings from 30 days before that for comparison
-      const sixtyDaysAgo = new Date();
-      sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+      // Get bookings from previous period for comparison
+      const previousPeriodStart = new Date(startDate);
+      const previousPeriodEnd = new Date(startDate);
+
+      switch (period) {
+        case '7d':
+          previousPeriodStart.setDate(startDate.getDate() - 7);
+          previousPeriodEnd.setDate(startDate.getDate() - 1);
+          break;
+        case '30d':
+          previousPeriodStart.setDate(startDate.getDate() - 30);
+          previousPeriodEnd.setDate(startDate.getDate() - 1);
+          break;
+        case '3m':
+          previousPeriodStart.setMonth(startDate.getMonth() - 3);
+          previousPeriodEnd.setMonth(startDate.getMonth() - 1);
+          break;
+        case '1y':
+          previousPeriodStart.setFullYear(startDate.getFullYear() - 1);
+          previousPeriodEnd.setMonth(startDate.getMonth() - 1);
+          break;
+      }
+
       const previousPeriodBookings = await this.prisma.booking.count({
         where: {
           createdAt: {
-            gte: sixtyDaysAgo,
-            lt: thirtyDaysAgo,
+            gte: previousPeriodStart,
+            lte: previousPeriodEnd,
           },
         },
       });
@@ -52,24 +99,55 @@ export class AdminService {
             )
           : 0;
 
-      // Get booking trends for the last 6 months
-      const sixMonthsAgo = new Date();
-      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-
-      const bookingTrends = await this.prisma.booking.groupBy({
-        by: ['createdAt'],
+      // Get booking trends for the selected period
+      const allBookings = await this.prisma.booking.findMany({
         where: {
           createdAt: {
-            gte: sixMonthsAgo,
+            gte: startDate,
+            lte: endDate,
           },
         },
-        _count: {
-          id: true,
+        select: {
+          createdAt: true,
         },
         orderBy: {
           createdAt: 'asc',
         },
       });
+
+      // Group bookings based on period
+      let groupedData = new Map();
+
+      if (period === '7d') {
+        // Group by day
+        allBookings.forEach((booking) => {
+          const dayKey = booking.createdAt.toISOString().substring(0, 10); // YYYY-MM-DD format
+          groupedData.set(dayKey, (groupedData.get(dayKey) || 0) + 1);
+        });
+      } else if (period === '30d') {
+        // Group by week
+        allBookings.forEach((booking) => {
+          const date = new Date(booking.createdAt);
+          const weekStart = new Date(date);
+          weekStart.setDate(date.getDate() - date.getDay()); // Start of week (Sunday)
+          const weekKey = weekStart.toISOString().substring(0, 10);
+          groupedData.set(weekKey, (groupedData.get(weekKey) || 0) + 1);
+        });
+      } else {
+        // Group by month for 3m and 1y
+        allBookings.forEach((booking) => {
+          const monthKey = booking.createdAt.toISOString().substring(0, 7); // YYYY-MM format
+          groupedData.set(monthKey, (groupedData.get(monthKey) || 0) + 1);
+        });
+      }
+
+      // Convert to array format expected by frontend
+      const bookingTrends = Array.from(groupedData.entries()).map(
+        ([key, count]) => ({
+          date: period === '7d' || period === '30d' ? key : `${key}-01`,
+          count,
+        }),
+      );
 
       // Get SMS usage (mock data for now)
       const smsSent = 500;
@@ -116,18 +194,20 @@ export class AdminService {
         },
       ];
 
+      // Get deleted salons (assuming we track deletion with a deletedAt field)
+      // For now, we'll use mock data since we don't have deletion tracking
+      const deletedSalons = Math.floor(newSalons * 0.1); // Mock: ~10% of new salons delete their accounts
+
       return {
         overview: {
           newSalons,
           totalSalons,
+          deletedSalons,
         },
         bookingStats: {
           totalBookings,
           changePercent: bookingChange,
-          trends: bookingTrends.map((trend) => ({
-            date: trend.createdAt,
-            count: trend._count.id,
-          })),
+          trends: bookingTrends,
         },
         subscriptions,
         smsUsage: {

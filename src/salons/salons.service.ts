@@ -74,33 +74,59 @@ export class SalonsService {
     try {
       const { categoryIds, ...salonData } = createSalonDto;
 
-      const salon = await this.prisma.salon.create({
-        data: {
-          ...salonData,
-          ownerId: userId,
-          categoryIds: categoryIds || [],
-        } as any,
-        include: {
-          services: true,
-          staff: true,
-          owner: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
+      // Create salon and subscription in a transaction
+      const result = await this.prisma.$transaction(async (prisma) => {
+        // Create the salon
+        const salon = await prisma.salon.create({
+          data: {
+            ...salonData,
+            ownerId: userId,
+            categoryIds: categoryIds || [],
+          } as any,
+          include: {
+            services: true,
+            staff: true,
+            owner: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
             },
           },
-        },
+        });
+
+        // Create freemium subscription for the new salon
+        const now = new Date();
+        const oneYearFromNow = new Date();
+        oneYearFromNow.setFullYear(now.getFullYear() + 1);
+
+        await prisma.subscription.create({
+          data: {
+            salonId: salon.id,
+            type: 'FREEMIUM' as any,
+            status: 'ACTIVE' as any,
+            startDate: now,
+            endDate: oneYearFromNow,
+            nextPaymentDate: oneYearFromNow, // No payment needed for freemium
+            amount: 0.0, // Free subscription
+          },
+        });
+
+        return salon;
       });
 
       // Add categories to salon object
       const staticCategories = this.getSalonCategories();
       const salonCategories = staticCategories.filter((cat) =>
-        (salon as any).categoryIds.includes(cat.id),
+        (result as any).categoryIds.includes(cat.id),
       );
-      (salon as any).categories = salonCategories;
+      (result as any).categories = salonCategories;
 
-      return salon;
+      console.log(
+        `✅ Created salon "${result.name}" with freemium subscription`,
+      );
+      return result;
     } catch (error) {
       console.error('❌ Database error creating salon:', error.message);
       throw error;

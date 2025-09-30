@@ -204,14 +204,64 @@ export class AuthService {
         where: { id: user.id },
       });
 
+      // If user not found by ID, try to find by email (for Google OAuth cases)
+      if (!dbUser && user.email) {
+        console.log('🔍 User not found by ID, trying to find by email...');
+        dbUser = await this.prisma.user.findUnique({
+          where: { email: user.email },
+        });
+        
+        if (dbUser) {
+          console.log('✅ Found existing user by email, updating ID to match Supabase Auth...');
+          const oldUserId = dbUser.id;
+          
+          // Update all related records to use the new Supabase Auth ID
+          await this.prisma.$transaction(async (prisma) => {
+            // Update salons
+            await prisma.salon.updateMany({
+              where: { ownerId: oldUserId },
+              data: { ownerId: user.id },
+            });
+            
+            // Update bookings
+            await prisma.booking.updateMany({
+              where: { userId: oldUserId },
+              data: { userId: user.id },
+            });
+            
+            // Update reviews
+            await prisma.review.updateMany({
+              where: { userId: oldUserId },
+              data: { userId: user.id },
+            });
+            
+            // Update user ID
+            await prisma.user.update({
+              where: { id: oldUserId },
+              data: { id: user.id },
+            });
+          });
+          
+          // Get updated user
+          dbUser = await this.prisma.user.findUnique({
+            where: { id: user.id },
+          });
+        }
+      }
+
       // Если пользователь не найден в базе данных, но существует в Supabase Auth,
       // создаем его автоматически с ролью из метаданных или CLIENT по умолчанию
       if (!dbUser) {
         console.log('⚠️ User not found in database, creating automatically...');
         try {
-          // Всегда создаем пользователя с ролью CLIENT по умолчанию
-          // Роль будет обновлена через PATCH запрос из frontend
-          const userRole = 'CLIENT';
+          // Проверяем, есть ли у пользователя салоны (для восстановления роли OWNER)
+          const existingSalons = await this.prisma.salon.findMany({
+            where: { ownerId: user.id }
+          });
+          
+          // Если у пользователя есть салоны, создаем его с ролью OWNER
+          // Иначе создаем с ролью CLIENT по умолчанию
+          const userRole = existingSalons.length > 0 ? 'OWNER' : 'CLIENT';
 
           dbUser = await this.prisma.user.create({
             data: {

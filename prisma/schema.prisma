@@ -166,6 +166,7 @@ enum BookingStatus {
 }
 
 enum SubscriptionType {
+  FREEMIUM
   BASIC
   ENTERPRISE
 }

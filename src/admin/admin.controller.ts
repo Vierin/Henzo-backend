@@ -4,6 +4,7 @@ import {
   Headers,
   HttpException,
   HttpStatus,
+  Query,
 } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { AuthService } from '../auth/auth.service';
@@ -16,7 +17,10 @@ export class AdminController {
   ) {}
 
   @Get('dashboard')
-  async getDashboard(@Headers('authorization') authHeader: string) {
+  async getDashboard(
+    @Headers('authorization') authHeader: string,
+    @Query('period') period?: string,
+  ) {
     try {
       const currentUser = await this.authService.getCurrentUser(authHeader);
 
@@ -24,7 +28,7 @@ export class AdminController {
         throw new HttpException('Access denied', HttpStatus.FORBIDDEN);
       }
 
-      const dashboard = await this.adminService.getDashboardStats();
+      const dashboard = await this.adminService.getDashboardStats(period || '30d');
       return dashboard;
     } catch (error) {
       throw new HttpException(
