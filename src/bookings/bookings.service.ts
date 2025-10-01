@@ -386,20 +386,21 @@ export class BookingsService {
   private async sendBookingNotifications(booking: any) {
     try {
       console.log('📧 Sending booking notifications...');
+      console.log('🔍 Booking object for email:', {
+        id: booking.id,
+        dateTime: booking.dateTime,
+        dateTimeType: typeof booking.dateTime,
+        dateTimeString: booking.dateTime?.toString(),
+        dateTimeISO: booking.dateTime?.toISOString?.(),
+      });
 
-      // Format booking data for emails
-      const bookingDate = new Date(booking.dateTime);
-      const formattedDate = bookingDate.toLocaleDateString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      });
-      const formattedTime = bookingDate.toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      });
+      // Format booking data for emails - parse UTC time without timezone conversion
+      const dateTimeString =
+        booking.dateTime?.toISOString?.() ||
+        booking.dateTime?.toString() ||
+        booking.dateTime;
+      const { formattedDate, formattedTime } =
+        this.formatBookingDateTime(dateTimeString);
 
       // Send confirmation to client
       await this.emailService.sendBookingConfirmation(
@@ -722,6 +723,114 @@ export class BookingsService {
     } catch (error) {
       console.error('❌ Error fetching bookings by date and salon:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Format booking datetime without timezone conversion
+   * This ensures that 11:00 UTC is displayed as 11:00 in emails
+   */
+  private formatBookingDateTime(dateTimeString: string) {
+    try {
+      console.log('🔍 Parsing booking datetime:', {
+        input: dateTimeString,
+        type: typeof dateTimeString,
+        includesZ: dateTimeString.includes('Z'),
+      });
+
+      // If it's a UTC string like "2024-01-15T11:00:00.000Z"
+      if (dateTimeString.includes('Z')) {
+        // Extract the date and time parts
+        const [datePart, timePart] = dateTimeString.split('T');
+        const [year, month, day] = datePart.split('-').map(Number);
+        const [time, ms] = timePart.split('.');
+        const [hours, minutes, seconds] = time.split(':').map(Number);
+
+        console.log('🔍 UTC parsing details:', {
+          datePart,
+          timePart,
+          year,
+          month,
+          day,
+          time,
+          hours,
+          minutes,
+          seconds,
+        });
+
+        // Create a local date with the same time components (no timezone conversion)
+        const localDate = new Date(
+          year,
+          month - 1,
+          day,
+          hours,
+          minutes,
+          seconds || 0,
+          0,
+        );
+
+        console.log('🔍 Created local date:', {
+          localDate: localDate.toISOString(),
+          isValid: !isNaN(localDate.getTime()),
+        });
+
+        const formattedDate = localDate.toLocaleDateString('en-US', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        });
+
+        const formattedTime = localDate.toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        });
+
+        console.log('📅 Formatted booking time:', {
+          original: dateTimeString,
+          localDate: localDate.toISOString(),
+          formattedDate,
+          formattedTime,
+        });
+
+        return { formattedDate, formattedTime };
+      }
+
+      // Fallback to regular parsing
+      console.log('🔍 Using fallback parsing for:', dateTimeString);
+      const bookingDate = new Date(dateTimeString);
+
+      console.log('🔍 Fallback date created:', {
+        bookingDate: bookingDate.toISOString(),
+        isValid: !isNaN(bookingDate.getTime()),
+      });
+
+      const formattedDate = bookingDate.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      });
+      const formattedTime = bookingDate.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      });
+
+      console.log('🔍 Fallback formatting result:', {
+        formattedDate,
+        formattedTime,
+      });
+
+      return { formattedDate, formattedTime };
+    } catch (error) {
+      console.error('❌ Error formatting booking datetime:', error);
+      // Fallback to original string
+      return {
+        formattedDate: 'Invalid Date',
+        formattedTime: 'Invalid Time',
+      };
     }
   }
 }
