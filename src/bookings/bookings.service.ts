@@ -680,4 +680,48 @@ export class BookingsService {
       throw error;
     }
   }
+
+  async getBookingsByDateAndSalon(
+    salonId: string,
+    date: string,
+    status: string = 'CONFIRMED',
+  ) {
+    try {
+      console.log('📅 Fetching bookings by date and salon:', {
+        salonId,
+        date,
+        status,
+      });
+
+      const startOfDay = new Date(date + 'T00:00:00.000Z');
+      const endOfDay = new Date(date + 'T23:59:59.999Z');
+
+      const bookings = await this.prisma.booking.findMany({
+        where: {
+          salonId,
+          status: status as any,
+          dateTime: {
+            gte: startOfDay,
+            lte: endOfDay,
+          },
+        },
+        include: {
+          service: {
+            select: {
+              duration: true,
+            },
+          },
+        },
+        orderBy: {
+          dateTime: 'asc',
+        },
+      });
+
+      console.log(`✅ Found ${bookings.length} bookings for date ${date}`);
+      return bookings;
+    } catch (error) {
+      console.error('❌ Error fetching bookings by date and salon:', error);
+      throw error;
+    }
+  }
 }

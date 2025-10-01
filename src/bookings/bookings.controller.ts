@@ -8,6 +8,7 @@ import {
   Headers,
   HttpException,
   HttpStatus,
+  Query,
 } from '@nestjs/common';
 import { BookingsService } from './bookings.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
@@ -139,6 +140,44 @@ export class BookingsController {
       console.error('❌ Fetch salon bookings failed:', error.message);
       throw new HttpException(
         error.message || 'Failed to fetch salon bookings',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Get()
+  async getBookingsByDateAndSalon(
+    @Headers('authorization') authHeader: string,
+    @Query('salonId') salonId: string,
+    @Query('date') date: string,
+    @Query('status') status: string = 'CONFIRMED',
+  ) {
+    try {
+      console.log('📅 Fetching bookings by date and salon:', {
+        hasAuthHeader: !!authHeader,
+        salonId,
+        date,
+        status,
+      });
+
+      const currentUser = await this.authService.getCurrentUser(authHeader);
+      console.log(
+        '✅ User authenticated for fetching bookings:',
+        currentUser.user.email,
+      );
+
+      const bookings = await this.bookingsService.getBookingsByDateAndSalon(
+        salonId,
+        date,
+        status,
+      );
+
+      console.log('✅ Bookings fetched successfully:', bookings.length);
+      return bookings;
+    } catch (error) {
+      console.error('❌ Fetch bookings failed:', error.message);
+      throw new HttpException(
+        error.message || 'Failed to fetch bookings',
         HttpStatus.BAD_REQUEST,
       );
     }
