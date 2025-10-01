@@ -12,6 +12,7 @@ import { GeocodingModule } from './geocoding/geocoding.module';
 import { BookingsModule } from './bookings/bookings.module';
 import { EmailModule } from './email/email.module';
 import { AdminModule } from './admin/admin.module';
+import { RemindersModule } from './reminders/reminders.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { AdminModule } from './admin/admin.module';
     BookingsModule,
     EmailModule,
     AdminModule,
+    RemindersModule,
   ],
   controllers: [AppController],
   providers: [AppService],

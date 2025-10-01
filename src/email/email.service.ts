@@ -333,6 +333,155 @@ export class EmailService {
     }
   }
 
+  async sendBookingReminder(
+    clientEmail: string,
+    clientName: string,
+    bookingData: {
+      serviceName: string;
+      date: string;
+      time: string;
+      duration: number;
+      price: number;
+      salonName: string;
+      salonAddress?: string;
+      salonPhone?: string;
+      staffName?: string;
+    },
+  ) {
+    try {
+      console.log('📧 Sending booking reminder to:', clientEmail);
+
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <title>Appointment Reminder - ${bookingData.salonName}</title>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background-color: #ff5b5b; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+            .content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+            .booking-details { background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
+            .detail-row { display: flex; justify-content: space-between; margin: 10px 0; padding: 8px 0; border-bottom: 1px solid #eee; }
+            .detail-label { font-weight: bold; color: #555; }
+            .detail-value { color: #333; }
+            .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
+            .reminder { background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 20px 0; }
+            .button { display: inline-block; background-color: #ff5b5b; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>⏰ Appointment Reminder</h1>
+              <p>Your appointment at ${bookingData.salonName} is tomorrow!</p>
+            </div>
+            
+            <div class="content">
+              <h2>Hello ${clientName}!</h2>
+              
+              <div class="reminder">
+                <h3>🔔 Don't forget!</h3>
+                <p>Your appointment is scheduled for <strong>tomorrow</strong>. We're looking forward to seeing you!</p>
+              </div>
+              
+              <div class="booking-details">
+                <h3>📅 Appointment Details</h3>
+                <div class="detail-row">
+                  <span class="detail-label">Service:</span>
+                  <span class="detail-value">${bookingData.serviceName}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Date:</span>
+                  <span class="detail-value">${bookingData.date}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Time:</span>
+                  <span class="detail-value">${bookingData.time}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Duration:</span>
+                  <span class="detail-value">${bookingData.duration} minutes</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Price:</span>
+                  <span class="detail-value">$${bookingData.price}</span>
+                </div>
+                ${
+                  bookingData.staffName
+                    ? `
+                <div class="detail-row">
+                  <span class="detail-label">Staff:</span>
+                  <span class="detail-value">${bookingData.staffName}</span>
+                </div>
+                `
+                    : ''
+                }
+              </div>
+
+              <div class="booking-details">
+                <h3>🏢 Salon Information</h3>
+                <div class="detail-row">
+                  <span class="detail-label">Salon:</span>
+                  <span class="detail-value">${bookingData.salonName}</span>
+                </div>
+                ${
+                  bookingData.salonAddress
+                    ? `
+                <div class="detail-row">
+                  <span class="detail-label">Address:</span>
+                  <span class="detail-value">${bookingData.salonAddress}</span>
+                </div>
+                `
+                    : ''
+                }
+                ${
+                  bookingData.salonPhone
+                    ? `
+                <div class="detail-row">
+                  <span class="detail-label">Phone:</span>
+                  <span class="detail-value">${bookingData.salonPhone}</span>
+                </div>
+                `
+                    : ''
+                }
+              </div>
+
+              <p><strong>Important:</strong> Please arrive 5-10 minutes before your appointment time.</p>
+              <p>If you need to reschedule or cancel, please contact the salon directly as soon as possible.</p>
+            </div>
+            
+            <div class="footer">
+              <p>Thank you for choosing ${bookingData.salonName}!</p>
+              <p>This is an automated reminder. Please do not reply to this email.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+
+      const emailData = {
+        to: [{ email: clientEmail, name: clientName }],
+        sender: {
+          email:
+            this.configService.get<string>('BREVO_FROM_EMAIL') ||
+            'noreply@henzo.com',
+          name: 'Henzo Booking System',
+        },
+        subject: `Appointment Reminder - Tomorrow at ${bookingData.salonName}`,
+        htmlContent: htmlContent,
+      };
+
+      const result = await this.sendEmailViaBrevo(emailData);
+      console.log('✅ Booking reminder sent successfully via Brevo');
+      return result;
+    } catch (error) {
+      console.error('❌ Error sending booking reminder:', error);
+      throw error;
+    }
+  }
+
   async testConnection() {
     try {
       if (!this.brevoApiKey) {

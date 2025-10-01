@@ -45,7 +45,7 @@ export class BookingsService {
           userId: userId,
           serviceId: data.serviceId,
           staffId: selectedStaffId,
-          time: new Date(data.time),
+          dateTime: new Date(data.time),
           status: 'CONFIRMED',
           notes: data.notes,
         },
@@ -87,7 +87,7 @@ export class BookingsService {
           user: true,
         },
         orderBy: {
-          time: 'desc',
+          dateTime: 'desc',
         },
       });
 
@@ -103,7 +103,7 @@ export class BookingsService {
       const bookings = await this.prisma.booking.findMany({
         where: {
           userId: userId,
-          time: {
+          dateTime: {
             gte: now,
           },
           status: 'CONFIRMED',
@@ -115,7 +115,7 @@ export class BookingsService {
           user: true,
         },
         orderBy: {
-          time: 'asc',
+          dateTime: 'asc',
         },
       });
 
@@ -131,7 +131,7 @@ export class BookingsService {
       const bookings = await this.prisma.booking.findMany({
         where: {
           userId: userId,
-          time: {
+          dateTime: {
             lt: now,
           },
           status: {
@@ -145,7 +145,7 @@ export class BookingsService {
           user: true,
         },
         orderBy: {
-          time: 'desc',
+          dateTime: 'desc',
         },
       });
 
@@ -167,7 +167,7 @@ export class BookingsService {
           user: true,
         },
         orderBy: {
-          time: 'desc',
+          dateTime: 'desc',
         },
       });
 
@@ -239,7 +239,7 @@ export class BookingsService {
           },
         },
         orderBy: {
-          time: 'desc',
+          dateTime: 'desc',
         },
       });
 
@@ -248,7 +248,7 @@ export class BookingsService {
       const updatedBookings: any[] = [];
 
       for (const booking of bookings) {
-        if (booking.status === 'CONFIRMED' && booking.time < now) {
+        if (booking.status === 'CONFIRMED' && booking.dateTime < now) {
           // Update booking status to COMPLETED
           const updatedBooking = await this.prisma.booking.update({
             where: { id: booking.id },
@@ -341,14 +341,14 @@ export class BookingsService {
             OR: [
               // Booking starts during our booking time
               {
-                time: {
+                dateTime: {
                   gte: bookingTime,
                   lt: bookingEndTime,
                 },
               },
               // Booking ends during our booking time
               {
-                time: {
+                dateTime: {
                   lte: bookingTime,
                   gte: new Date(bookingTime.getTime() - 60 * 60 * 1000), // Check 1 hour before
                 },
@@ -388,7 +388,7 @@ export class BookingsService {
       console.log('📧 Sending booking notifications...');
 
       // Format booking data for emails
-      const bookingDate = new Date(booking.time);
+      const bookingDate = new Date(booking.dateTime);
       const formattedDate = bookingDate.toLocaleDateString('en-US', {
         weekday: 'long',
         year: 'numeric',
@@ -493,7 +493,7 @@ export class BookingsService {
 
       // Check if booking time has passed
       const now = new Date();
-      if (booking.time < now) {
+      if (booking.dateTime < now) {
         throw new Error('Cannot cancel a booking that has already passed');
       }
 
