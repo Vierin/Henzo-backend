@@ -32,7 +32,7 @@ model Salon {
   logo          String?        // Supabase file path to salon logo
   photos        String[]       // Array of Supabase file paths to salon photos (max 3)
   workingHours  Json?          // Store working hours as JSON
-  categoryIds     String[]       // Array of static category IDs
+  categoryIds     Int[]          // Array of static category IDs
   owner         User           @relation("UserSalons", fields: [ownerId], references: [id])
   ownerId       String
   staff         Staff[]
