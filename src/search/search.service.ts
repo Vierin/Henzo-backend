@@ -365,38 +365,59 @@ export class SearchService {
         `🔍 Searching categories for query: "${query}" (${language})`,
       );
 
+      // Сначала получаем ID категорий, которые используются в салонах
+      const usedCategoryIds = await this.getUsedCategoryIds();
+
       // Приоритет поиска по языку
       const whereCondition =
         language === 'vn'
           ? {
-              OR: [
+              AND: [
                 {
-                  nameVn: {
-                    contains: query,
-                    mode: Prisma.QueryMode.insensitive,
+                  id: {
+                    in: usedCategoryIds,
                   },
                 },
                 {
-                  nameEn: {
-                    contains: query,
-                    mode: Prisma.QueryMode.insensitive,
-                  },
+                  OR: [
+                    {
+                      nameVn: {
+                        contains: query,
+                        mode: Prisma.QueryMode.insensitive,
+                      },
+                    },
+                    {
+                      nameEn: {
+                        contains: query,
+                        mode: Prisma.QueryMode.insensitive,
+                      },
+                    },
+                  ],
                 },
               ],
             }
           : {
-              OR: [
+              AND: [
                 {
-                  nameEn: {
-                    contains: query,
-                    mode: Prisma.QueryMode.insensitive,
+                  id: {
+                    in: usedCategoryIds,
                   },
                 },
                 {
-                  nameVn: {
-                    contains: query,
-                    mode: Prisma.QueryMode.insensitive,
-                  },
+                  OR: [
+                    {
+                      nameEn: {
+                        contains: query,
+                        mode: Prisma.QueryMode.insensitive,
+                      },
+                    },
+                    {
+                      nameVn: {
+                        contains: query,
+                        mode: Prisma.QueryMode.insensitive,
+                      },
+                    },
+                  ],
                 },
               ],
             };
@@ -420,7 +441,15 @@ export class SearchService {
 
   async getAllCategories() {
     try {
+      // Получаем только категории, которые используются в салонах
+      const usedCategoryIds = await this.getUsedCategoryIds();
+
       const categories = await this.prisma.serviceCategory.findMany({
+        where: {
+          id: {
+            in: usedCategoryIds,
+          },
+        },
         orderBy: {
           nameEn: 'asc',
         },
@@ -430,6 +459,29 @@ export class SearchService {
     } catch (error) {
       console.error('❌ Error getting all categories:', error);
       throw new Error(`Failed to get categories: ${error.message}`);
+    }
+  }
+
+  async getUsedCategoryIds(): Promise<number[]> {
+    try {
+      // Получаем все уникальные categoryIds из салонов
+      const salons = await this.prisma.salon.findMany({
+        select: {
+          categoryIds: true,
+        },
+      });
+
+      const usedCategoryIds = new Set<number>();
+      salons.forEach((salon) => {
+        if (salon.categoryIds && Array.isArray(salon.categoryIds)) {
+          salon.categoryIds.forEach((id) => usedCategoryIds.add(id));
+        }
+      });
+
+      return Array.from(usedCategoryIds);
+    } catch (error) {
+      console.error('❌ Error getting used category IDs:', error);
+      return [];
     }
   }
 }
