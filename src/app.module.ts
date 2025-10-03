@@ -13,6 +13,7 @@ import { BookingsModule } from './bookings/bookings.module';
 import { EmailModule } from './email/email.module';
 import { AdminModule } from './admin/admin.module';
 import { RemindersModule } from './reminders/reminders.module';
+import { ContactModule } from './contact/contact.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { RemindersModule } from './reminders/reminders.module';
     EmailModule,
     AdminModule,
     RemindersModule,
+    ContactModule,
   ],
   controllers: [AppController],
   providers: [AppService],

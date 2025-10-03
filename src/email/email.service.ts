@@ -482,6 +482,101 @@ export class EmailService {
     }
   }
 
+  async sendContactMessage(data: {
+    to: string;
+    subject: string;
+    template: string;
+    context: {
+      name: string;
+      email: string;
+      message: string;
+      timestamp: string;
+    };
+  }) {
+    try {
+      console.log('📧 Sending contact message to:', data.to);
+
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <title>New Contact Form Message - Henzo</title>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background-color: #ff6b35; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+            .content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+            .message-details { background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
+            .detail-row { display: flex; justify-content: space-between; margin: 10px 0; padding: 8px 0; border-bottom: 1px solid #eee; }
+            .detail-label { font-weight: bold; color: #555; }
+            .detail-value { color: #333; }
+            .message-content { background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #ff6b35; }
+            .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>📧 New Contact Form Message</h1>
+              <p>Someone has sent a message through the Henzo contact form</p>
+            </div>
+            
+            <div class="content">
+              <div class="message-details">
+                <h3>👤 Contact Information</h3>
+                <div class="detail-row">
+                  <span class="detail-label">Name:</span>
+                  <span class="detail-value">${data.context.name}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Email:</span>
+                  <span class="detail-value">${data.context.email}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Timestamp:</span>
+                  <span class="detail-value">${data.context.timestamp}</span>
+                </div>
+              </div>
+
+              <div class="message-details">
+                <h3>💬 Message</h3>
+                <div class="message-content">
+                  ${data.context.message.replace(/\n/g, '<br>')}
+                </div>
+              </div>
+            </div>
+            
+            <div class="footer">
+              <p>This message was sent through the Henzo contact form.</p>
+              <p>Reply directly to the sender's email address to respond.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+
+      const emailData = {
+        to: [{ email: data.to, name: 'Henzo Team' }],
+        sender: {
+          email:
+            this.configService.get<string>('BREVO_FROM_EMAIL') ||
+            'noreply@henzo.com',
+          name: 'Henzo Contact Form',
+        },
+        subject: data.subject,
+        htmlContent: htmlContent,
+      };
+
+      const result = await this.sendEmailViaBrevo(emailData);
+      console.log('✅ Contact message sent successfully via Brevo');
+      return result;
+    } catch (error) {
+      console.error('❌ Error sending contact message:', error);
+      throw error;
+    }
+  }
+
   async testConnection() {
     try {
       if (!this.brevoApiKey) {
