@@ -4,6 +4,7 @@ import {
   Get,
   Put,
   Patch,
+  Delete,
   Body,
   Headers,
   HttpException,
@@ -211,6 +212,29 @@ export class AuthController {
       console.error('❌ Sync user failed:', error.message);
       throw new HttpException(
         error.message || 'Failed to sync user',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Delete('account')
+  async deleteAccount(@Headers('authorization') authHeader: string) {
+    try {
+      const currentUser = await this.authService.getCurrentUser(authHeader);
+
+      const result = await this.authService.deleteUserAccount(
+        currentUser.user.id,
+      );
+
+      return {
+        success: true,
+        message: 'Account deleted successfully',
+        data: result,
+      };
+    } catch (error) {
+      console.error('❌ Delete account failed:', error.message);
+      throw new HttpException(
+        error.message || 'Failed to delete account',
         HttpStatus.BAD_REQUEST,
       );
     }

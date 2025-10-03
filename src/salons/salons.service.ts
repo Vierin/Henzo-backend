@@ -10,7 +10,11 @@ export class SalonsService {
   async findSalonsWithServices() {
     return this.prisma.salon.findMany({
       include: {
-        services: true,
+        services: {
+          include: {
+            serviceCategory: true,
+          },
+        },
         owner: {
           select: {
             id: true,

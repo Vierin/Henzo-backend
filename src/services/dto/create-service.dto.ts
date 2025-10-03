@@ -1,4 +1,10 @@
-import { IsString, IsOptional, IsNumber, IsPositive } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsNumber,
+  IsPositive,
+  IsInt,
+} from 'class-validator';
 
 export class CreateServiceDto {
   @IsString()
@@ -20,6 +26,6 @@ export class CreateServiceDto {
   salonId: string;
 
   @IsOptional()
-  @IsString()
-  categoryId?: string;
+  @IsInt()
+  serviceCategoryId?: number;
 }

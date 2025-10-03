@@ -31,11 +31,21 @@ export class SalonsController {
 
   @Get('current')
   async getCurrentUserSalon(@Headers('authorization') authHeader: string) {
-    const currentUser = await this.authService.getCurrentUser(authHeader);
-    const result = await this.salonsService.getCurrentUserSalon(
-      currentUser.user.id,
-    );
-    return result;
+    try {
+      const currentUser = await this.authService.getCurrentUser(authHeader);
+      const result = await this.salonsService.getCurrentUserSalon(
+        currentUser.user.id,
+      );
+
+      if (!result) {
+        return { success: false, message: 'No salon found for this user' };
+      }
+
+      return { success: true, data: result };
+    } catch (error) {
+      console.error('❌ Get current salon failed:', error.message);
+      return { success: false, message: error.message };
+    }
   }
 
   @Post('current')

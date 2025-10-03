@@ -210,11 +210,13 @@ export class AuthService {
         dbUser = await this.prisma.user.findUnique({
           where: { email: user.email },
         });
-        
+
         if (dbUser) {
-          console.log('✅ Found existing user by email, updating ID to match Supabase Auth...');
+          console.log(
+            '✅ Found existing user by email, updating ID to match Supabase Auth...',
+          );
           const oldUserId = dbUser.id;
-          
+
           // Update all related records to use the new Supabase Auth ID
           await this.prisma.$transaction(async (prisma) => {
             // Update salons
@@ -222,26 +224,26 @@ export class AuthService {
               where: { ownerId: oldUserId },
               data: { ownerId: user.id },
             });
-            
+
             // Update bookings
             await prisma.booking.updateMany({
               where: { userId: oldUserId },
               data: { userId: user.id },
             });
-            
+
             // Update reviews
             await prisma.review.updateMany({
               where: { userId: oldUserId },
               data: { userId: user.id },
             });
-            
+
             // Update user ID
             await prisma.user.update({
               where: { id: oldUserId },
               data: { id: user.id },
             });
           });
-          
+
           // Get updated user
           dbUser = await this.prisma.user.findUnique({
             where: { id: user.id },
@@ -256,9 +258,9 @@ export class AuthService {
         try {
           // Проверяем, есть ли у пользователя салоны (для восстановления роли OWNER)
           const existingSalons = await this.prisma.salon.findMany({
-            where: { ownerId: user.id }
+            where: { ownerId: user.id },
           });
-          
+
           // Если у пользователя есть салоны, создаем его с ролью OWNER
           // Иначе создаем с ролью CLIENT по умолчанию
           const userRole = existingSalons.length > 0 ? 'OWNER' : 'CLIENT';
@@ -404,6 +406,119 @@ export class AuthService {
       return newUser;
     } catch (error) {
       throw new Error(`Failed to sync user: ${error.message}`);
+    }
+  }
+
+  async deleteUserAccount(userId: string) {
+    try {
+      console.log(`🗑️ Starting account deletion for user: ${userId}`);
+
+      // Получаем информацию о пользователе
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        include: {
+          salons: true,
+          bookings: true,
+          reviews: true,
+        },
+      });
+
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      console.log(`📊 User data to delete:`, {
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+        hasSalon: !!user.salons && user.salons.length > 0,
+        bookingsCount: user.bookings.length,
+        reviewsCount: user.reviews.length,
+      });
+
+      // Удаляем связанные данные в зависимости от роли
+      if (user.role === 'OWNER' && user.salons && user.salons.length > 0) {
+        const salon = user.salons[0];
+        console.log(`🏢 Deleting salon data for owner: ${salon.id}`);
+
+        // Удаляем все связанные с салоном данные
+        await this.prisma.booking.deleteMany({
+          where: { salonId: salon.id },
+        });
+
+        await this.prisma.review.deleteMany({
+          where: { salonId: salon.id },
+        });
+
+        await this.prisma.staff.deleteMany({
+          where: { salonId: salon.id },
+        });
+
+        await this.prisma.service.deleteMany({
+          where: { salonId: salon.id },
+        });
+
+        // Удаляем сам салон
+        await this.prisma.salon.delete({
+          where: { id: salon.id },
+        });
+      }
+
+      // Удаляем все бронирования пользователя
+      if (user.bookings.length > 0) {
+        console.log(`📅 Deleting ${user.bookings.length} bookings`);
+        await this.prisma.booking.deleteMany({
+          where: { userId: userId },
+        });
+      }
+
+      // Удаляем все отзывы пользователя
+      if (user.reviews.length > 0) {
+        console.log(`⭐ Deleting ${user.reviews.length} reviews`);
+        await this.prisma.review.deleteMany({
+          where: { userId: userId },
+        });
+      }
+
+      // Удаляем самого пользователя
+      console.log(`👤 Deleting user: ${userId}`);
+      await this.prisma.user.delete({
+        where: { id: userId },
+      });
+
+      // Удаляем пользователя из Supabase Auth
+      try {
+        console.log(`🔐 Deleting user from Supabase Auth: ${userId}`);
+        const { error } = await supabase.auth.admin.deleteUser(userId);
+        if (error) {
+          console.warn(
+            '⚠️ Failed to delete user from Supabase Auth:',
+            error.message,
+          );
+          // Не выбрасываем ошибку, так как основное удаление уже выполнено
+        }
+      } catch (supabaseError) {
+        console.warn(
+          '⚠️ Supabase Auth deletion failed:',
+          supabaseError.message,
+        );
+        // Не выбрасываем ошибку, так как основное удаление уже выполнено
+      }
+
+      console.log(`✅ Account deletion completed for user: ${userId}`);
+
+      return {
+        userId,
+        email: user.email,
+        role: user.role,
+        deletedAt: new Date().toISOString(),
+      };
+    } catch (error) {
+      console.error(
+        `❌ Account deletion failed for user ${userId}:`,
+        error.message,
+      );
+      throw new Error(`Failed to delete account: ${error.message}`);
     }
   }
 }

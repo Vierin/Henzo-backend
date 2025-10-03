@@ -10,7 +10,7 @@ export class ServicesService {
       where: { salonId },
       include: {
         staff: true,
-        category: true,
+        serviceCategory: true,
       },
       orderBy: {
         name: 'asc',
@@ -24,6 +24,7 @@ export class ServicesService {
       include: {
         staff: true,
         salon: true,
+        serviceCategory: true,
       },
     });
   }
@@ -39,6 +40,7 @@ export class ServicesService {
             phone: true,
           },
         },
+        serviceCategory: true,
       },
       orderBy: {
         name: 'asc',
@@ -52,13 +54,13 @@ export class ServicesService {
     duration: number;
     price: number;
     salonId: string;
-    categoryId?: string;
+    serviceCategoryId?: number;
   }) {
     return this.prisma.service.create({
       data,
       include: {
         staff: true,
-        category: true,
+        serviceCategory: true,
       },
     });
   }
@@ -70,6 +72,7 @@ export class ServicesService {
       description?: string;
       duration?: number;
       price?: number;
+      serviceCategoryId?: number;
     },
   ) {
     return this.prisma.service.update({
@@ -77,6 +80,7 @@ export class ServicesService {
       data,
       include: {
         staff: true,
+        serviceCategory: true,
       },
     });
   }
@@ -102,19 +106,30 @@ export class ServicesService {
             },
           },
           {
-            category: {
-              name: {
-                contains: query,
-                mode: 'insensitive',
-              },
+            serviceCategory: {
+              OR: [
+                {
+                  nameEn: {
+                    contains: query,
+                    mode: 'insensitive',
+                  },
+                },
+                {
+                  nameVn: {
+                    contains: query,
+                    mode: 'insensitive',
+                  },
+                },
+              ],
             },
           },
         ],
       },
       include: {
-        category: {
+        serviceCategory: {
           select: {
-            name: true,
+            nameEn: true,
+            nameVn: true,
           },
         },
         salon: {
