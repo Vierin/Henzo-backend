@@ -11,7 +11,6 @@ export class AuthService {
     userId: string;
     email: string;
     name?: string;
-    phone?: string;
     role?: string;
   }) {
     try {
@@ -30,8 +29,7 @@ export class AuthService {
           id: data.userId,
           email: data.email,
           name: data.name,
-          phone: data.phone,
-          role: (data.role as 'OWNER' | 'CLIENT' | 'ADMIN') || 'CLIENT',
+          role: (data.role as 'OWNER' | 'CLIENT' | 'ADMIN') || 'OWNER',
         },
       });
 
