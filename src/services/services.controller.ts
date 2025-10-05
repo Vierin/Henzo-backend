@@ -29,6 +29,23 @@ export class ServicesController {
     return this.servicesService.findAllPublic();
   }
 
+  @Get('popular')
+  async getPopularServices(@Query('limit') limit?: string) {
+    const limitNum = limit ? parseInt(limit, 10) : 10;
+    return this.servicesService.findPopularServices(limitNum);
+  }
+
+  @Get('trending')
+  async getTrendingServices(@Query('limit') limit?: string) {
+    const limitNum = limit ? parseInt(limit, 10) : 8;
+    return this.servicesService.findTrendingServices(limitNum);
+  }
+
+  @Get('categories')
+  async getServiceCategories() {
+    return this.servicesService.getServiceCategories();
+  }
+
   @Get('search')
   async searchServices(@Query('q') query: string) {
     if (!query || query.trim().length < 3) {

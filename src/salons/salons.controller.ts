@@ -50,6 +50,60 @@ export class SalonsController {
     return this.salonsService.searchSalons(params);
   }
 
+  @Get('preview')
+  async getSalonsPreview(
+    @Query('limit') limit?: string,
+    @Query('page') page?: string,
+    @Query('location') location?: string,
+    @Query('featured') featured?: string,
+  ) {
+    const params = {
+      limit: limit ? parseInt(limit, 10) : 20,
+      page: page ? parseInt(page, 10) : 1,
+      location,
+      featured: featured === 'true',
+    };
+
+    return this.salonsService.findSalonsPreview(params);
+  }
+
+  @Get('featured')
+  async getFeaturedSalons(@Query('limit') limit?: string) {
+    const limitNum = limit ? parseInt(limit, 10) : 6;
+    return this.salonsService.findFeaturedSalons(limitNum);
+  }
+
+  @Get('nearby')
+  async getNearbySalons(
+    @Query('lat') lat?: string,
+    @Query('lng') lng?: string,
+    @Query('radius') radius?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const params = {
+      lat: lat ? parseFloat(lat) : undefined,
+      lng: lng ? parseFloat(lng) : undefined,
+      radius: radius ? parseInt(radius, 10) : 10, // km
+      limit: limit ? parseInt(limit, 10) : 10,
+    };
+
+    return this.salonsService.findNearbySalons(params);
+  }
+
+  @Get(':id/stats')
+  async getSalonStats(@Param('id') id: string) {
+    return this.salonsService.getSalonStats(id);
+  }
+
+  @Get(':id/availability')
+  async getSalonAvailability(
+    @Param('id') id: string,
+    @Query('date') date?: string,
+    @Query('serviceId') serviceId?: string,
+  ) {
+    return this.salonsService.getSalonAvailability(id, date, serviceId);
+  }
+
   @Get('categories')
   async getSalonCategories() {
     return this.salonsService.getSalonCategories();
@@ -130,13 +184,7 @@ export class SalonsController {
 
   @Get(':id')
   async getSalonById(@Param('id') id: string) {
-    console.log('SalonsController.getSalonById called with id:', id);
     const result = await this.salonsService.findById(id);
-    console.log('SalonsController.getSalonById returning:', {
-      salonId: result?.id,
-      salonName: result?.name,
-      reviewsCount: result?.reviews?.length || 0,
-    });
     return result;
   }
 }

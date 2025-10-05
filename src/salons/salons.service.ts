@@ -428,4 +428,218 @@ export class SalonsService {
 
     return salon;
   }
+
+  // New optimized methods for better performance
+
+  async findSalonsPreview(params: {
+    limit: number;
+    page: number;
+    location?: string;
+    featured?: boolean;
+  }) {
+    const { limit, page, location, featured } = params;
+    const skip = (page - 1) * limit;
+
+    const where: any = {};
+
+    if (location) {
+      where.address = { contains: location, mode: 'insensitive' };
+    }
+
+    if (featured) {
+      // Featured salons could be determined by rating, review count, etc.
+      where.reviews = {
+        some: {
+          rating: { gte: 4.0 },
+        },
+      };
+    }
+
+    const [salons, total] = await Promise.all([
+      this.prisma.salon.findMany({
+        where,
+        select: {
+          id: true,
+          name: true,
+          address: true,
+          phone: true,
+          logo: true,
+          photos: true, // Get all photos, but we'll only use the first one
+          _count: {
+            select: {
+              reviews: true,
+              services: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.salon.count({ where }),
+    ]);
+
+    return {
+      data: salons,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasNextPage: page < Math.ceil(total / limit),
+        hasPreviousPage: page > 1,
+      },
+    };
+  }
+
+  async findFeaturedSalons(limit: number) {
+    return this.prisma.salon.findMany({
+      select: {
+        id: true,
+        name: true,
+        address: true,
+        logo: true,
+        photos: true,
+        _count: {
+          select: {
+            reviews: true,
+            services: true,
+          },
+        },
+      },
+      where: {
+        reviews: {
+          some: {
+            rating: { gte: 4.5 },
+          },
+        },
+      },
+      orderBy: {
+        reviews: {
+          _count: 'desc',
+        },
+      },
+      take: limit,
+    });
+  }
+
+  async findNearbySalons(params: {
+    lat?: number;
+    lng?: number;
+    radius: number;
+    limit: number;
+  }) {
+    const { lat, lng, radius, limit } = params;
+
+    // For now, return featured salons since we don't have geocoding
+    // In production, you'd implement proper geospatial queries
+    if (!lat || !lng) {
+      return this.findFeaturedSalons(limit);
+    }
+
+    // TODO: Implement proper geospatial search with coordinates
+    // For MVP, return salons with good ratings
+    return this.prisma.salon.findMany({
+      select: {
+        id: true,
+        name: true,
+        address: true,
+        logo: true,
+        photos: true,
+        _count: {
+          select: {
+            reviews: true,
+            services: true,
+          },
+        },
+      },
+      where: {
+        reviews: {
+          some: {
+            rating: { gte: 4.0 },
+          },
+        },
+      },
+      orderBy: {
+        reviews: {
+          _count: 'desc',
+        },
+      },
+      take: limit,
+    });
+  }
+
+  async getSalonStats(salonId: string) {
+    const [salon, reviews, services] = await Promise.all([
+      this.prisma.salon.findUnique({
+        where: { id: salonId },
+        select: { id: true, name: true },
+      }),
+      this.prisma.review.findMany({
+        where: { salonId },
+        select: { rating: true },
+      }),
+      this.prisma.service.findMany({
+        where: { salonId },
+        select: { id: true },
+      }),
+    ]);
+
+    if (!salon) {
+      throw new Error('Salon not found');
+    }
+
+    const averageRating =
+      reviews.length > 0
+        ? reviews.reduce((sum, review) => sum + review.rating, 0) /
+          reviews.length
+        : 0;
+
+    return {
+      salonId: salon.id,
+      salonName: salon.name,
+      rating: Math.round(averageRating * 10) / 10, // Round to 1 decimal
+      reviewCount: reviews.length,
+      serviceCount: services.length,
+    };
+  }
+
+  async getSalonAvailability(
+    salonId: string,
+    date?: string,
+    serviceId?: string,
+  ) {
+    const salon = await this.prisma.salon.findUnique({
+      where: { id: salonId },
+      select: { workingHours: true },
+    });
+
+    if (!salon) {
+      throw new Error('Salon not found');
+    }
+
+    // For MVP, return basic availability
+    // In production, you'd check actual bookings and staff schedules
+    const workingHours = salon.workingHours;
+
+    return {
+      salonId,
+      date: date || new Date().toISOString().split('T')[0],
+      isOpen: true, // Simplified for MVP
+      workingHours,
+      availableSlots: [
+        '09:00',
+        '10:00',
+        '11:00',
+        '12:00',
+        '13:00',
+        '14:00',
+        '15:00',
+        '16:00',
+        '17:00',
+        '18:00',
+      ],
+      message: 'Basic availability - full implementation coming soon',
+    };
+  }
 }

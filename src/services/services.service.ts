@@ -144,4 +144,77 @@ export class ServicesService {
       take: 10, // Limit to 10 results
     });
   }
+
+  async findPopularServices(limit: number) {
+    // For MVP, return services with most bookings
+    // In production, you'd analyze booking frequency
+    return this.prisma.service.findMany({
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        duration: true,
+        price: true,
+        salon: {
+          select: {
+            id: true,
+            name: true,
+            address: true,
+          },
+        },
+        serviceCategory: {
+          select: {
+            nameEn: true,
+          },
+        },
+      },
+      orderBy: {
+        name: 'asc',
+      },
+      take: limit,
+    });
+  }
+
+  async findTrendingServices(limit: number) {
+    // For MVP, return recently created services
+    // In production, you'd analyze recent booking trends
+    return this.prisma.service.findMany({
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        duration: true,
+        price: true,
+        salon: {
+          select: {
+            id: true,
+            name: true,
+            address: true,
+          },
+        },
+        serviceCategory: {
+          select: {
+            nameEn: true,
+          },
+        },
+      },
+      orderBy: {
+        name: 'asc',
+      },
+      take: limit,
+    });
+  }
+
+  getServiceCategories() {
+    // Static categories for MVP
+    // In production, these would come from database
+    return [
+      { id: 1, nameEn: 'Hair Services', nameVn: 'Dịch vụ tóc' },
+      { id: 2, nameEn: 'Nail Care', nameVn: 'Chăm sóc móng' },
+      { id: 3, nameEn: 'Skincare', nameVn: 'Chăm sóc da' },
+      { id: 4, nameEn: 'Massage', nameVn: 'Massage' },
+      { id: 5, nameEn: 'Barber', nameVn: 'Cắt tóc nam' },
+      { id: 6, nameEn: 'Spa', nameVn: 'Spa' },
+    ];
+  }
 }
