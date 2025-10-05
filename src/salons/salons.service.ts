@@ -15,6 +15,17 @@ export class SalonsService {
             serviceCategory: true,
           },
         },
+        reviews: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
         owner: {
           select: {
             id: true,
@@ -178,11 +189,31 @@ export class SalonsService {
   }
 
   async findById(id: string) {
+    console.log('SalonsService.findById called with id:', id);
+    
     const salon = await this.prisma.salon.findUnique({
       where: { id },
       include: {
-        services: true,
+        services: {
+          include: {
+            serviceCategory: true,
+          },
+        },
         staff: true,
+        reviews: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+        },
         owner: {
           select: {
             id: true,
@@ -191,6 +222,13 @@ export class SalonsService {
           },
         },
       },
+    });
+
+    console.log('SalonsService.findById result:', {
+      salonId: salon?.id,
+      salonName: salon?.name,
+      reviewsCount: salon?.reviews?.length || 0,
+      reviews: salon?.reviews
     });
 
     if (salon) {
