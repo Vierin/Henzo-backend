@@ -190,7 +190,33 @@ export class SalonsService {
 
   async findById(id: string) {
     console.log('SalonsService.findById called with id:', id);
-    
+
+    // First, let's check if salon exists at all
+    const salonExists = await this.prisma.salon.findUnique({
+      where: { id },
+      select: { id: true, name: true },
+    });
+    console.log('Salon exists check:', salonExists);
+
+    // Check reviews separately
+    const reviewsCheck = await this.prisma.review.findMany({
+      where: { salonId: id },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+    console.log('Reviews check for salon:', {
+      salonId: id,
+      reviewsCount: reviewsCheck.length,
+      reviews: reviewsCheck.slice(0, 2),
+    });
+
     const salon = await this.prisma.salon.findUnique({
       where: { id },
       include: {
@@ -228,7 +254,15 @@ export class SalonsService {
       salonId: salon?.id,
       salonName: salon?.name,
       reviewsCount: salon?.reviews?.length || 0,
-      reviews: salon?.reviews
+      reviews:
+        salon?.reviews?.map((r) => ({
+          id: r.id,
+          rating: r.rating,
+          comment: r.comment,
+          userId: r.userId,
+          user: r.user,
+        })) || [],
+      fullSalonKeys: salon ? Object.keys(salon) : [],
     });
 
     if (salon) {
@@ -238,6 +272,12 @@ export class SalonsService {
         (salon as any).categoryIds.includes(cat.id),
       );
       (salon as any).categories = salonCategories;
+
+      // If reviews are missing from the main query, add them manually
+      if (!salon.reviews || salon.reviews.length === 0) {
+        console.log('Reviews missing from main query, adding manually...');
+        salon.reviews = reviewsCheck;
+      }
     }
 
     return salon;

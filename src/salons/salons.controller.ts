@@ -104,6 +104,13 @@ export class SalonsController {
 
   @Get(':id')
   async getSalonById(@Param('id') id: string) {
-    return this.salonsService.findById(id);
+    console.log('SalonsController.getSalonById called with id:', id);
+    const result = await this.salonsService.findById(id);
+    console.log('SalonsController.getSalonById returning:', {
+      salonId: result?.id,
+      salonName: result?.name,
+      reviewsCount: result?.reviews?.length || 0,
+    });
+    return result;
   }
 }
