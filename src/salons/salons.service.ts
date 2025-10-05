@@ -40,6 +40,152 @@ export class SalonsService {
     });
   }
 
+  // New optimized search method with pagination and filters
+  async searchSalons(params: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    location?: string;
+    category?: string;
+    sortBy?: string;
+    minRating?: number;
+    isOpenNow?: boolean;
+  }) {
+    const {
+      page = 1,
+      limit = 20,
+      search = '',
+      location = '',
+      category = '',
+      sortBy = 'name',
+      minRating = 0,
+      isOpenNow = false,
+    } = params;
+
+    const skip = (page - 1) * limit;
+
+    // Build where clause
+    const where: any = {};
+
+    // Text search (full-text search would be better, but this is a start)
+    if (search.trim()) {
+      const searchTerm = search.toLowerCase();
+      where.OR = [
+        { name: { contains: searchTerm, mode: 'insensitive' } },
+        { description: { contains: searchTerm, mode: 'insensitive' } },
+        { address: { contains: searchTerm, mode: 'insensitive' } },
+        {
+          services: {
+            some: {
+              OR: [
+                { name: { contains: searchTerm, mode: 'insensitive' } },
+                { description: { contains: searchTerm, mode: 'insensitive' } },
+              ],
+            },
+          },
+        },
+      ];
+    }
+
+    // Location filter
+    if (location.trim()) {
+      where.address = { contains: location, mode: 'insensitive' };
+    }
+
+    // Category filter
+    if (category && category !== 'all') {
+      where.services = {
+        some: {
+          serviceCategory: {
+            nameEn: { equals: category, mode: 'insensitive' },
+          },
+        },
+      };
+    }
+
+    // Rating filter
+    if (minRating > 0) {
+      where.reviews = {
+        some: {
+          rating: { gte: minRating },
+        },
+      };
+    }
+
+    // Build orderBy clause
+    let orderBy: any = { createdAt: 'desc' };
+    switch (sortBy) {
+      case 'name':
+        orderBy = { name: 'asc' };
+        break;
+      case 'name-desc':
+        orderBy = { name: 'desc' };
+        break;
+      case 'rating':
+        orderBy = { reviews: { _count: 'desc' } };
+        break;
+      case 'services':
+        orderBy = { services: { _count: 'desc' } };
+        break;
+      case 'created':
+        orderBy = { createdAt: 'desc' };
+        break;
+    }
+
+    // Get total count for pagination
+    const total = await this.prisma.salon.count({ where });
+
+    // Get paginated results
+    const salons = await this.prisma.salon.findMany({
+      where,
+      include: {
+        services: {
+          include: {
+            serviceCategory: true,
+          },
+        },
+        reviews: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
+        owner: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+      orderBy,
+      skip,
+      take: limit,
+    });
+
+    // Calculate pagination info
+    const totalPages = Math.ceil(total / limit);
+    const hasNextPage = page < totalPages;
+    const hasPreviousPage = page > 1;
+
+    return {
+      data: salons,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNextPage,
+        hasPreviousPage,
+      },
+    };
+  }
+
   // Static categories - no need for database query
   getSalonCategories() {
     return [

@@ -6,6 +6,7 @@ import {
   Body,
   Param,
   Headers,
+  Query,
 } from '@nestjs/common';
 import { SalonsService } from './salons.service';
 import { UpdateSalonDto } from './dto/update-salon.dto';
@@ -22,6 +23,31 @@ export class SalonsController {
   @Get('with-services')
   async getSalonsWithServices() {
     return this.salonsService.findSalonsWithServices();
+  }
+
+  @Get('search')
+  async searchSalons(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+    @Query('location') location?: string,
+    @Query('category') category?: string,
+    @Query('sortBy') sortBy?: string,
+    @Query('minRating') minRating?: string,
+    @Query('isOpenNow') isOpenNow?: string,
+  ) {
+    const params = {
+      page: page ? parseInt(page, 10) : undefined,
+      limit: limit ? parseInt(limit, 10) : undefined,
+      search,
+      location,
+      category,
+      sortBy,
+      minRating: minRating ? parseInt(minRating, 10) : undefined,
+      isOpenNow: isOpenNow === 'true',
+    };
+
+    return this.salonsService.searchSalons(params);
   }
 
   @Get('categories')
