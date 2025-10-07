@@ -577,6 +577,447 @@ export class EmailService {
     }
   }
 
+  async sendSalonBookingRequest(
+    salonEmail: string,
+    salonName: string,
+    bookingData: {
+      bookingId: string;
+      serviceName: string;
+      date: string;
+      time: string;
+      duration: number;
+      price: number;
+      clientName: string;
+      clientEmail: string;
+      clientPhone?: string;
+      staffName?: string;
+    },
+  ) {
+    try {
+      console.log('📧 Sending salon booking request to:', salonEmail);
+
+      const baseUrl =
+        this.configService.get<string>('FRONTEND_URL') ||
+        'http://localhost:3000';
+      const confirmUrl = `${baseUrl}/api/bookings/${bookingData.bookingId}/confirm`;
+      const rejectUrl = `${baseUrl}/api/bookings/${bookingData.bookingId}/reject`;
+
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <title>New Booking Request - ${salonName}</title>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background-color: #ff9800; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+            .content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+            .booking-details { background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
+            .detail-row { display: flex; justify-content: space-between; margin: 10px 0; padding: 8px 0; border-bottom: 1px solid #eee; }
+            .detail-label { font-weight: bold; color: #555; }
+            .detail-value { color: #333; }
+            .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
+            .urgent { background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 20px 0; text-align: center; }
+            .button-container { text-align: center; margin: 30px 0; }
+            .button { display: inline-block; padding: 15px 30px; text-decoration: none; border-radius: 5px; margin: 0 10px; font-weight: bold; font-size: 16px; }
+            .button-confirm { background-color: #28a745; color: white; }
+            .button-reject { background-color: #dc3545; color: white; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>🔔 New Booking Request!</h1>
+              <p>Action Required - Booking Awaiting Confirmation</p>
+            </div>
+            
+            <div class="content">
+              <div class="urgent">
+                <h3>⏰ Please confirm or reject this booking</h3>
+                <p>A client is waiting for your response</p>
+              </div>
+              
+              <div class="booking-details">
+                <h3>👤 Client Information</h3>
+                <div class="detail-row">
+                  <span class="detail-label">Name:</span>
+                  <span class="detail-value">${bookingData.clientName}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Email:</span>
+                  <span class="detail-value">${bookingData.clientEmail}</span>
+                </div>
+                ${
+                  bookingData.clientPhone
+                    ? `
+                <div class="detail-row">
+                  <span class="detail-label">Phone:</span>
+                  <span class="detail-value">${bookingData.clientPhone}</span>
+                </div>
+                `
+                    : ''
+                }
+              </div>
+
+              <div class="booking-details">
+                <h3>📅 Appointment Details</h3>
+                <div class="detail-row">
+                  <span class="detail-label">Service:</span>
+                  <span class="detail-value">${bookingData.serviceName}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Date:</span>
+                  <span class="detail-value">${bookingData.date}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Time:</span>
+                  <span class="detail-value">${bookingData.time}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Duration:</span>
+                  <span class="detail-value">${bookingData.duration} minutes</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Price:</span>
+                  <span class="detail-value">$${bookingData.price}</span>
+                </div>
+                ${
+                  bookingData.staffName
+                    ? `
+                <div class="detail-row">
+                  <span class="detail-label">Assigned Staff:</span>
+                  <span class="detail-value">${bookingData.staffName}</span>
+                </div>
+                `
+                    : ''
+                }
+              </div>
+
+              <div class="button-container">
+                <a href="${confirmUrl}" class="button button-confirm">✅ Confirm Booking</a>
+                <a href="${rejectUrl}" class="button button-reject">❌ Reject Booking</a>
+              </div>
+
+              <p style="text-align: center; margin-top: 20px; color: #666;">
+                Click on the buttons above to confirm or reject this booking request.
+              </p>
+            </div>
+            
+            <div class="footer">
+              <p>This is an automated notification from your booking system.</p>
+              <p>Please respond as soon as possible to provide the best service to your clients.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+
+      const emailData = {
+        to: [{ email: salonEmail, name: salonName }],
+        sender: {
+          email:
+            this.configService.get<string>('BREVO_FROM_EMAIL') ||
+            'noreply@henzo.com',
+          name: 'Henzo Booking System',
+        },
+        subject: `🔔 New Booking Request - ${bookingData.clientName} at ${bookingData.time}`,
+        htmlContent: htmlContent,
+      };
+
+      const result = await this.sendEmailViaBrevo(emailData);
+      console.log('✅ Salon booking request sent successfully via Brevo');
+      return result;
+    } catch (error) {
+      console.error('❌ Error sending salon booking request:', error);
+      throw error;
+    }
+  }
+
+  async sendBookingPending(
+    clientEmail: string,
+    clientName: string,
+    bookingData: {
+      serviceName: string;
+      date: string;
+      time: string;
+      duration: number;
+      price: number;
+      salonName: string;
+      salonAddress?: string;
+      salonPhone?: string;
+      staffName?: string;
+    },
+  ) {
+    try {
+      console.log('📧 Sending pending booking notification to:', clientEmail);
+
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <title>Booking Request Received - ${bookingData.salonName}</title>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background-color: #ff9800; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+            .content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+            .booking-details { background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
+            .detail-row { display: flex; justify-content: space-between; margin: 10px 0; padding: 8px 0; border-bottom: 1px solid #eee; }
+            .detail-label { font-weight: bold; color: #555; }
+            .detail-value { color: #333; }
+            .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
+            .pending-notice { background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 20px; border-radius: 5px; margin: 20px 0; text-align: center; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>⏳ Booking Request Received!</h1>
+              <p>We've received your booking request</p>
+            </div>
+            
+            <div class="content">
+              <h2>Hello ${clientName}!</h2>
+              
+              <div class="pending-notice">
+                <h3>⏰ Awaiting Salon Confirmation</h3>
+                <p>Your booking request has been sent to <strong>${bookingData.salonName}</strong>.</p>
+                <p>We'll notify you as soon as the salon confirms your appointment.</p>
+              </div>
+              
+              <div class="booking-details">
+                <h3>📅 Requested Appointment Details</h3>
+                <div class="detail-row">
+                  <span class="detail-label">Service:</span>
+                  <span class="detail-value">${bookingData.serviceName}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Date:</span>
+                  <span class="detail-value">${bookingData.date}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Time:</span>
+                  <span class="detail-value">${bookingData.time}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Duration:</span>
+                  <span class="detail-value">${bookingData.duration} minutes</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Price:</span>
+                  <span class="detail-value">$${bookingData.price}</span>
+                </div>
+                ${
+                  bookingData.staffName
+                    ? `
+                <div class="detail-row">
+                  <span class="detail-label">Staff:</span>
+                  <span class="detail-value">${bookingData.staffName}</span>
+                </div>
+                `
+                    : ''
+                }
+              </div>
+
+              <div class="booking-details">
+                <h3>🏢 Salon Information</h3>
+                <div class="detail-row">
+                  <span class="detail-label">Salon:</span>
+                  <span class="detail-value">${bookingData.salonName}</span>
+                </div>
+                ${
+                  bookingData.salonAddress
+                    ? `
+                <div class="detail-row">
+                  <span class="detail-label">Address:</span>
+                  <span class="detail-value">${bookingData.salonAddress}</span>
+                </div>
+                `
+                    : ''
+                }
+                ${
+                  bookingData.salonPhone
+                    ? `
+                <div class="detail-row">
+                  <span class="detail-label">Phone:</span>
+                  <span class="detail-value">${bookingData.salonPhone}</span>
+                </div>
+                `
+                    : ''
+                }
+              </div>
+
+              <p><strong>What's Next?</strong></p>
+              <ul>
+                <li>The salon will review your request</li>
+                <li>You'll receive a confirmation email once approved</li>
+                <li>If there are any issues, the salon will contact you directly</li>
+              </ul>
+            </div>
+            
+            <div class="footer">
+              <p>Thank you for choosing ${bookingData.salonName}!</p>
+              <p>This is an automated message. Please do not reply to this email.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+
+      const emailData = {
+        to: [{ email: clientEmail, name: clientName }],
+        sender: {
+          email:
+            this.configService.get<string>('BREVO_FROM_EMAIL') ||
+            'noreply@henzo.com',
+          name: 'Henzo Booking System',
+        },
+        subject: `Booking Request Received - ${bookingData.salonName}`,
+        htmlContent: htmlContent,
+      };
+
+      const result = await this.sendEmailViaBrevo(emailData);
+      console.log(
+        '✅ Booking pending notification sent successfully via Brevo',
+      );
+      return result;
+    } catch (error) {
+      console.error('❌ Error sending booking pending notification:', error);
+      throw error;
+    }
+  }
+
+  async sendBookingRejection(
+    clientEmail: string,
+    clientName: string,
+    bookingData: {
+      serviceName: string;
+      date: string;
+      time: string;
+      duration: number;
+      price: number;
+      salonName: string;
+      salonAddress?: string;
+      salonPhone?: string;
+      staffName?: string;
+      reason?: string;
+    },
+  ) {
+    try {
+      console.log('📧 Sending booking rejection to:', clientEmail);
+
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <title>Booking Request Update - ${bookingData.salonName}</title>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background-color: #dc3545; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+            .content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+            .booking-details { background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
+            .detail-row { display: flex; justify-content: space-between; margin: 10px 0; padding: 8px 0; border-bottom: 1px solid #eee; }
+            .detail-label { font-weight: bold; color: #555; }
+            .detail-value { color: #333; }
+            .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
+            .rejection-notice { background-color: #f8d7da; border: 1px solid #f5c6cb; padding: 20px; border-radius: 5px; margin: 20px 0; }
+            .button { display: inline-block; background-color: #ff5b5b; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>Booking Request Update</h1>
+              <p>Update regarding your appointment request</p>
+            </div>
+            
+            <div class="content">
+              <h2>Hello ${clientName},</h2>
+              
+              <div class="rejection-notice">
+                <h3>❌ Booking Request Not Confirmed</h3>
+                <p>Unfortunately, ${bookingData.salonName} was unable to confirm your booking request.</p>
+                ${bookingData.reason ? `<p><strong>Reason:</strong> ${bookingData.reason}</p>` : ''}
+              </div>
+              
+              <div class="booking-details">
+                <h3>📅 Requested Appointment Details</h3>
+                <div class="detail-row">
+                  <span class="detail-label">Service:</span>
+                  <span class="detail-value">${bookingData.serviceName}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Date:</span>
+                  <span class="detail-value">${bookingData.date}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Time:</span>
+                  <span class="detail-value">${bookingData.time}</span>
+                </div>
+              </div>
+
+              <div class="booking-details">
+                <h3>🏢 Salon Contact</h3>
+                <div class="detail-row">
+                  <span class="detail-label">Salon:</span>
+                  <span class="detail-value">${bookingData.salonName}</span>
+                </div>
+                ${
+                  bookingData.salonPhone
+                    ? `
+                <div class="detail-row">
+                  <span class="detail-label">Phone:</span>
+                  <span class="detail-value">${bookingData.salonPhone}</span>
+                </div>
+                `
+                    : ''
+                }
+              </div>
+
+              <p><strong>What Can You Do?</strong></p>
+              <ul>
+                <li>Try booking a different time slot</li>
+                <li>Contact the salon directly for more information</li>
+                <li>Explore other available services</li>
+              </ul>
+
+              <p>We apologize for any inconvenience. Please feel free to make another booking request or contact the salon directly.</p>
+            </div>
+            
+            <div class="footer">
+              <p>Thank you for using Henzo Booking System</p>
+              <p>This is an automated message. Please do not reply to this email.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+
+      const emailData = {
+        to: [{ email: clientEmail, name: clientName }],
+        sender: {
+          email:
+            this.configService.get<string>('BREVO_FROM_EMAIL') ||
+            'noreply@henzo.com',
+          name: 'Henzo Booking System',
+        },
+        subject: `Booking Request Update - ${bookingData.salonName}`,
+        htmlContent: htmlContent,
+      };
+
+      const result = await this.sendEmailViaBrevo(emailData);
+      console.log('✅ Booking rejection sent successfully via Brevo');
+      return result;
+    } catch (error) {
+      console.error('❌ Error sending booking rejection:', error);
+      throw error;
+    }
+  }
+
   async testConnection() {
     try {
       if (!this.brevoApiKey) {

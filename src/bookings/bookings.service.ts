@@ -38,7 +38,7 @@ export class BookingsService {
           )) || undefined;
       }
 
-      // Create booking
+      // Create booking with PENDING status
       const booking = await this.prisma.booking.create({
         data: {
           salonId: data.salonId,
@@ -46,7 +46,7 @@ export class BookingsService {
           serviceId: data.serviceId,
           staffId: selectedStaffId,
           dateTime: new Date(data.time),
-          status: 'CONFIRMED',
+          status: 'PENDING',
           notes: data.notes,
         },
         include: {
@@ -106,7 +106,9 @@ export class BookingsService {
           dateTime: {
             gte: now,
           },
-          status: 'CONFIRMED',
+          status: {
+            in: ['PENDING', 'CONFIRMED'],
+          },
         },
         include: {
           service: true,
@@ -248,7 +250,10 @@ export class BookingsService {
       const updatedBookings: any[] = [];
 
       for (const booking of bookings) {
-        if (booking.status === 'CONFIRMED' && booking.dateTime < now) {
+        if (
+          (booking.status === 'CONFIRMED' || booking.status === 'PENDING') &&
+          booking.dateTime < now
+        ) {
           // Update booking status to COMPLETED
           const updatedBooking = await this.prisma.booking.update({
             where: { id: booking.id },
@@ -331,12 +336,12 @@ export class BookingsService {
       const availableStaff: typeof allStaff = [];
 
       for (const staff of allStaff) {
-        // Check if staff has any conflicting bookings
+        // Check if staff has any conflicting bookings (including pending ones)
         const conflictingBooking = await this.prisma.booking.findFirst({
           where: {
             staffId: staff.id,
             status: {
-              not: 'CANCELED',
+              in: ['PENDING', 'CONFIRMED'], // Consider both pending and confirmed bookings
             },
             OR: [
               // Booking starts during our booking time
@@ -388,6 +393,7 @@ export class BookingsService {
       console.log('📧 Sending booking notifications...');
       console.log('🔍 Booking object for email:', {
         id: booking.id,
+        status: booking.status,
         dateTime: booking.dateTime,
         dateTimeType: typeof booking.dateTime,
         dateTimeString: booking.dateTime?.toString(),
@@ -402,39 +408,76 @@ export class BookingsService {
       const { formattedDate, formattedTime } =
         this.formatBookingDateTime(dateTimeString);
 
-      // Send confirmation to client
-      await this.emailService.sendBookingConfirmation(
-        booking.user.email,
-        booking.user.name || 'Client',
-        {
-          serviceName: booking.service.name,
-          date: formattedDate,
-          time: formattedTime,
-          duration: booking.service.duration,
-          price: booking.service.price,
-          salonName: booking.salon.name,
-          salonAddress: booking.salon.address,
-          salonPhone: booking.salon.phone,
-          staffName: booking.staff?.name,
-        },
-      );
+      // For PENDING bookings, only send notification to salon with confirmation links
+      if (booking.status === 'PENDING') {
+        await this.emailService.sendSalonBookingRequest(
+          booking.salon.email || booking.salon.owner?.email,
+          booking.salon.name,
+          {
+            bookingId: booking.id,
+            serviceName: booking.service.name,
+            date: formattedDate,
+            time: formattedTime,
+            duration: booking.service.duration,
+            price: booking.service.price,
+            clientName: booking.user.name || 'Client',
+            clientEmail: booking.user.email,
+            clientPhone: booking.user.phone,
+            staffName: booking.staff?.name,
+          },
+        );
 
-      // Send notification to salon
-      await this.emailService.sendSalonNotification(
-        booking.salon.email || booking.salon.owner.email,
-        booking.salon.name,
-        {
-          serviceName: booking.service.name,
-          date: formattedDate,
-          time: formattedTime,
-          duration: booking.service.duration,
-          price: booking.service.price,
-          clientName: booking.user.name || 'Client',
-          clientEmail: booking.user.email,
-          clientPhone: booking.user.phone,
-          staffName: booking.staff?.name,
-        },
-      );
+        // Send pending notification to client
+        await this.emailService.sendBookingPending(
+          booking.user.email,
+          booking.user.name || 'Client',
+          {
+            serviceName: booking.service.name,
+            date: formattedDate,
+            time: formattedTime,
+            duration: booking.service.duration,
+            price: booking.service.price,
+            salonName: booking.salon.name,
+            salonAddress: booking.salon.address,
+            salonPhone: booking.salon.phone,
+            staffName: booking.staff?.name,
+          },
+        );
+      } else if (booking.status === 'CONFIRMED') {
+        // Send confirmation to client
+        await this.emailService.sendBookingConfirmation(
+          booking.user.email,
+          booking.user.name || 'Client',
+          {
+            serviceName: booking.service.name,
+            date: formattedDate,
+            time: formattedTime,
+            duration: booking.service.duration,
+            price: booking.service.price,
+            salonName: booking.salon.name,
+            salonAddress: booking.salon.address,
+            salonPhone: booking.salon.phone,
+            staffName: booking.staff?.name,
+          },
+        );
+
+        // Send notification to salon
+        await this.emailService.sendSalonNotification(
+          booking.salon.email || booking.salon.owner?.email,
+          booking.salon.name,
+          {
+            serviceName: booking.service.name,
+            date: formattedDate,
+            time: formattedTime,
+            duration: booking.service.duration,
+            price: booking.service.price,
+            clientName: booking.user.name || 'Client',
+            clientEmail: booking.user.email,
+            clientPhone: booking.user.phone,
+            staffName: booking.staff?.name,
+          },
+        );
+      }
 
       console.log('✅ All booking notifications sent successfully');
     } catch (error) {
@@ -667,7 +710,9 @@ export class BookingsService {
           salonId: {
             in: salonIds,
           },
-          status: 'CONFIRMED', // Only update confirmed bookings
+          status: {
+            in: ['CONFIRMED', 'PENDING'], // Update confirmed or pending bookings
+          },
         },
         data: {
           status: 'COMPLETED' as any,
@@ -722,6 +767,135 @@ export class BookingsService {
       return bookings;
     } catch (error) {
       console.error('❌ Error fetching bookings by date and salon:', error);
+      throw error;
+    }
+  }
+
+  async confirmBooking(bookingId: string) {
+    try {
+      console.log('✅ Confirming booking:', bookingId);
+
+      // Find booking
+      const booking = await this.prisma.booking.findUnique({
+        where: { id: bookingId },
+        include: {
+          service: true,
+          staff: true,
+          salon: true,
+          user: true,
+        },
+      });
+
+      if (!booking) {
+        throw new Error('Booking not found');
+      }
+
+      if (booking.status !== 'PENDING') {
+        throw new Error('Only pending bookings can be confirmed');
+      }
+
+      // Update status to CONFIRMED
+      const updatedBooking = await this.prisma.booking.update({
+        where: { id: bookingId },
+        data: { status: 'CONFIRMED' },
+        include: {
+          service: true,
+          staff: true,
+          salon: true,
+          user: true,
+        },
+      });
+
+      // Send confirmation email to client
+      const dateTimeString = updatedBooking.dateTime.toISOString();
+      const { formattedDate, formattedTime } =
+        this.formatBookingDateTime(dateTimeString);
+
+      await this.emailService.sendBookingConfirmation(
+        updatedBooking.user.email,
+        updatedBooking.user.name || 'Client',
+        {
+          serviceName: updatedBooking.service.name,
+          date: formattedDate,
+          time: formattedTime,
+          duration: updatedBooking.service.duration,
+          price: updatedBooking.service.price,
+          salonName: updatedBooking.salon.name,
+          salonAddress: updatedBooking.salon.address ?? undefined,
+          salonPhone: updatedBooking.salon.phone ?? undefined,
+          staffName: updatedBooking.staff?.name,
+        },
+      );
+
+      console.log('✅ Booking confirmed successfully:', bookingId);
+      return updatedBooking;
+    } catch (error) {
+      console.error('❌ Error confirming booking:', error);
+      throw error;
+    }
+  }
+
+  async rejectBooking(bookingId: string, reason?: string) {
+    try {
+      console.log('❌ Rejecting booking:', bookingId);
+
+      // Find booking
+      const booking = await this.prisma.booking.findUnique({
+        where: { id: bookingId },
+        include: {
+          service: true,
+          staff: true,
+          salon: true,
+          user: true,
+        },
+      });
+
+      if (!booking) {
+        throw new Error('Booking not found');
+      }
+
+      if (booking.status !== 'PENDING') {
+        throw new Error('Only pending bookings can be rejected');
+      }
+
+      // Update status to CANCELED
+      const updatedBooking = await this.prisma.booking.update({
+        where: { id: bookingId },
+        data: { status: 'CANCELED' },
+        include: {
+          service: true,
+          staff: true,
+          salon: true,
+          user: true,
+        },
+      });
+
+      // Send rejection email to client
+      const dateTimeString = updatedBooking.dateTime.toISOString();
+      const { formattedDate, formattedTime } =
+        this.formatBookingDateTime(dateTimeString);
+
+      await this.emailService.sendBookingRejection(
+        updatedBooking.user.email,
+        updatedBooking.user.name || 'Client',
+        {
+          serviceName: updatedBooking.service.name,
+          date: formattedDate,
+          time: formattedTime,
+          duration: updatedBooking.service.duration,
+          price: updatedBooking.service.price,
+          salonName: updatedBooking.salon.name,
+          salonAddress: updatedBooking.salon.address ?? undefined,
+          salonPhone: updatedBooking.salon.phone ?? undefined,
+          staffName: updatedBooking.staff?.name,
+          reason,
+        },
+      );
+
+      console.log('❌ Booking rejected successfully:', bookingId);
+      return updatedBooking;
+    } catch (error) {
+      console.error('❌ Error rejecting booking:', error);
       throw error;
     }
   }

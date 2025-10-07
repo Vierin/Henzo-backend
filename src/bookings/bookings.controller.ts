@@ -352,4 +352,54 @@ export class BookingsController {
       );
     }
   }
+
+  @Put(':id/confirm')
+  async confirmBooking(@Param('id') bookingId: string) {
+    try {
+      console.log('✅ Confirm booking request:', bookingId);
+
+      const result = await this.bookingsService.confirmBooking(bookingId);
+
+      console.log('✅ Booking confirmed successfully:', bookingId);
+      return {
+        success: true,
+        message: 'Booking confirmed successfully',
+        booking: result,
+      };
+    } catch (error) {
+      console.error('❌ Confirm booking failed:', error.message);
+      throw new HttpException(
+        error.message || 'Failed to confirm booking',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Put(':id/reject')
+  async rejectBooking(
+    @Param('id') bookingId: string,
+    @Body() data?: { reason?: string },
+  ) {
+    try {
+      console.log('❌ Reject booking request:', bookingId);
+
+      const result = await this.bookingsService.rejectBooking(
+        bookingId,
+        data?.reason,
+      );
+
+      console.log('❌ Booking rejected successfully:', bookingId);
+      return {
+        success: true,
+        message: 'Booking rejected successfully',
+        booking: result,
+      };
+    } catch (error) {
+      console.error('❌ Reject booking failed:', error.message);
+      throw new HttpException(
+        error.message || 'Failed to reject booking',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
 }

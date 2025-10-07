@@ -91,7 +91,7 @@ model Booking {
   userId       String
   serviceId    String
   staffId      String?
-  status       BookingStatus @default(CONFIRMED)
+  status       BookingStatus @default(PENDING)
   notes        String?
   createdAt    DateTime      @default(now())
   dateTime     DateTime
@@ -172,6 +172,7 @@ enum StaffAccessLevel {
 }
 
 enum BookingStatus {
+  PENDING
   CONFIRMED
   CANCELED
   COMPLETED
