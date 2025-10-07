@@ -8,12 +8,14 @@ import {
 } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { AuthService } from '../auth/auth.service';
+import { AnalyticsService } from './analytics.service';
 
 @Controller('admin')
 export class AdminController {
   constructor(
     private readonly adminService: AdminService,
     private readonly authService: AuthService,
+    private readonly analyticsService: AnalyticsService,
   ) {}
 
   @Get('dashboard')
@@ -28,7 +30,9 @@ export class AdminController {
         throw new HttpException('Access denied', HttpStatus.FORBIDDEN);
       }
 
-      const dashboard = await this.adminService.getDashboardStats(period || '30d');
+      const dashboard = await this.adminService.getDashboardStats(
+        period || '30d',
+      );
       return dashboard;
     } catch (error) {
       throw new HttpException(
@@ -128,6 +132,30 @@ export class AdminController {
     } catch (error) {
       throw new HttpException(
         error.message || 'Failed to get customers',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Get('analytics')
+  async getAnalytics(
+    @Headers('authorization') authHeader: string,
+    @Query('period') period?: '7d' | '30d' | '90d',
+  ) {
+    try {
+      const currentUser = await this.authService.getCurrentUser(authHeader);
+
+      if (currentUser.user.role !== 'ADMIN') {
+        throw new HttpException('Access denied', HttpStatus.FORBIDDEN);
+      }
+
+      const analytics = await this.analyticsService.getAnalytics(
+        period || '30d',
+      );
+      return analytics;
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Failed to get analytics',
         HttpStatus.BAD_REQUEST,
       );
     }
