@@ -16,6 +16,18 @@ export class EmailService {
     }
   }
 
+  private formatVND(amount: number): string {
+    if (amount >= 1_000_000) {
+      const millions = amount / 1_000_000;
+      return `${millions % 1 === 0 ? millions : millions.toFixed(1)}M ₫`;
+    }
+    if (amount >= 1_000) {
+      const thousands = amount / 1_000;
+      return `${thousands % 1 === 0 ? thousands : thousands.toFixed(1)}K ₫`;
+    }
+    return `${amount} ₫`;
+  }
+
   private async sendEmailViaBrevo(emailData: {
     to: { email: string; name: string }[];
     sender: { email: string; name: string };
@@ -115,7 +127,7 @@ export class EmailService {
                 </div>
                 <div class="detail-row">
                   <span class="detail-label">Price:</span>
-                  <span class="detail-value">$${bookingData.price}</span>
+                  <span class="detail-value">${this.formatVND(bookingData.price)}</span>
                 </div>
                 ${
                   bookingData.staffName
@@ -175,7 +187,7 @@ export class EmailService {
         sender: {
           email:
             this.configService.get<string>('BREVO_FROM_EMAIL') ||
-            'noreply@henzo.com',
+            'noreply@henzo.app',
           name: 'Henzo Booking System',
         },
         subject: `Booking Confirmation - ${bookingData.salonName}`,
@@ -282,7 +294,7 @@ export class EmailService {
                 </div>
                 <div class="detail-row">
                   <span class="detail-label">Price:</span>
-                  <span class="detail-value">$${bookingData.price}</span>
+                  <span class="detail-value">${this.formatVND(bookingData.price)}</span>
                 </div>
                 ${
                   bookingData.staffName
@@ -317,7 +329,7 @@ export class EmailService {
         sender: {
           email:
             this.configService.get<string>('BREVO_FROM_EMAIL') ||
-            'noreply@henzo.com',
+            'noreply@henzo.app',
           name: 'Henzo Booking System',
         },
         subject: `New Booking - ${bookingData.clientName} at ${bookingData.time}`,
@@ -406,7 +418,7 @@ export class EmailService {
                 </div>
                 <div class="detail-row">
                   <span class="detail-label">Price:</span>
-                  <span class="detail-value">$${bookingData.price}</span>
+                  <span class="detail-value">${this.formatVND(bookingData.price)}</span>
                 </div>
                 ${
                   bookingData.staffName
@@ -466,7 +478,7 @@ export class EmailService {
         sender: {
           email:
             this.configService.get<string>('BREVO_FROM_EMAIL') ||
-            'noreply@henzo.com',
+            'noreply@henzo.app',
           name: 'Henzo Booking System',
         },
         subject: `Appointment Reminder - Tomorrow at ${bookingData.salonName}`,
@@ -561,7 +573,7 @@ export class EmailService {
         sender: {
           email:
             this.configService.get<string>('BREVO_FROM_EMAIL') ||
-            'noreply@henzo.com',
+            'noreply@henzo.app',
           name: 'Henzo Contact Form',
         },
         subject: data.subject,
@@ -680,7 +692,7 @@ export class EmailService {
                 </div>
                 <div class="detail-row">
                   <span class="detail-label">Price:</span>
-                  <span class="detail-value">$${bookingData.price}</span>
+                  <span class="detail-value">${this.formatVND(bookingData.price)}</span>
                 </div>
                 ${
                   bookingData.staffName
@@ -718,7 +730,7 @@ export class EmailService {
         sender: {
           email:
             this.configService.get<string>('BREVO_FROM_EMAIL') ||
-            'noreply@henzo.com',
+            'noreply@henzo.app',
           name: 'Henzo Booking System',
         },
         subject: `🔔 New Booking Request - ${bookingData.clientName} at ${bookingData.time}`,
@@ -807,7 +819,7 @@ export class EmailService {
                 </div>
                 <div class="detail-row">
                   <span class="detail-label">Price:</span>
-                  <span class="detail-value">$${bookingData.price}</span>
+                  <span class="detail-value">${this.formatVND(bookingData.price)}</span>
                 </div>
                 ${
                   bookingData.staffName
@@ -871,7 +883,7 @@ export class EmailService {
         sender: {
           email:
             this.configService.get<string>('BREVO_FROM_EMAIL') ||
-            'noreply@henzo.com',
+            'noreply@henzo.app',
           name: 'Henzo Booking System',
         },
         subject: `Booking Request Received - ${bookingData.salonName}`,
@@ -1002,7 +1014,7 @@ export class EmailService {
         sender: {
           email:
             this.configService.get<string>('BREVO_FROM_EMAIL') ||
-            'noreply@henzo.com',
+            'noreply@henzo.app',
           name: 'Henzo Booking System',
         },
         subject: `Booking Request Update - ${bookingData.salonName}`,
