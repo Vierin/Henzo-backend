@@ -126,7 +126,7 @@ export class AnalyticsService {
     });
 
     // Fill missing days with 0
-    const result = [];
+    const result: { date: string; count: number }[] = [];
     const current = new Date(startDate);
     while (current <= endDate) {
       const dateStr = current.toISOString().split('T')[0];
