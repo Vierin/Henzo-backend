@@ -1,19 +1,40 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { supabase } from '../lib/supabase';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { InviteCodesService } from '../invite-codes/invite-codes.service';
 
 @Injectable()
 export class AuthService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private inviteCodesService: InviteCodesService,
+  ) {}
 
   async registerOwner(data: {
     userId: string;
     email: string;
     name?: string;
     role?: string;
+    inviteCode?: string;
   }) {
     try {
+      // Валидация инвайт-кода (обязательно для beta)
+      if (!data.inviteCode) {
+        throw new BadRequestException(
+          'Invite code is required for registration',
+        );
+      }
+
+      const validation = await this.inviteCodesService.validateCode(
+        data.inviteCode,
+      );
+      if (!validation.valid) {
+        throw new BadRequestException(
+          validation.error || 'Invalid invite code',
+        );
+      }
+
       // Проверяем, существует ли пользователь в нашей базе данных
       const existingUser = await this.prisma.user.findUnique({
         where: { id: data.userId },
@@ -33,6 +54,9 @@ export class AuthService {
         },
       });
 
+      // Отмечаем код как использованный (будет сделано при создании салона)
+      // Сохраняем inviteCodeId для связи с салоном позже
+
       return {
         user: {
           id: user.id,
@@ -41,6 +65,7 @@ export class AuthService {
           phone: user.phone,
           role: user.role,
         },
+        inviteCodeId: validation.inviteCodeId,
       };
     } catch (error) {
       throw new Error(`Owner registration failed: ${error.message}`);

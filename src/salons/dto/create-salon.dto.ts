@@ -52,4 +52,8 @@ export class CreateSalonDto {
   @IsArray()
   @IsInt({ each: true })
   categoryIds?: number[];
+
+  @IsOptional()
+  @IsString()
+  inviteCodeId?: string;
 }

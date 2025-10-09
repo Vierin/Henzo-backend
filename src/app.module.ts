@@ -14,6 +14,7 @@ import { AdminModule } from './admin/admin.module';
 import { RemindersModule } from './reminders/reminders.module';
 import { ContactModule } from './contact/contact.module';
 import { SearchModule } from './search/search.module';
+import { InviteCodesModule } from './invite-codes/invite-codes.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { SearchModule } from './search/search.module';
     RemindersModule,
     ContactModule,
     SearchModule,
+    InviteCodesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

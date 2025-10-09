@@ -1,0 +1,51 @@
+# Скопируйте это в .env.production и заполните реальными значениями
+
+# ============================================
+# DATABASE (Supabase)
+# ============================================
+# Получите из: Supabase Dashboard -> Settings -> Database -> Connection String
+# Используйте "Connection pooling" для DATABASE_URL (порт 6543)
+DATABASE_URL="postgresql://postgres.PROJECT_ID:[YOUR_PASSWORD]@aws-0-us-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true"
+
+# Используйте "Direct connection" для DIRECT_URL (порт 5432)
+DIRECT_URL="postgresql://postgres.PROJECT_ID:[YOUR_PASSWORD]@aws-0-us-east-1.compute-1.amazonaws.com:5432/postgres"
+
+# ============================================
+# SUPABASE
+# ============================================
+# Получите из: Supabase Dashboard -> Settings -> API
+SUPABASE_URL="https://PROJECT_ID.supabase.co"
+SUPABASE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."  # anon/public key
+SUPABASE_SERVICE_ROLE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."  # service_role key (секретный!)
+
+# ============================================
+# JWT
+# ============================================
+# Сгенерируйте: openssl rand -base64 48
+JWT_SECRET="ВСТАВЬТЕ_СЮДА_СЛУЧАЙНУЮ_СТРОКУ_МИНИМУМ_32_СИМВОЛА"
+
+# ============================================
+# EMAIL (Brevo)
+# ============================================
+# Получите из: https://app.brevo.com/settings/keys/api
+BREVO_API_KEY="xkeysib-..."
+EMAIL_FROM="noreply@yourdomain.com"
+EMAIL_FROM_NAME="Henzo"
+
+# ============================================
+# APPLICATION
+# ============================================
+PORT=3001
+NODE_ENV=production
+
+# ============================================
+# FRONTEND (Vercel)
+# ============================================
+# URL вашего фронтенда на Vercel
+FRONTEND_URL="https://your-app.vercel.app"
+
+# ============================================
+# GOOGLE MAPS (если используется)
+# ============================================
+# Получите из: https://console.cloud.google.com/apis/credentials
+GOOGLE_MAPS_API_KEY="AIza..."

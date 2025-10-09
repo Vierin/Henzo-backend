@@ -2,10 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateSalonDto } from './dto/update-salon.dto';
 import { CreateSalonDto } from './dto/create-salon.dto';
+import { InviteCodesService } from '../invite-codes/invite-codes.service';
 
 @Injectable()
 export class SalonsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private inviteCodesService: InviteCodesService,
+  ) {}
 
   async findSalonsWithServices() {
     return this.prisma.salon.findMany({
@@ -233,7 +237,7 @@ export class SalonsService {
 
   async createCurrentUserSalon(createSalonDto: CreateSalonDto, userId: string) {
     try {
-      const { categoryIds, ...salonData } = createSalonDto;
+      const { categoryIds, inviteCodeId, ...salonData } = createSalonDto;
 
       // Create salon and subscription in a transaction
       const result = await this.prisma.$transaction(async (prisma) => {
@@ -243,6 +247,7 @@ export class SalonsService {
             ...salonData,
             ownerId: userId,
             categoryIds: categoryIds || [],
+            inviteCodeId: inviteCodeId || null,
           } as any,
           include: {
             services: true,
@@ -273,6 +278,12 @@ export class SalonsService {
             amount: 0.0, // Free subscription
           },
         });
+
+        // Отмечаем инвайт-код как использованный
+        if (inviteCodeId) {
+          await this.inviteCodesService.markAsUsed(inviteCodeId);
+          console.log(`✅ Invite code marked as used: ${inviteCodeId}`);
+        }
 
         return salon;
       });
