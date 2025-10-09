@@ -25,6 +25,8 @@ async function bootstrap() {
       'http://localhost:3001',
       'http://192.168.1.6:3000',
       'http://127.0.0.1:3000',
+      'https://henzo.app',
+      'https://www.henzo.app',
     ];
 
     // Add production frontend URL if set
@@ -35,6 +37,8 @@ async function bootstrap() {
     app.enableCors({
       origin: allowedOrigins,
       credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
     });
     console.log('✅ CORS enabled for:', allowedOrigins.join(', '));
 
