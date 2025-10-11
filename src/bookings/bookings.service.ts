@@ -91,7 +91,11 @@ export class BookingsService {
         },
       });
 
-      return bookings;
+      // Map dateTime to time for frontend compatibility
+      return bookings.map((booking) => ({
+        ...booking,
+        time: booking.dateTime,
+      }));
     } catch (error) {
       throw error;
     }
@@ -121,7 +125,11 @@ export class BookingsService {
         },
       });
 
-      return bookings;
+      // Map dateTime to time for frontend compatibility
+      return bookings.map((booking) => ({
+        ...booking,
+        time: booking.dateTime,
+      }));
     } catch (error) {
       throw error;
     }
@@ -151,7 +159,11 @@ export class BookingsService {
         },
       });
 
-      return bookings;
+      // Map dateTime to time for frontend compatibility
+      return bookings.map((booking) => ({
+        ...booking,
+        time: booking.dateTime,
+      }));
     } catch (error) {
       throw error;
     }
@@ -173,7 +185,11 @@ export class BookingsService {
         },
       });
 
-      return bookings;
+      // Map dateTime to time for frontend compatibility
+      return bookings.map((booking) => ({
+        ...booking,
+        time: booking.dateTime,
+      }));
     } catch (error) {
       console.error('❌ Error fetching salon bookings:', error.message);
       throw error;
@@ -296,7 +312,11 @@ export class BookingsService {
         }
       }
 
-      return updatedBookings;
+      // Map dateTime to time for frontend compatibility
+      return updatedBookings.map((booking) => ({
+        ...booking,
+        time: booking.dateTime,
+      }));
     } catch (error) {
       console.error('❌ Error fetching owner bookings:', error.message);
       throw error;
@@ -750,7 +770,12 @@ export class BookingsService {
       });
 
       console.log(`✅ Found ${bookings.length} bookings for date ${date}`);
-      return bookings;
+
+      // Map dateTime to time for frontend compatibility
+      return bookings.map((booking) => ({
+        ...booking,
+        time: booking.dateTime,
+      }));
     } catch (error) {
       console.error('❌ Error fetching bookings by date and salon:', error);
       throw error;
