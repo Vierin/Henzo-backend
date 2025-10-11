@@ -1,5 +1,4 @@
 import { PrismaClient } from '@prisma/client';
-import { nanoid } from 'nanoid';
 
 const prisma = new PrismaClient();
 
@@ -17,11 +16,10 @@ async function main() {
 
   // Create Users
   console.log('👤 Creating users...');
-  
+
   // Owners
   const owner1 = await prisma.user.create({
     data: {
-      id: nanoid(),
       email: 'salon1@henzo.app',
       name: 'Nguyen Van A',
       phone: '+84901234567',
@@ -31,7 +29,6 @@ async function main() {
 
   const owner2 = await prisma.user.create({
     data: {
-      id: nanoid(),
       email: 'salon2@henzo.app',
       name: 'Tran Thi B',
       phone: '+84902345678',
@@ -41,7 +38,6 @@ async function main() {
 
   const owner3 = await prisma.user.create({
     data: {
-      id: nanoid(),
       email: 'salon3@henzo.app',
       name: 'Le Van C',
       phone: '+84903456789',
@@ -52,7 +48,6 @@ async function main() {
   // Clients
   const client1 = await prisma.user.create({
     data: {
-      id: nanoid(),
       email: 'client1@henzo.app',
       name: 'Pham Thi D',
       phone: '+84904567890',
@@ -62,7 +57,6 @@ async function main() {
 
   const client2 = await prisma.user.create({
     data: {
-      id: nanoid(),
       email: 'client2@henzo.app',
       name: 'Hoang Van E',
       phone: '+84905678901',
@@ -72,7 +66,6 @@ async function main() {
 
   const client3 = await prisma.user.create({
     data: {
-      id: nanoid(),
       email: 'client3@henzo.app',
       name: 'Nguyen Thi F',
       phone: '+84906789012',
@@ -85,7 +78,6 @@ async function main() {
 
   const salon1 = await prisma.salon.create({
     data: {
-      id: nanoid(),
       name: 'Beauty Salon Hanoi',
       description:
         'Premium beauty salon in the heart of Hanoi. We offer haircuts, coloring, and styling services.',
@@ -115,7 +107,6 @@ async function main() {
 
   const salon2 = await prisma.salon.create({
     data: {
-      id: nanoid(),
       name: 'Nail Art Studio HCMC',
       description:
         'Professional nail art and manicure services in Ho Chi Minh City.',
@@ -144,9 +135,9 @@ async function main() {
 
   const salon3 = await prisma.salon.create({
     data: {
-      id: nanoid(),
       name: 'Spa & Wellness Da Nang',
-      description: 'Relaxing spa and wellness center with traditional Vietnamese treatments.',
+      description:
+        'Relaxing spa and wellness center with traditional Vietnamese treatments.',
       address: '78 Bach Dang, Da Nang, Vietnam',
       phone: '+84903456789',
       email: 'info@spa-danang.vn',
@@ -175,7 +166,6 @@ async function main() {
 
   const staff1_1 = await prisma.staff.create({
     data: {
-      id: nanoid(),
       name: 'Mai Linh',
       email: 'mailinh@beautysalon-hanoi.vn',
       phone: '+84911111111',
@@ -186,7 +176,6 @@ async function main() {
 
   const staff1_2 = await prisma.staff.create({
     data: {
-      id: nanoid(),
       name: 'Thanh Tam',
       email: 'thanhtam@beautysalon-hanoi.vn',
       phone: '+84912222222',
@@ -197,7 +186,6 @@ async function main() {
 
   const staff2_1 = await prisma.staff.create({
     data: {
-      id: nanoid(),
       name: 'Kim Anh',
       phone: '+84913333333',
       accessLevel: 'EMPLOYEE',
@@ -207,7 +195,6 @@ async function main() {
 
   const staff3_1 = await prisma.staff.create({
     data: {
-      id: nanoid(),
       name: 'Huong Giang',
       phone: '+84914444444',
       accessLevel: 'EMPLOYEE',
@@ -221,111 +208,93 @@ async function main() {
   // Salon 1 - Beauty Salon Hanoi
   const service1_1 = await prisma.service.create({
     data: {
-      id: nanoid(),
       name: 'Haircut & Style',
       description: 'Professional haircut with styling',
       duration: 60,
       price: 150000,
       salonId: salon1.id,
-      serviceCategoryId: 1, // Hair
     },
   });
 
   const service1_2 = await prisma.service.create({
     data: {
-      id: nanoid(),
       name: 'Hair Coloring',
       description: 'Full hair coloring with premium products',
       duration: 120,
       price: 500000,
       salonId: salon1.id,
-      serviceCategoryId: 1,
     },
   });
 
   const service1_3 = await prisma.service.create({
     data: {
-      id: nanoid(),
       name: 'Makeup',
       description: 'Professional makeup for events',
       duration: 90,
       price: 300000,
       salonId: salon1.id,
-      serviceCategoryId: 3, // Makeup
     },
   });
 
   // Salon 2 - Nail Art Studio
   const service2_1 = await prisma.service.create({
     data: {
-      id: nanoid(),
       name: 'Manicure',
       description: 'Classic manicure with gel polish',
       duration: 45,
       price: 200000,
       salonId: salon2.id,
-      serviceCategoryId: 2, // Nails
     },
   });
 
   const service2_2 = await prisma.service.create({
     data: {
-      id: nanoid(),
       name: 'Pedicure',
       description: 'Relaxing pedicure with massage',
       duration: 60,
       price: 250000,
       salonId: salon2.id,
-      serviceCategoryId: 2,
     },
   });
 
   const service2_3 = await prisma.service.create({
     data: {
-      id: nanoid(),
       name: 'Nail Art Design',
       description: 'Custom nail art design',
       duration: 90,
       price: 400000,
       salonId: salon2.id,
-      serviceCategoryId: 2,
     },
   });
 
   // Salon 3 - Spa & Wellness
   const service3_1 = await prisma.service.create({
     data: {
-      id: nanoid(),
       name: 'Full Body Massage',
       description: 'Traditional Vietnamese massage',
       duration: 90,
       price: 350000,
       salonId: salon3.id,
-      serviceCategoryId: 5, // Massage
     },
   });
 
   const service3_2 = await prisma.service.create({
     data: {
-      id: nanoid(),
       name: 'Facial Treatment',
       description: 'Deep cleansing facial with organic products',
       duration: 75,
       price: 400000,
       salonId: salon3.id,
-      serviceCategoryId: 4, // Spa
     },
   });
 
   const service3_3 = await prisma.service.create({
     data: {
-      id: nanoid(),
       name: 'Hot Stone Massage',
       description: 'Relaxing hot stone therapy',
       duration: 120,
       price: 600000,
       salonId: salon3.id,
-      serviceCategoryId: 5,
     },
   });
 
@@ -367,7 +336,6 @@ async function main() {
 
   await prisma.booking.create({
     data: {
-      id: nanoid(),
       userId: client1.id,
       salonId: salon1.id,
       serviceId: service1_1.id,
@@ -380,7 +348,6 @@ async function main() {
 
   await prisma.booking.create({
     data: {
-      id: nanoid(),
       userId: client2.id,
       salonId: salon2.id,
       serviceId: service2_1.id,
@@ -393,7 +360,6 @@ async function main() {
 
   await prisma.booking.create({
     data: {
-      id: nanoid(),
       userId: client3.id,
       salonId: salon3.id,
       serviceId: service3_1.id,
@@ -409,7 +375,6 @@ async function main() {
 
   await prisma.booking.create({
     data: {
-      id: nanoid(),
       userId: client1.id,
       salonId: salon2.id,
       serviceId: service2_2.id,
@@ -425,7 +390,6 @@ async function main() {
 
   await prisma.review.create({
     data: {
-      id: nanoid(),
       userId: client3.id,
       salonId: salon3.id,
       rating: 5,
@@ -435,7 +399,6 @@ async function main() {
 
   await prisma.review.create({
     data: {
-      id: nanoid(),
       userId: client1.id,
       salonId: salon1.id,
       rating: 4,
@@ -445,7 +408,6 @@ async function main() {
 
   await prisma.review.create({
     data: {
-      id: nanoid(),
       userId: client2.id,
       salonId: salon2.id,
       rating: 5,
@@ -478,4 +440,3 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
-
