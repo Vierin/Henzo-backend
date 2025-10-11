@@ -49,7 +49,7 @@ async function main() {
   ];
 
   console.log('\n👥 Creating staff members...');
-  const createdStaff = [];
+  const createdStaff: any[] = [];
 
   for (const staffData of staffNames) {
     try {
@@ -186,7 +186,7 @@ async function main() {
   ];
 
   console.log('\n💇 Creating services...');
-  const createdServices = [];
+  const createdServices: any[] = [];
 
   for (const serviceData of services) {
     try {

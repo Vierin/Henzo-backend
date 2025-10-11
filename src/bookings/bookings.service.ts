@@ -576,6 +576,7 @@ export class BookingsService {
       staffId?: string;
       time?: string;
       notes?: string;
+      status?: string;
     },
     ownerId: string,
   ) {
@@ -618,7 +619,7 @@ export class BookingsService {
           throw new Error('Service not found or does not belong to this salon');
         }
 
-        updateData.serviceId = data.serviceId;
+        updateData.service = { connect: { id: data.serviceId } };
       }
 
       if (data.staffId) {
@@ -636,16 +637,36 @@ export class BookingsService {
           );
         }
 
-        updateData.staffId = data.staffId;
+        updateData.staff = { connect: { id: data.staffId } };
       }
 
       if (data.time) {
-        updateData.time = new Date(data.time);
+        updateData.dateTime = new Date(data.time);
       }
 
       if (data.notes !== undefined) {
         updateData.notes = data.notes;
       }
+
+      if (data.status) {
+        console.log('🔄 Status update requested:', {
+          oldStatus: existingBooking.status,
+          newStatus: data.status,
+        });
+        updateData.status = data.status;
+      }
+
+      // Track if status changed
+      const statusChanged =
+        data.status && data.status !== existingBooking.status;
+      const oldStatus = existingBooking.status;
+
+      console.log('📊 Update data prepared:', {
+        updateData,
+        statusChanged,
+        oldStatus,
+        newStatus: data.status,
+      });
 
       // Update the booking
       const updatedBooking = await this.prisma.booking.update({
@@ -683,6 +704,70 @@ export class BookingsService {
           },
         },
       });
+
+      console.log('✅ Booking updated in DB:', {
+        id: updatedBooking.id,
+        oldStatus,
+        newStatus: updatedBooking.status,
+        statusChanged,
+      });
+
+      // Send email notification if status changed
+      if (statusChanged && updatedBooking.user.email) {
+        console.log(
+          `📧 Status changed from ${oldStatus} to ${data.status}, sending email notification`,
+        );
+
+        try {
+          // Format date and time for email
+          const bookingDate = new Date(updatedBooking.dateTime);
+          const formattedDate = bookingDate.toLocaleDateString('en-US', {
+            month: 'long',
+            day: 'numeric',
+            year: 'numeric',
+          });
+          const formattedTime = bookingDate.toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+          });
+
+          if (data.status === 'CONFIRMED') {
+            // Send confirmation email to client
+            await this.emailService.sendBookingConfirmation(
+              updatedBooking.user.email,
+              updatedBooking.user.name || 'Client',
+              {
+                serviceName: updatedBooking.service.name,
+                date: formattedDate,
+                time: formattedTime,
+                duration: updatedBooking.service.duration,
+                price: updatedBooking.service.price,
+                salonName: updatedBooking.salon.name,
+              },
+            );
+            console.log('✅ Confirmation email sent to client');
+          } else if (data.status === 'CANCELED') {
+            // Send rejection email to client
+            await this.emailService.sendBookingRejection(
+              updatedBooking.user.email,
+              updatedBooking.user.name || 'Client',
+              {
+                serviceName: updatedBooking.service.name,
+                date: formattedDate,
+                time: formattedTime,
+                duration: updatedBooking.service.duration,
+                price: updatedBooking.service.price,
+                salonName: updatedBooking.salon.name,
+              },
+            );
+            console.log('✅ Rejection email sent to client');
+          }
+        } catch (emailError) {
+          console.error('❌ Error sending status change email:', emailError);
+          // Don't fail the update if email fails
+        }
+      }
 
       console.log('✅ Booking updated successfully:', updatedBooking.id);
       return updatedBooking;

@@ -261,6 +261,7 @@ export class BookingsController {
       staffId?: string;
       time?: string;
       notes?: string;
+      status?: string;
     },
     @Headers('authorization') authHeader: string,
   ) {
@@ -292,9 +293,16 @@ export class BookingsController {
       );
 
       console.log('✅ Booking updated successfully:', bookingId);
+
+      // Map dateTime to time for frontend compatibility
+      const bookingResponse = {
+        ...updatedBooking,
+        time: updatedBooking.dateTime,
+      };
+
       return {
         success: true,
-        booking: updatedBooking,
+        booking: bookingResponse,
       };
     } catch (error) {
       console.error('❌ Update booking failed:', error.message);
