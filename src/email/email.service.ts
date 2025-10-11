@@ -611,8 +611,8 @@ export class EmailService {
       const baseUrl =
         this.configService.get<string>('FRONTEND_URL') ||
         'http://localhost:3000';
-      const confirmUrl = `${baseUrl}/api/bookings/${bookingData.bookingId}/confirm`;
-      const rejectUrl = `${baseUrl}/api/bookings/${bookingData.bookingId}/reject`;
+      const confirmUrl = `${baseUrl}/bookings/${bookingData.bookingId}/confirm`;
+      const rejectUrl = `${baseUrl}/bookings/${bookingData.bookingId}/reject`;
 
       const htmlContent = `
         <!DOCTYPE html>
@@ -796,7 +796,7 @@ export class EmailService {
               <div class="pending-notice">
                 <h3>⏰ Awaiting Salon Confirmation</h3>
                 <p>Your booking request has been sent to <strong>${bookingData.salonName}</strong>.</p>
-                <p>We'll notify you as soon as the salon confirms your appointment.</p>
+                <p>Usually the salon confirms the booking within 2 hours. We'll notify you as soon as the salon confirms your appointment.</p>
               </div>
               
               <div class="booking-details">

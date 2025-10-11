@@ -9,10 +9,10 @@ export class ContactService {
   async sendMessage(contactDto: ContactDto) {
     const { name, email, message } = contactDto;
 
-    // Отправляем email на hello@henzo.app
+    // Отправляем email на contact@henzo.app
     await this.emailService.sendContactMessage({
-      to: 'hello@henzo.app',
-      subject: `New Contact Form Message from ${name}`,
+      to: 'contact@henzo.app',
+      subject: `New Beta Request from ${name}`,
       template: 'contact-message',
       context: {
         name,

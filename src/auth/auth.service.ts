@@ -544,4 +544,135 @@ export class AuthService {
       throw new Error(`Failed to delete account: ${error.message}`);
     }
   }
+
+  async getFavoriteSalons(userId: string) {
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { favoriteSalons: true },
+      });
+
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      // Get full salon data for favorite salon IDs
+      const salons = await this.prisma.salon.findMany({
+        where: {
+          id: {
+            in: user.favoriteSalons,
+          },
+        },
+        include: {
+          services: {
+            select: {
+              id: true,
+              name: true,
+              price: true,
+              duration: true,
+            },
+          },
+          reviews: {
+            select: {
+              id: true,
+              rating: true,
+            },
+          },
+        },
+      });
+
+      // Calculate average rating for each salon
+      const salonsWithRating = salons.map((salon) => {
+        const avgRating =
+          salon.reviews.length > 0
+            ? salon.reviews.reduce((sum, review) => sum + review.rating, 0) /
+              salon.reviews.length
+            : 0;
+
+        return {
+          ...salon,
+          averageRating: avgRating,
+          reviewCount: salon.reviews.length,
+        };
+      });
+
+      return salonsWithRating;
+    } catch (error) {
+      throw new Error(`Failed to get favorite salons: ${error.message}`);
+    }
+  }
+
+  async addFavoriteSalon(userId: string, salonId: string) {
+    try {
+      // Check if salon exists
+      const salon = await this.prisma.salon.findUnique({
+        where: { id: salonId },
+      });
+
+      if (!salon) {
+        throw new Error('Salon not found');
+      }
+
+      // Get current user
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { favoriteSalons: true },
+      });
+
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      // Check if already favorited
+      if (user.favoriteSalons.includes(salonId)) {
+        throw new Error('Salon is already in favorites');
+      }
+
+      // Add salon to favorites
+      const updatedUser = await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          favoriteSalons: {
+            push: salonId,
+          },
+        },
+      });
+
+      return updatedUser;
+    } catch (error) {
+      throw new Error(`Failed to add salon to favorites: ${error.message}`);
+    }
+  }
+
+  async removeFavoriteSalon(userId: string, salonId: string) {
+    try {
+      // Get current user
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { favoriteSalons: true },
+      });
+
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      // Remove salon from favorites
+      const updatedFavorites = user.favoriteSalons.filter(
+        (id) => id !== salonId,
+      );
+
+      const updatedUser = await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          favoriteSalons: updatedFavorites,
+        },
+      });
+
+      return updatedUser;
+    } catch (error) {
+      throw new Error(
+        `Failed to remove salon from favorites: ${error.message}`,
+      );
+    }
+  }
 }

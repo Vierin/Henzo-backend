@@ -9,15 +9,16 @@ datasource db {
 }
 
 model User {
-  id        String    @id @default(cuid())
-  email     String    @unique
-  name      String?
-  phone     String?
-  role      UserRole  @default(OWNER)
-  createdAt DateTime  @default(now())
-  bookings  Booking[] @relation("UserBookings")
-  reviews   Review[]  @relation("UserReviews")
-  salons    Salon[]   @relation("UserSalons")
+  id             String    @id @default(cuid())
+  email          String    @unique
+  name           String?
+  phone          String?
+  role           UserRole  @default(OWNER)
+  favoriteSalons String[]  @default([])
+  createdAt      DateTime  @default(now())
+  bookings       Booking[] @relation("UserBookings")
+  reviews        Review[]  @relation("UserReviews")
+  salons         Salon[]   @relation("UserSalons")
 }
 
 model Salon {

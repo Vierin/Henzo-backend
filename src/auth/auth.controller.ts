@@ -238,4 +238,77 @@ export class AuthController {
       );
     }
   }
+
+  @Get('favorites')
+  async getFavoriteSalons(@Headers('authorization') authHeader: string) {
+    try {
+      const currentUser = await this.authService.getCurrentUser(authHeader);
+      const favorites = await this.authService.getFavoriteSalons(
+        currentUser.user.id,
+      );
+
+      return {
+        success: true,
+        favorites,
+      };
+    } catch (error) {
+      console.error('❌ Get favorites failed:', error.message);
+      throw new HttpException(
+        error.message || 'Failed to get favorite salons',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Post('favorites/:salonId')
+  async addFavoriteSalon(
+    @Headers('authorization') authHeader: string,
+    @Body() body: { salonId: string },
+  ) {
+    try {
+      const currentUser = await this.authService.getCurrentUser(authHeader);
+      const updatedUser = await this.authService.addFavoriteSalon(
+        currentUser.user.id,
+        body.salonId,
+      );
+
+      return {
+        success: true,
+        message: 'Salon added to favorites',
+        favoriteSalons: updatedUser.favoriteSalons,
+      };
+    } catch (error) {
+      console.error('❌ Add favorite failed:', error.message);
+      throw new HttpException(
+        error.message || 'Failed to add salon to favorites',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Delete('favorites/:salonId')
+  async removeFavoriteSalon(
+    @Headers('authorization') authHeader: string,
+    @Body() body: { salonId: string },
+  ) {
+    try {
+      const currentUser = await this.authService.getCurrentUser(authHeader);
+      const updatedUser = await this.authService.removeFavoriteSalon(
+        currentUser.user.id,
+        body.salonId,
+      );
+
+      return {
+        success: true,
+        message: 'Salon removed from favorites',
+        favoriteSalons: updatedUser.favoriteSalons,
+      };
+    } catch (error) {
+      console.error('❌ Remove favorite failed:', error.message);
+      throw new HttpException(
+        error.message || 'Failed to remove salon from favorites',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
 }

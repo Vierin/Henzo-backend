@@ -176,6 +176,136 @@ export class RemindersService {
     }
   }
 
+  async cancelPendingBookingsAfter3Hours() {
+    try {
+      console.log('🔄 Starting auto-cancel check for pending bookings...');
+
+      const now = new Date();
+      const threeHoursAgo = new Date(now.getTime() - 3 * 60 * 60 * 1000);
+
+      console.log(
+        `🕒 Looking for pending bookings created before ${threeHoursAgo.toISOString()}`,
+      );
+
+      // Find pending bookings older than 3 hours
+      const pendingBookings: BookingWithRelations[] =
+        await this.prisma.booking.findMany({
+          where: {
+            status: 'PENDING',
+            createdAt: {
+              lt: threeHoursAgo,
+            },
+          },
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+            service: {
+              select: {
+                id: true,
+                name: true,
+                duration: true,
+                price: true,
+              },
+            },
+            salon: {
+              select: {
+                id: true,
+                name: true,
+                address: true,
+                phone: true,
+              },
+            },
+            staff: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        });
+
+      console.log(
+        `📊 Found ${pendingBookings.length} pending bookings to auto-cancel`,
+      );
+
+      let successCount = 0;
+      let errorCount = 0;
+
+      // Cancel each booking and notify client
+      for (const booking of pendingBookings) {
+        try {
+          // Update booking status to CANCELED
+          await this.prisma.booking.update({
+            where: { id: booking.id },
+            data: { status: 'CANCELED' },
+          });
+
+          // Format date and time for display
+          const bookingDate = new Date(booking.dateTime);
+          const dateStr = bookingDate.toLocaleDateString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          });
+          const timeStr = bookingDate.toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+          });
+
+          // Send rejection email to client
+          await this.emailService.sendBookingRejection(
+            booking.user.email,
+            booking.user.name || 'Valued Customer',
+            {
+              serviceName: booking.service.name,
+              date: dateStr,
+              time: timeStr,
+              duration: booking.service.duration,
+              price: booking.service.price,
+              salonName: booking.salon.name,
+              salonAddress: booking.salon.address || undefined,
+              salonPhone: booking.salon.phone || undefined,
+              staffName: booking.staff?.name || undefined,
+              reason:
+                'The salon did not respond within 3 hours. Please try booking again or contact the salon directly.',
+            },
+          );
+
+          console.log(
+            `✅ Auto-cancelled booking ${booking.id} and notified ${booking.user.email}`,
+          );
+          successCount++;
+        } catch (error) {
+          console.error(
+            `❌ Error auto-cancelling booking ${booking.id}:`,
+            error,
+          );
+          errorCount++;
+        }
+      }
+
+      console.log(
+        `🔄 Auto-cancel process completed: ${successCount} cancelled, ${errorCount} errors`,
+      );
+
+      return {
+        total: pendingBookings.length,
+        cancelled: successCount,
+        errors: errorCount,
+      };
+    } catch (error) {
+      console.error('❌ Error in cancelPendingBookingsAfter3Hours:', error);
+      throw error;
+    }
+  }
+
   async testReminderSystem() {
     try {
       console.log('🧪 Testing reminder system...');

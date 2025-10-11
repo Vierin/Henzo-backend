@@ -427,22 +427,8 @@ export class BookingsService {
           },
         );
 
-        // Send pending notification to client
-        await this.emailService.sendBookingPending(
-          booking.user.email,
-          booking.user.name || 'Client',
-          {
-            serviceName: booking.service.name,
-            date: formattedDate,
-            time: formattedTime,
-            duration: booking.service.duration,
-            price: booking.service.price,
-            salonName: booking.salon.name,
-            salonAddress: booking.salon.address,
-            salonPhone: booking.salon.phone,
-            staffName: booking.staff?.name,
-          },
-        );
+        // Note: Client does NOT receive email at this stage to avoid spam.
+        // They only get notified after salon confirms or rejects the booking.
       } else if (booking.status === 'CONFIRMED') {
         // Send confirmation to client
         await this.emailService.sendBookingConfirmation(
