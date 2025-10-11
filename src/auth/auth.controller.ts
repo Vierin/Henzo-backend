@@ -23,8 +23,9 @@ export class AuthController {
   async registerUser(
     @Body()
     data: {
-      userId: string;
+      userId: string | null;
       email: string;
+      password?: string;
       name?: string;
       role?: string;
       inviteCode?: string;

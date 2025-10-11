@@ -12,8 +12,9 @@ export class AuthService {
   ) {}
 
   async registerOwner(data: {
-    userId: string;
+    userId: string | null;
     email: string;
+    password?: string;
     name?: string;
     role?: string;
     inviteCode?: string;
@@ -36,39 +37,80 @@ export class AuthService {
         );
       }
 
-      // Проверяем, существует ли пользователь в нашей базе данных
-      const existingUser = await this.prisma.user.findUnique({
-        where: { id: data.userId },
-      });
+      let userId = data.userId;
+      let emailConfirmed = false;
 
-      if (existingUser) {
-        throw new Error('User already exists in database');
-      }
-
-      // Если регистрация из инвайт-ссылки, автоматически подтверждаем email
-      if (data.fromInviteLink) {
+      // Если регистрация из инвайт-ссылки и userId null, создаем пользователя через Admin API
+      if (data.fromInviteLink && !userId && data.password) {
         try {
-          console.log('✅ Auto-confirming email for invite link registration');
-          const { data: userData, error: updateError } =
-            await supabase.auth.admin.updateUserById(data.userId, {
-              email_confirm: true,
+          console.log(
+            '✅ Creating user with confirmed email via Admin API for invite link registration',
+          );
+
+          // Создаем пользователя через Admin API с уже подтвержденным email
+          const { data: adminUser, error: adminError } =
+            await supabase.auth.admin.createUser({
+              email: data.email,
+              password: data.password,
+              email_confirm: true, // Сразу подтверждаем email
+              user_metadata: {
+                name: data.name,
+                role: 'OWNER',
+              },
             });
 
-          if (updateError) {
-            console.error('❌ Failed to confirm email:', updateError);
-          } else {
-            console.log('✅ Email confirmed successfully for:', data.email);
+          if (adminError) {
+            console.error(
+              '❌ Failed to create user via Admin API:',
+              adminError,
+            );
+
+            // Проверяем тип ошибки для более понятных сообщений
+            if (adminError.message?.includes('already been registered')) {
+              throw new BadRequestException(
+                'A user with this email address has already been registered. Please try logging in instead.',
+              );
+            }
+
+            throw new BadRequestException(
+              adminError.message || 'Failed to create user account',
+            );
+          }
+
+          if (adminUser.user) {
+            console.log('✅ User created with confirmed email:', data.email);
+            userId = adminUser.user.id;
+            emailConfirmed = true;
           }
         } catch (error) {
-          console.error('❌ Error confirming email:', error);
-          // Не бросаем ошибку, регистрация может продолжиться
+          console.error('❌ Error creating user via Admin API:', error);
+          throw error;
         }
+      } else if (userId) {
+        // Проверяем, существует ли пользователь в нашей базе данных
+        const existingUser = await this.prisma.user.findUnique({
+          where: { id: userId },
+        });
+
+        if (existingUser) {
+          throw new Error('User already exists in database');
+        }
+
+        // Обычная регистрация - пробуем подтвердить существующего пользователя
+        emailConfirmed = await this.confirmExistingUser(userId);
+      } else {
+        throw new Error('UserId is required for non-invite registrations');
+      }
+
+      // Проверяем что userId определен
+      if (!userId) {
+        throw new Error('Failed to get user ID');
       }
 
       // Создаем запись пользователя в нашей базе данных
       const user = await this.prisma.user.create({
         data: {
-          id: data.userId,
+          id: userId, // Используем обновленный userId
           email: data.email,
           name: data.name,
           role: (data.role as 'OWNER' | 'CLIENT' | 'ADMIN') || 'OWNER',
@@ -87,10 +129,58 @@ export class AuthService {
           role: user.role,
         },
         inviteCodeId: validation.inviteCodeId,
-        emailConfirmed: data.fromInviteLink || false,
+        emailConfirmed,
       };
     } catch (error) {
       throw new Error(`Owner registration failed: ${error.message}`);
+    }
+  }
+
+  private async confirmExistingUser(userId: string): Promise<boolean> {
+    try {
+      // Пытаемся с несколькими попытками вместо большой задержки
+      let retries = 3;
+      let existingAuthUser: any = null;
+      let getUserError: any = null;
+
+      while (retries > 0) {
+        const result = await supabase.auth.admin.getUserById(userId);
+        existingAuthUser = result.data?.user;
+        getUserError = result.error;
+
+        if (existingAuthUser) break;
+
+        // Короткая задержка перед повторной попыткой (200ms вместо 1500ms)
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        retries--;
+      }
+
+      if (getUserError || !existingAuthUser) {
+        console.error(
+          '❌ User not found in Supabase after retries:',
+          getUserError,
+        );
+        return false;
+      }
+
+      // Пользователь существует, подтверждаем email
+      const { error: updateError } = await supabase.auth.admin.updateUserById(
+        userId,
+        {
+          email_confirm: true,
+        },
+      );
+
+      if (updateError) {
+        console.error('❌ Failed to confirm email:', updateError);
+        return false;
+      }
+
+      console.log('✅ Email confirmed successfully for userId:', userId);
+      return true;
+    } catch (error) {
+      console.error('❌ Error confirming existing user:', error);
+      return false;
     }
   }
 
