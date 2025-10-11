@@ -47,7 +47,11 @@ export class SalonsController {
       isOpenNow: isOpenNow === 'true',
     };
 
-    return this.salonsService.searchSalons(params);
+    const result = await this.salonsService.searchSalons(params);
+    return {
+      success: true,
+      ...result,
+    };
   }
 
   @Get('preview')

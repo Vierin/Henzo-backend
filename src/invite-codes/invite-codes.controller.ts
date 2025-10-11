@@ -29,6 +29,7 @@ export class InviteCodesController {
     @Body()
     body: {
       maxUses?: number;
+      ownerEmail?: string;
       source?: string;
       note?: string;
       expiresAt?: string;
@@ -43,6 +44,7 @@ export class InviteCodesController {
 
       return this.inviteCodesService.generateCode({
         maxUses: body.maxUses,
+        ownerEmail: body.ownerEmail,
         source: body.source,
         note: body.note,
         expiresAt: body.expiresAt ? new Date(body.expiresAt) : undefined,

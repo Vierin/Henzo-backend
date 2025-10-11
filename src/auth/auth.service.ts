@@ -17,6 +17,7 @@ export class AuthService {
     name?: string;
     role?: string;
     inviteCode?: string;
+    fromInviteLink?: boolean;
   }) {
     try {
       // Валидация инвайт-кода (обязательно для beta)
@@ -44,6 +45,26 @@ export class AuthService {
         throw new Error('User already exists in database');
       }
 
+      // Если регистрация из инвайт-ссылки, автоматически подтверждаем email
+      if (data.fromInviteLink) {
+        try {
+          console.log('✅ Auto-confirming email for invite link registration');
+          const { data: userData, error: updateError } =
+            await supabase.auth.admin.updateUserById(data.userId, {
+              email_confirm: true,
+            });
+
+          if (updateError) {
+            console.error('❌ Failed to confirm email:', updateError);
+          } else {
+            console.log('✅ Email confirmed successfully for:', data.email);
+          }
+        } catch (error) {
+          console.error('❌ Error confirming email:', error);
+          // Не бросаем ошибку, регистрация может продолжиться
+        }
+      }
+
       // Создаем запись пользователя в нашей базе данных
       const user = await this.prisma.user.create({
         data: {
@@ -66,6 +87,7 @@ export class AuthService {
           role: user.role,
         },
         inviteCodeId: validation.inviteCodeId,
+        emailConfirmed: data.fromInviteLink || false,
       };
     } catch (error) {
       throw new Error(`Owner registration failed: ${error.message}`);

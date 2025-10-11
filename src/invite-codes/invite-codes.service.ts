@@ -4,17 +4,22 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { EmailService } from '../email/email.service';
 import { nanoid } from 'nanoid';
 
 @Injectable()
 export class InviteCodesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private emailService: EmailService,
+  ) {}
 
   /**
    * Генерирует новый инвайт-код
    */
   async generateCode(data: {
     maxUses?: number;
+    ownerEmail?: string;
     source?: string;
     note?: string;
     expiresAt?: Date;
@@ -22,6 +27,8 @@ export class InviteCodesService {
   }) {
     // Генерируем короткий читаемый код (8 символов)
     const code = nanoid(8).toUpperCase();
+
+    const registrationLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/business/register?invite=${code}`;
 
     const inviteCode = await this.prisma.inviteCode.create({
       data: {
@@ -35,9 +42,22 @@ export class InviteCodesService {
       },
     });
 
+    // Отправляем email с инвайт-кодом если указан email
+    if (data.ownerEmail) {
+      try {
+        await this.emailService.sendInviteCode(data.ownerEmail, {
+          code,
+          registrationLink,
+        });
+      } catch (error) {
+        console.error('Failed to send invite code email:', error);
+        // Не бросаем ошибку, чтобы код все равно был создан
+      }
+    }
+
     return {
       ...inviteCode,
-      registrationLink: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/business/register?invite=${code}`,
+      registrationLink,
     };
   }
 

@@ -1057,4 +1057,217 @@ export class EmailService {
       return false;
     }
   }
+
+  async sendInviteCode(
+    ownerEmail: string,
+    inviteData: {
+      code: string;
+      registrationLink: string;
+    },
+  ) {
+    // Add email to registration link
+    const linkWithEmail = `${inviteData.registrationLink}&email=${encodeURIComponent(ownerEmail)}`;
+    inviteData.registrationLink = linkWithEmail;
+    try {
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+              body {
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                line-height: 1.6;
+                color: #333;
+                background-color: #f4f4f4;
+                margin: 0;
+                padding: 0;
+              }
+              .container {
+                max-width: 600px;
+                margin: 20px auto;
+                background-color: #ffffff;
+                border-radius: 8px;
+                overflow: hidden;
+                box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+              }
+              .header {
+                background: linear-gradient(135deg, #ff5b5b 0%, #ff7979 100%);
+                color: white;
+                padding: 30px;
+                text-align: center;
+              }
+              .header h1 {
+                margin: 0;
+                font-size: 28px;
+                font-weight: 600;
+              }
+              .content {
+                padding: 40px 30px;
+              }
+              .welcome-text {
+                font-size: 18px;
+                color: #2c3e50;
+                margin-bottom: 20px;
+              }
+              .invite-box {
+                background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+                border-left: 4px solid #ff5b5b;
+                padding: 25px;
+                margin: 25px 0;
+                border-radius: 8px;
+              }
+              .invite-code {
+                font-size: 32px;
+                font-weight: bold;
+                color: #ff5b5b;
+                letter-spacing: 3px;
+                text-align: center;
+                margin: 15px 0;
+                font-family: 'Courier New', monospace;
+              }
+              .button {
+                display: inline-block;
+                padding: 15px 40px;
+                background: linear-gradient(135deg, #ff5b5b 0%, #ff7979 100%);
+                color: white !important;
+                text-decoration: none;
+                border-radius: 25px;
+                font-weight: 600;
+                text-align: center;
+                margin: 20px 0;
+                transition: transform 0.2s;
+              }
+              .button:hover {
+                transform: translateY(-2px);
+              }
+              .button-container {
+                text-align: center;
+              }
+              .info-text {
+                background-color: #fff3cd;
+                border: 1px solid #ffc107;
+                border-radius: 8px;
+                padding: 15px;
+                margin: 20px 0;
+                color: #856404;
+              }
+              .features {
+                margin: 30px 0;
+              }
+              .feature-item {
+                display: flex;
+                align-items: start;
+                margin: 15px 0;
+              }
+              .feature-icon {
+                color: #ff5b5b;
+                margin-right: 10px;
+                font-size: 20px;
+              }
+              .footer {
+                background-color: #f8f9fa;
+                padding: 25px;
+                text-align: center;
+                color: #6c757d;
+                font-size: 14px;
+                border-top: 1px solid #dee2e6;
+              }
+              .footer a {
+                color: #ff5b5b;
+                text-decoration: none;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1>🎉 Welcome to Henzo!</h1>
+              </div>
+
+              <div class="content">
+                <p class="welcome-text">Hello,</p>
+                
+                <p>We're excited to invite you to join <strong>Henzo</strong> - the leading beauty salon management platform!</p>
+
+                <div class="invite-box">
+                  <p style="text-align: center; margin: 0; color: #6c757d; font-size: 14px;">Your Invitation Code</p>
+                  <div class="invite-code">${inviteData.code}</div>
+                  <p style="text-align: center; margin: 0; color: #6c757d; font-size: 12px;">This code is valid for one-time use only</p>
+                </div>
+
+                <div class="button-container">
+                  <a href="${inviteData.registrationLink}" class="button">
+                    Complete Registration →
+                  </a>
+                </div>
+
+                <div class="info-text">
+                  <strong>⏰ Next Steps:</strong><br>
+                  1. Click the button above to start registration<br>
+                  2. Complete your salon profile<br>
+                  3. Start accepting bookings!
+                </div>
+
+                <div class="features">
+                  <h3 style="color: #2c3e50;">What You'll Get:</h3>
+                  <div class="feature-item">
+                    <span class="feature-icon">✓</span>
+                    <span><strong>Online Booking System:</strong> Let clients book appointments 24/7</span>
+                  </div>
+                  <div class="feature-item">
+                    <span class="feature-icon">✓</span>
+                    <span><strong>Customer Management:</strong> Track client history and preferences</span>
+                  </div>
+                  <div class="feature-item">
+                    <span class="feature-icon">✓</span>
+                    <span><strong>Automated Notifications:</strong> Email reminders for clients</span>
+                  </div>
+                  <div class="feature-item">
+                    <span class="feature-icon">✓</span>
+                    <span><strong>Analytics Dashboard:</strong> Track your salon's performance</span>
+                  </div>
+                  <div class="feature-item">
+                    <span class="feature-icon">✓</span>
+                    <span><strong>Service Management:</strong> Easy setup for services and pricing</span>
+                  </div>
+                </div>
+
+                <p style="color: #6c757d; font-size: 14px; margin-top: 30px;">
+                  If you have any questions, feel free to contact our support team.
+                </p>
+              </div>
+
+              <div class="footer">
+                <p>
+                  This invitation was sent to <strong>${ownerEmail}</strong><br>
+                  If you didn't request this invitation, please ignore this email.
+                </p>
+                <p style="margin-top: 15px;">
+                  <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}">Visit Henzo</a> | 
+                  <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/contact">Contact Support</a>
+                </p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `;
+
+      await this.sendEmailViaBrevo({
+        to: [{ email: ownerEmail, name: 'Salon Owner' }],
+        sender: {
+          email: 'noreply@henzo.app',
+          name: 'Henzo Team',
+        },
+        subject: `🎉 Your Invitation to Join Henzo - Code: ${inviteData.code}`,
+        htmlContent,
+      });
+
+      console.log(`✅ Invite code email sent to ${ownerEmail}`);
+    } catch (error) {
+      console.error('❌ Error sending invite code email:', error);
+      throw error;
+    }
+  }
 }

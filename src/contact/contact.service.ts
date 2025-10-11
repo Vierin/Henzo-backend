@@ -11,7 +11,7 @@ export class ContactService {
 
     // Отправляем email на contact@henzo.app
     await this.emailService.sendContactMessage({
-      to: 'contact@henzo.app',
+      to: 'hello@henzo.app',
       subject: `New Beta Request from ${name}`,
       template: 'contact-message',
       context: {
