@@ -504,13 +504,29 @@ export class SalonsService {
   }
 
   async findFeaturedSalons(limit: number) {
-    return this.prisma.salon.findMany({
+    const salons = await this.prisma.salon.findMany({
       select: {
         id: true,
         name: true,
         address: true,
         logo: true,
         photos: true,
+        services: {
+          select: {
+            price: true,
+            serviceCategory: {
+              select: {
+                nameEn: true,
+                nameVn: true,
+              },
+            },
+          },
+        },
+        reviews: {
+          select: {
+            rating: true,
+          },
+        },
         _count: {
           select: {
             reviews: true,
@@ -531,6 +547,49 @@ export class SalonsService {
         },
       },
       take: limit,
+    });
+
+    // Calculate average rating and price range for each salon
+    return salons.map((salon) => {
+      const avgRating =
+        salon.reviews.length > 0
+          ? salon.reviews.reduce((sum, r) => sum + r.rating, 0) /
+            salon.reviews.length
+          : 0;
+
+      // Extract unique categories from services
+      const categories = Array.from(
+        new Set(
+          salon.services
+            .map((s) => s.serviceCategory?.nameEn || s.serviceCategory?.nameVn)
+            .filter(Boolean),
+        ),
+      );
+
+      // Calculate price range
+      const prices = salon.services.map((s) => s.price).filter((p) => p > 0);
+      let priceRange = '$$';
+      if (prices.length > 0) {
+        const avgPrice =
+          prices.reduce((sum, p) => sum + p, 0) / prices.length;
+        if (avgPrice < 200000) {
+          priceRange = '$';
+        } else if (avgPrice > 500000) {
+          priceRange = '$$$';
+        }
+      }
+
+      return {
+        id: salon.id,
+        name: salon.name,
+        address: salon.address,
+        logo: salon.logo,
+        photos: salon.photos,
+        avgRating: Math.round(avgRating * 10) / 10, // Round to 1 decimal
+        categories,
+        priceRange,
+        _count: salon._count,
+      };
     });
   }
 
