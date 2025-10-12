@@ -9,6 +9,7 @@ import { AuthModule } from './auth/auth.module';
 import { ReviewsModule } from './reviews/reviews.module';
 import { GeocodingModule } from './geocoding/geocoding.module';
 import { BookingsModule } from './bookings/bookings.module';
+import { TimeBlocksModule } from './time-blocks/time-blocks.module';
 import { EmailModule } from './email/email.module';
 import { AdminModule } from './admin/admin.module';
 import { RemindersModule } from './reminders/reminders.module';
@@ -26,6 +27,7 @@ import { InviteCodesModule } from './invite-codes/invite-codes.module';
     ReviewsModule,
     GeocodingModule,
     BookingsModule,
+    TimeBlocksModule,
     EmailModule,
     AdminModule,
     RemindersModule,
