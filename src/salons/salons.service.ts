@@ -3,12 +3,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import { UpdateSalonDto } from './dto/update-salon.dto';
 import { CreateSalonDto } from './dto/create-salon.dto';
 import { InviteCodesService } from '../invite-codes/invite-codes.service';
+import { GeocodingCacheService } from '../services/geocoding-cache.service';
 
 @Injectable()
 export class SalonsService {
   constructor(
     private prisma: PrismaService,
     private inviteCodesService: InviteCodesService,
+    private geocodingCache: GeocodingCacheService,
   ) {}
 
   async findSalonsWithServices() {
@@ -549,8 +551,24 @@ export class SalonsService {
       take: limit,
     });
 
+    // Get coordinates for salons with addresses
+    const salonsWithCoordinates = await Promise.all(
+      salons.map(async (salon) => {
+        let coordinates: { latitude: number; longitude: number } | null = null;
+        if (salon.address) {
+          coordinates = await this.geocodingCache.getCoordinates(salon.address);
+        }
+
+        return {
+          ...salon,
+          latitude: coordinates?.latitude ?? undefined,
+          longitude: coordinates?.longitude ?? undefined,
+        };
+      }),
+    );
+
     // Calculate average rating and price range for each salon
-    return salons.map((salon) => {
+    return salonsWithCoordinates.map((salon) => {
       const avgRating =
         salon.reviews.length > 0
           ? salon.reviews.reduce((sum, r) => sum + r.rating, 0) /
@@ -570,8 +588,7 @@ export class SalonsService {
       const prices = salon.services.map((s) => s.price).filter((p) => p > 0);
       let priceRange = '$$';
       if (prices.length > 0) {
-        const avgPrice =
-          prices.reduce((sum, p) => sum + p, 0) / prices.length;
+        const avgPrice = prices.reduce((sum, p) => sum + p, 0) / prices.length;
         if (avgPrice < 200000) {
           priceRange = '$';
         } else if (avgPrice > 500000) {
@@ -583,6 +600,8 @@ export class SalonsService {
         id: salon.id,
         name: salon.name,
         address: salon.address,
+        latitude: salon.latitude,
+        longitude: salon.longitude,
         logo: salon.logo,
         photos: salon.photos,
         avgRating: Math.round(avgRating * 10) / 10, // Round to 1 decimal
