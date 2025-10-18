@@ -14,6 +14,7 @@ export enum TimeBlockType {
 
 export enum ConflictAction {
   KEEP = 'KEEP',
+  RESCHEDULE = 'RESCHEDULE',
   CANCEL = 'CANCEL',
 }
 
@@ -45,6 +46,8 @@ export class CreateTimeBlockDto {
   @IsEnum(ConflictAction)
   @IsNotEmpty()
   conflictAction: ConflictAction;
+
+  @IsOptional()
+  @IsString()
+  rescheduleStaffId?: string;
 }
-
-

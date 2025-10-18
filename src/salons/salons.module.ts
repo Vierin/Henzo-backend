@@ -12,3 +12,5 @@ import { GeocodingModule } from '../geocoding/geocoding.module';
   providers: [SalonsService],
 })
 export class SalonsModule {}
+
+

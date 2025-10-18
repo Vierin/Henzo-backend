@@ -58,6 +58,7 @@ model Staff {
   bookings    Booking[]
   salon       Salon            @relation(fields: [salonId], references: [id])
   TimeBlock   TimeBlock[]
+  RescheduledTimeBlocks TimeBlock[] @relation("TimeBlockReschedule")
   services    Service[]        @relation("StaffServices")
 
   @@unique([name, salonId])
@@ -183,19 +184,21 @@ model InviteCode {
 }
 
 model TimeBlock {
-  id             String         @id
-  salonId        String
-  staffId        String?
-  type           TimeBlockType
-  reason         String
-  startDate      DateTime
-  endDate        DateTime
-  notes          String?
-  conflictAction ConflictAction @default(KEEP)
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime
-  Salon          Salon          @relation(fields: [salonId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  Staff          Staff?         @relation(fields: [staffId], references: [id], onUpdate: NoAction)
+  id                  String         @id
+  salonId             String
+  staffId             String?
+  type                TimeBlockType
+  reason              String
+  startDate           DateTime
+  endDate             DateTime
+  notes               String?
+  conflictAction      ConflictAction @default(CANCEL)
+  rescheduleStaffId   String?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime
+  Salon               Salon          @relation(fields: [salonId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  Staff               Staff?         @relation(fields: [staffId], references: [id], onUpdate: NoAction)
+  RescheduleStaff     Staff?         @relation("TimeBlockReschedule", fields: [rescheduleStaffId], references: [id], onUpdate: NoAction)
 
   @@index([salonId])
   @@index([staffId])
@@ -242,6 +245,7 @@ enum InviteCodeStatus {
 
 enum ConflictAction {
   KEEP
+  RESCHEDULE
   CANCEL
 }
 

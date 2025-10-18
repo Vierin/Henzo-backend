@@ -25,6 +25,10 @@ export class UpdateTimeBlockDto {
   @IsOptional()
   @IsEnum(ConflictAction)
   conflictAction?: ConflictAction;
+
+  @IsOptional()
+  @IsString()
+  rescheduleStaffId?: string;
 }
 
 

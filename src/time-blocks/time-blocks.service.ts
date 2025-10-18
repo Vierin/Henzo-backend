@@ -195,25 +195,49 @@ export class TimeBlocksService {
     // Check for conflicting bookings
     const conflictingBookings = await this.checkConflicts(salonId, data);
 
-    // If there are conflicts and action is CANCEL, cancel them
-    if (
-      conflictingBookings.length > 0 &&
-      data.conflictAction === ConflictAction.CANCEL
-    ) {
-      await this.prisma.booking.updateMany({
-        where: {
-          id: {
-            in: conflictingBookings.map((b) => b.id),
+    // Handle conflicts based on action
+    if (conflictingBookings.length > 0) {
+      if (data.conflictAction === ConflictAction.CANCEL) {
+        // Cancel all conflicting bookings
+        await this.prisma.booking.updateMany({
+          where: {
+            id: {
+              in: conflictingBookings.map((b) => b.id),
+            },
           },
-        },
-        data: {
-          status: 'CANCELED',
-        },
-      });
+          data: {
+            status: 'CANCELED',
+          },
+        });
 
-      console.log(
-        `✅ Cancelled ${conflictingBookings.length} conflicting bookings`,
-      );
+        console.log(
+          `✅ Cancelled ${conflictingBookings.length} conflicting bookings`,
+        );
+      } else if (
+        data.conflictAction === ConflictAction.RESCHEDULE &&
+        data.rescheduleStaffId
+      ) {
+        // Move conflicting bookings to another staff member
+        await this.prisma.booking.updateMany({
+          where: {
+            id: {
+              in: conflictingBookings.map((b) => b.id),
+            },
+          },
+          data: {
+            staffId: data.rescheduleStaffId,
+          },
+        });
+
+        console.log(
+          `✅ Rescheduled ${conflictingBookings.length} conflicting bookings to staff ${data.rescheduleStaffId}`,
+        );
+      } else if (data.conflictAction === ConflictAction.KEEP) {
+        // Legacy behavior: keep conflicting bookings, just show warning
+        console.log(
+          `⚠️ Keeping ${conflictingBookings.length} conflicting bookings (legacy KEEP action)`,
+        );
+      }
     }
 
     // Generate unique ID
@@ -232,6 +256,7 @@ export class TimeBlocksService {
         updatedAt: new Date(),
         notes: data.notes,
         conflictAction: data.conflictAction,
+        rescheduleStaffId: data.rescheduleStaffId || null,
       },
     });
 
@@ -253,9 +278,10 @@ export class TimeBlocksService {
       ...timeBlock,
       staff,
       conflictingBookings:
-        data.conflictAction === ConflictAction.CANCEL
+        data.conflictAction === ConflictAction.CANCEL ||
+        data.conflictAction === ConflictAction.RESCHEDULE
           ? []
-          : conflictingBookings,
+          : conflictingBookings, // Show conflicts for KEEP action (legacy)
     };
   }
 
@@ -274,6 +300,8 @@ export class TimeBlocksService {
     if (data.endDate) updateData.endDate = new Date(data.endDate);
     if (data.notes !== undefined) updateData.notes = data.notes;
     if (data.conflictAction) updateData.conflictAction = data.conflictAction;
+    if (data.rescheduleStaffId !== undefined)
+      updateData.rescheduleStaffId = data.rescheduleStaffId;
 
     // Validate dates if both are being updated
     if (updateData.startDate && updateData.endDate) {
