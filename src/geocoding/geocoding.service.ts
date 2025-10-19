@@ -29,13 +29,14 @@ export class GeocodingService {
         const searchQuery = searchVariants[i];
         console.log(`🔍 Trying search variant ${i + 1}:`, searchQuery);
 
-        const nominatimUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1&addressdetails=1&countrycodes=vn`;
+        const nominatimUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1&addressdetails=1&countrycodes=vn&accept-language=vi`;
 
         const response = await fetch(nominatimUrl, {
           method: 'GET',
           headers: {
             'User-Agent': 'Henzo Salon Booking App',
             Accept: 'application/json',
+            'Accept-Language': 'vi-VN,vi,en-US,en',
           },
           signal: AbortSignal.timeout(10000), // 10 second timeout
         });
@@ -131,13 +132,14 @@ export class GeocodingService {
     try {
       console.log('🔍 Reverse geocoding coordinates:', { lat, lon });
 
-      const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&addressdetails=1`;
+      const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&addressdetails=1&accept-language=vi`;
 
       const response = await fetch(nominatimUrl, {
         method: 'GET',
         headers: {
           'User-Agent': 'Henzo Salon Booking App',
           Accept: 'application/json',
+          'Accept-Language': 'vi-VN,vi,en-US,en',
         },
       });
 
@@ -155,10 +157,13 @@ export class GeocodingService {
           display_name: data.display_name,
         });
 
+        // Remove country name from the end of the address
+        const cleanAddress = cleanAddressFromCountry(data.display_name);
+
         return {
           lat: parseFloat(data.lat),
           lon: parseFloat(data.lon),
-          display_name: data.display_name,
+          display_name: cleanAddress,
         };
       } else {
         console.warn('⚠️ No reverse geocoding results found for:', {
