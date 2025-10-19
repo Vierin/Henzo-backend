@@ -7,17 +7,24 @@ import {
   Param,
   Headers,
   Query,
+  Res,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { SalonsService } from './salons.service';
 import { UpdateSalonDto } from './dto/update-salon.dto';
 import { CreateSalonDto } from './dto/create-salon.dto';
 import { AuthService } from '../auth/auth.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { generateSalonSlug } from '../utils/slug';
 
 @Controller('salons')
 export class SalonsController {
   constructor(
     private readonly salonsService: SalonsService,
     private readonly authService: AuthService,
+    private readonly prisma: PrismaService,
   ) {}
 
   @Get('with-services')
@@ -183,6 +190,276 @@ export class SalonsController {
     } catch (error) {
       console.error('❌ Update salon failed:', error.message);
       throw error;
+    }
+  }
+
+  @Get('current/qr-pdf')
+  async generateQRPDF(
+    @Headers('authorization') authHeader: string,
+    @Res() res: Response,
+  ) {
+    try {
+      const currentUser = await this.authService.getCurrentUser(authHeader);
+
+      // Get user's salon
+      const salon = await this.prisma.salon.findFirst({
+        where: { ownerId: currentUser.user.id },
+      });
+
+      if (!salon) {
+        throw new HttpException('Salon not found', HttpStatus.NOT_FOUND);
+      }
+
+      // Generate salon URL using slug generation
+      const baseUrl = process.env.FRONTEND_URL || 'https://henzo.app';
+      const slug = generateSalonSlug(
+        salon.name,
+        salon.id,
+        salon.address || undefined,
+      );
+      const salonUrl = `${baseUrl}/salon/${slug}`;
+
+      // Generate QR code URL (increased size to match PDF display)
+      const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(salonUrl)}`;
+
+      // Dynamic import for Puppeteer to avoid issues
+      const puppeteer = await import('puppeteer');
+
+      // Launch Puppeteer
+      const browser = await puppeteer.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      });
+
+      const page = await browser.newPage();
+
+      // Create HTML content for the PDF
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+          <style>
+            @page {
+              margin: 0;
+            }
+            
+            body {
+              margin: 0;
+              padding: 0;
+              font-family: 'Quicksand', 'Helvetica', Arial, sans-serif;
+              background-color: #F4EFEC;
+              height: 90svh;
+              display: flex;
+              flex-direction: column;
+              justify-content: space-between;
+              align-items: center;
+              padding: 40px;
+            }
+            
+            .top-section {
+              flex: 1;
+              display: flex;
+              flex-direction: column;
+              justify-content: flex-start;
+              align-items: center;
+              margin-top: 60px;
+            }
+            
+            .business-name {
+              font-size: 20px;
+              color: #413E3B;
+              margin-bottom: 25px;
+              text-align: center;
+              text-transform: uppercase;
+              letter-spacing: 1px;
+              font-weight: 500;
+            }
+            
+            .title-section {
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              margin-bottom: 50px;
+            }
+            
+            .title-line {
+              font-size: 64px;
+              color: #413E3B;
+              font-weight: 400;
+              text-align: center;
+              margin: 0;
+              line-height: 1.2;
+            }
+
+            .title-description {
+              font-size: 26px;
+              color: #413E3B;
+              font-weight: 400;
+              text-align: center;
+              margin: 0;
+              margin-top: 20px;
+              line-height: 1.2;
+            }
+            
+            .qr-section {
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              margin-bottom: 40px;
+              padding: 20px;
+              border-radius: 15px;
+              background-color: #fff;
+            }
+            
+            .qr-code {
+              width: 300px;
+              height: 300px;
+            }
+            
+            .contact-section {
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              margin-bottom: 60px;
+            }
+            
+            .contact-item {
+              display: flex;
+              align-items: center;
+              margin-bottom: 15px;
+              justify-content: center;
+            }
+            
+            .contact-icon {
+              width: 30px;
+              height: 30px;
+              margin-right: 12px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            }
+            
+            .contact-text {
+              font-size: 24px;
+              color:#413E3B;
+              font-weight: normal;
+            }
+            
+            .bottom-section {
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+            }
+            
+            .footer-text {
+              font-size: 28px;
+              color:#413E3B;
+              line-height: 1.25;
+              text-align: center;
+              font-weight: 400;
+              margin: 0;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="top-section">
+            
+            <div class="title-section">
+              <h1 class="title-line">ĐẶT LỊCH</h1>
+              <h1 class="title-line">HẸN CỦA BẠN</h1>
+              <p class="title-description">Nhanh chóng & dễ dàng chỉ với vài thao tác!</p>
+            </div>
+            
+            <div class="qr-section">
+              <img src="${qrCodeUrl}" alt="QR Code" class="qr-code" />
+            </div>
+
+            <div class="business-name">${salon.name?.toUpperCase() || ''}</div>
+            
+            <div class="contact-section">
+              ${
+                salon.phone
+                  ? `
+                <div class="contact-item">
+                  <div class="contact-icon phone"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-phone-icon lucide-phone"><path d="M13.832 16.568a1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2A18 18 0 0 1 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.468.351a1 1 0 0 0-.292 1.233 14 14 0 0 0 6.392 6.384"/></svg></div>
+                  <div class="contact-text">${salon.phone}</div>
+                </div>
+              `
+                  : ''
+              }
+              
+              ${
+                salon.email
+                  ? `
+                <div class="contact-item">
+                  <div class="contact-icon email"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-phone-icon lucide-phone"><path d="M13.832 16.568a1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2A18 18 0 0 1 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.468.351a1 1 0 0 0-.292 1.233 14 14 0 0 0 6.392 6.384"/></svg></div>
+                  <div class="contact-text">${salon.email}</div>
+                </div>
+              `
+                  : ''
+              }
+            </div>
+          </div>
+          
+          <div class="bottom-section">
+            <p class="footer-text">Quét mã QR</p>
+            <p class="footer-text">để đặt lịch ngay!</p>
+          </div>
+        </body>
+        </html>
+      `;
+
+      // Set the HTML content with longer timeout for images
+      await page.setContent(htmlContent, {
+        waitUntil: 'networkidle0',
+        timeout: 30000,
+      });
+
+      // Wait for images to load
+      await page.waitForSelector('img', { timeout: 10000 }).catch(() => {
+        console.log('No images found or timeout waiting for images');
+      });
+
+      // Wait for fonts to load
+      await page.evaluateHandle('document.fonts.ready');
+
+      console.log('HTML content set, generating PDF...');
+      console.log('QR Code URL:', qrCodeUrl);
+
+      // Generate PDF
+      const pdfBuffer = await page.pdf({
+        format: 'A4',
+        printBackground: true,
+        margin: {
+          top: '0',
+          right: '0',
+          bottom: '0',
+          left: '0',
+        },
+        timeout: 30000, // 30 second timeout
+      });
+
+      console.log('PDF buffer size:', pdfBuffer.length);
+
+      await browser.close();
+
+      // Set headers for PDF viewing (inline instead of attachment)
+      // Use res.end() instead of res.send() to avoid charset issues
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader(
+        'Content-Disposition',
+        'inline; filename="salon-qr-code.pdf"',
+      );
+      res.setHeader('Content-Length', pdfBuffer.length.toString());
+      res.end(pdfBuffer);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      throw new HttpException(
+        'Failed to generate PDF',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
