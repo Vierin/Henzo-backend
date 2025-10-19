@@ -12,8 +12,6 @@ export class BookingsService {
 
   async createBooking(data: CreateBookingDto, userId: string) {
     try {
-      console.log('📅 Creating booking:', { data, userId });
-
       // Validate that the service exists and belongs to the salon
       const service = await this.prisma.service.findFirst({
         where: {
@@ -56,8 +54,6 @@ export class BookingsService {
           user: true,
         },
       });
-
-      console.log('✅ Booking created successfully:', booking.id);
 
       // Send email notifications
       try {
@@ -216,7 +212,6 @@ export class BookingsService {
       }
 
       const salonIds = ownerSalons.map((salon) => salon.id);
-      console.log('🏢 Found salons for owner:', salonIds);
 
       // Получаем все бронирования для салонов владельца
       const bookings = await this.prisma.booking.findMany({
@@ -329,12 +324,6 @@ export class BookingsService {
     serviceDuration: number,
   ) {
     try {
-      console.log('🔍 Finding available staff for:', {
-        salonId,
-        bookingTime,
-        serviceDuration,
-      });
-
       // Calculate booking end time
       const bookingEndTime = new Date(
         bookingTime.getTime() + serviceDuration * 60000,
@@ -396,7 +385,6 @@ export class BookingsService {
       const randomIndex = Math.floor(Math.random() * availableStaff.length);
       const selectedStaff = availableStaff[randomIndex];
 
-      console.log('✅ Selected available staff:', selectedStaff.name);
       return selectedStaff.id;
     } catch (error) {
       console.error('❌ Error finding available staff:', error.message);
@@ -410,16 +398,6 @@ export class BookingsService {
 
   private async sendBookingNotifications(booking: any) {
     try {
-      console.log('📧 Sending booking notifications...');
-      console.log('🔍 Booking object for email:', {
-        id: booking.id,
-        status: booking.status,
-        dateTime: booking.dateTime,
-        dateTimeType: typeof booking.dateTime,
-        dateTimeString: booking.dateTime?.toString(),
-        dateTimeISO: booking.dateTime?.toISOString?.(),
-      });
-
       // Format booking data for emails - parse UTC time without timezone conversion
       const dateTimeString =
         booking.dateTime?.toISOString?.() ||
@@ -484,8 +462,6 @@ export class BookingsService {
           },
         );
       }
-
-      console.log('✅ All booking notifications sent successfully');
     } catch (error) {
       console.error('❌ Error sending booking notifications:', error);
       throw error;
@@ -494,8 +470,6 @@ export class BookingsService {
 
   async cancelBooking(bookingId: string, userId: string) {
     try {
-      console.log('🚫 Cancelling booking:', { bookingId, userId });
-
       // Check if booking exists
       const booking = await this.prisma.booking.findFirst({
         where: {
@@ -511,15 +485,6 @@ export class BookingsService {
         console.log('❌ Booking not found:', bookingId);
         throw new Error('Booking not found');
       }
-
-      console.log('📅 Found booking:', {
-        bookingId: booking.id,
-        clientId: booking.userId,
-        salonOwnerId: booking.salon.ownerId,
-        currentUserId: userId,
-        salonId: booking.salonId,
-        salonName: booking.salon.name,
-      });
 
       // Check if user has permission to cancel (either the client or salon owner)
       const isClient = booking.userId === userId;
@@ -581,8 +546,6 @@ export class BookingsService {
     ownerId: string,
   ) {
     try {
-      console.log('📝 Updating booking:', { bookingId, data, ownerId });
-
       // First, verify that the booking belongs to one of the owner's salons
       const existingBooking = await this.prisma.booking.findFirst({
         where: { id: bookingId },
@@ -649,10 +612,6 @@ export class BookingsService {
       }
 
       if (data.status) {
-        console.log('🔄 Status update requested:', {
-          oldStatus: existingBooking.status,
-          newStatus: data.status,
-        });
         updateData.status = data.status;
       }
 
@@ -660,13 +619,6 @@ export class BookingsService {
       const statusChanged =
         data.status && data.status !== existingBooking.status;
       const oldStatus = existingBooking.status;
-
-      console.log('📊 Update data prepared:', {
-        updateData,
-        statusChanged,
-        oldStatus,
-        newStatus: data.status,
-      });
 
       // Update the booking
       const updatedBooking = await this.prisma.booking.update({
@@ -705,19 +657,8 @@ export class BookingsService {
         },
       });
 
-      console.log('✅ Booking updated in DB:', {
-        id: updatedBooking.id,
-        oldStatus,
-        newStatus: updatedBooking.status,
-        statusChanged,
-      });
-
       // Send email notification if status changed
       if (statusChanged && updatedBooking.user.email) {
-        console.log(
-          `📧 Status changed from ${oldStatus} to ${data.status}, sending email notification`,
-        );
-
         try {
           // Format date and time for email
           const bookingDate = new Date(updatedBooking.dateTime);
@@ -746,7 +687,6 @@ export class BookingsService {
                 salonName: updatedBooking.salon.name,
               },
             );
-            console.log('✅ Confirmation email sent to client');
           } else if (data.status === 'CANCELED') {
             // Send rejection email to client
             await this.emailService.sendBookingRejection(
@@ -761,7 +701,6 @@ export class BookingsService {
                 salonName: updatedBooking.salon.name,
               },
             );
-            console.log('✅ Rejection email sent to client');
           }
         } catch (emailError) {
           console.error('❌ Error sending status change email:', emailError);
@@ -769,7 +708,6 @@ export class BookingsService {
         }
       }
 
-      console.log('✅ Booking updated successfully:', updatedBooking.id);
       return updatedBooking;
     } catch (error) {
       console.error('❌ Update booking error:', error);
@@ -779,11 +717,6 @@ export class BookingsService {
 
   async updateBookingsToCompleted(bookingIds: string[], ownerId: string) {
     try {
-      console.log('🔄 Updating bookings to completed:', {
-        bookingIds,
-        ownerId,
-      });
-
       // Verify that all bookings belong to the owner's salons
       const ownerSalons = await this.prisma.salon.findMany({
         where: { ownerId },
@@ -810,7 +743,6 @@ export class BookingsService {
         },
       });
 
-      console.log('✅ Updated bookings to completed:', result.count);
       return { count: result.count };
     } catch (error) {
       console.error('❌ Update bookings to completed error:', error);
@@ -824,12 +756,6 @@ export class BookingsService {
     status: string = 'CONFIRMED',
   ) {
     try {
-      console.log('📅 Fetching bookings by date and salon:', {
-        salonId,
-        date,
-        status,
-      });
-
       const startOfDay = new Date(date + 'T00:00:00.000Z');
       const endOfDay = new Date(date + 'T23:59:59.999Z');
 
@@ -854,8 +780,6 @@ export class BookingsService {
         },
       });
 
-      console.log(`✅ Found ${bookings.length} bookings for date ${date}`);
-
       // Map dateTime to time for frontend compatibility
       return bookings.map((booking) => ({
         ...booking,
@@ -869,8 +793,6 @@ export class BookingsService {
 
   async confirmBooking(bookingId: string) {
     try {
-      console.log('✅ Confirming booking:', bookingId);
-
       // Find booking
       const booking = await this.prisma.booking.findUnique({
         where: { id: bookingId },
@@ -923,7 +845,6 @@ export class BookingsService {
         },
       );
 
-      console.log('✅ Booking confirmed successfully:', bookingId);
       return updatedBooking;
     } catch (error) {
       console.error('❌ Error confirming booking:', error);
@@ -933,8 +854,6 @@ export class BookingsService {
 
   async rejectBooking(bookingId: string, reason?: string) {
     try {
-      console.log('❌ Rejecting booking:', bookingId);
-
       // Find booking
       const booking = await this.prisma.booking.findUnique({
         where: { id: bookingId },
@@ -1002,12 +921,6 @@ export class BookingsService {
    */
   private formatBookingDateTime(dateTimeString: string) {
     try {
-      console.log('🔍 Parsing booking datetime:', {
-        input: dateTimeString,
-        type: typeof dateTimeString,
-        includesZ: dateTimeString.includes('Z'),
-      });
-
       // If it's a UTC string like "2024-01-15T11:00:00.000Z"
       if (dateTimeString.includes('Z')) {
         // Extract the date and time parts
@@ -1015,18 +928,6 @@ export class BookingsService {
         const [year, month, day] = datePart.split('-').map(Number);
         const [time, ms] = timePart.split('.');
         const [hours, minutes, seconds] = time.split(':').map(Number);
-
-        console.log('🔍 UTC parsing details:', {
-          datePart,
-          timePart,
-          year,
-          month,
-          day,
-          time,
-          hours,
-          minutes,
-          seconds,
-        });
 
         // Create a local date with the same time components (no timezone conversion)
         const localDate = new Date(
@@ -1038,11 +939,6 @@ export class BookingsService {
           seconds || 0,
           0,
         );
-
-        console.log('🔍 Created local date:', {
-          localDate: localDate.toISOString(),
-          isValid: !isNaN(localDate.getTime()),
-        });
 
         const formattedDate = localDate.toLocaleDateString('en-US', {
           weekday: 'long',
@@ -1057,24 +953,11 @@ export class BookingsService {
           hour12: false,
         });
 
-        console.log('📅 Formatted booking time:', {
-          original: dateTimeString,
-          localDate: localDate.toISOString(),
-          formattedDate,
-          formattedTime,
-        });
-
         return { formattedDate, formattedTime };
       }
 
       // Fallback to regular parsing
-      console.log('🔍 Using fallback parsing for:', dateTimeString);
       const bookingDate = new Date(dateTimeString);
-
-      console.log('🔍 Fallback date created:', {
-        bookingDate: bookingDate.toISOString(),
-        isValid: !isNaN(bookingDate.getTime()),
-      });
 
       const formattedDate = bookingDate.toLocaleDateString('en-US', {
         weekday: 'long',
@@ -1086,11 +969,6 @@ export class BookingsService {
         hour: '2-digit',
         minute: '2-digit',
         hour12: false,
-      });
-
-      console.log('🔍 Fallback formatting result:', {
-        formattedDate,
-        formattedTime,
       });
 
       return { formattedDate, formattedTime };
