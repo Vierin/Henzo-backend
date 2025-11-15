@@ -175,3 +175,106 @@ export class RemindersService {
       throw error;
     }
   }
+
+  async cancelPendingBookingsAfter3Hours() {
+    try {
+      console.log('🔄 Starting auto-cancel for pending bookings...');
+
+      // Get current date and time
+      const now = new Date();
+      const threeHoursAgo = new Date(now.getTime() - 3 * 60 * 60 * 1000);
+
+      console.log(
+        `⏰ Looking for PENDING bookings created before ${threeHoursAgo.toISOString()}`,
+      );
+
+      // Find pending bookings older than 3 hours
+      const pendingBookings = await this.prisma.booking.findMany({
+        where: {
+          status: 'PENDING',
+          createdAt: {
+            lt: threeHoursAgo,
+          },
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+          service: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          salon: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      });
+
+      console.log(
+        `📊 Found ${pendingBookings.length} pending bookings to cancel`,
+      );
+
+      let cancelledCount = 0;
+      let errorCount = 0;
+
+      // Cancel each pending booking
+      for (const booking of pendingBookings) {
+        try {
+          await this.prisma.booking.update({
+            where: { id: booking.id },
+            data: { status: 'CANCELED' },
+          });
+
+          console.log(
+            `✅ Cancelled booking ${booking.id} (created at ${booking.createdAt.toISOString()})`,
+          );
+          cancelledCount++;
+        } catch (error) {
+          console.error(`❌ Error cancelling booking ${booking.id}:`, error);
+          errorCount++;
+        }
+      }
+
+      console.log(
+        `🔄 Auto-cancel completed: ${cancelledCount} cancelled, ${errorCount} errors`,
+      );
+
+      return {
+        total: pendingBookings.length,
+        cancelled: cancelledCount,
+        errors: errorCount,
+      };
+    } catch (error) {
+      console.error('❌ Error in cancelPendingBookingsAfter3Hours:', error);
+      throw error;
+    }
+  }
+
+  async testReminderSystem() {
+    try {
+      console.log('🧪 Testing reminder system...');
+      const result = await this.sendBookingReminders();
+      return {
+        success: true,
+        message: 'Reminder system test completed',
+        data: result,
+      };
+    } catch (error) {
+      console.error('❌ Reminder system test failed:', error);
+      return {
+        success: false,
+        message: 'Reminder system test failed',
+        error: error.message,
+      };
+    }
+  }
+}

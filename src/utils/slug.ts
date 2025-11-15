@@ -179,3 +179,5 @@ export function generateSalonSlug(
   // Собираем slug: название-id
   return `${cleanName}-${id}`;
 }
+
+
