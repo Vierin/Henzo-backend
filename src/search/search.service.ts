@@ -6,6 +6,121 @@ import { Prisma } from '@prisma/client';
 export class SearchService {
   constructor(private prisma: PrismaService) {}
 
+  // Unified core suggestion (categories + synonyms collapsed to categories)
+  async suggestCoreCategories(query: string, language: string, limit: number) {
+    const q = query.trim();
+    const lang = language === 'vn' ? 'vn' : language === 'ru' ? 'ru' : 'en';
+    // 1) categories by name
+    const catWhere =
+      lang === 'vn'
+        ? {
+            OR: [
+              { nameVn: { contains: q, mode: Prisma.QueryMode.insensitive } },
+              { nameEn: { contains: q, mode: Prisma.QueryMode.insensitive } },
+            ],
+          }
+        : lang === 'ru'
+          ? {
+              OR: [
+                { nameRu: { contains: q, mode: Prisma.QueryMode.insensitive } },
+                { nameEn: { contains: q, mode: Prisma.QueryMode.insensitive } },
+                { nameVn: { contains: q, mode: Prisma.QueryMode.insensitive } },
+              ],
+            }
+          : {
+              OR: [
+                { nameEn: { contains: q, mode: Prisma.QueryMode.insensitive } },
+                { nameVn: { contains: q, mode: Prisma.QueryMode.insensitive } },
+              ],
+            };
+
+    const [categories, synonymRows]: [any[], any[]] = await Promise.all([
+      this.prisma.serviceCategory.findMany({
+        where: catWhere,
+        select: { id: true, nameEn: true, nameVn: true, nameRu: true },
+        take: limit,
+      }),
+      this.prisma.$queryRawUnsafe<any[]>(
+        `
+          SELECT s.category_id, s.weight,
+                 sc.name_en, sc.name_vn, sc.name_ru,
+                 CASE WHEN s.language = $1 THEN s.weight * 1.5 ELSE s.weight END AS adjusted_weight
+          FROM service_synonyms s
+          JOIN service_categories sc ON s.category_id = sc.id
+          WHERE s.keyword ILIKE $2
+          ORDER BY adjusted_weight DESC
+          LIMIT $3
+        `,
+        lang,
+        `%${q}%`,
+        Math.max(limit, 10),
+      ),
+    ]);
+
+    // Collapse synonyms to categories with score
+    const score = new Map<number, number>();
+    synonymRows?.forEach((row) => {
+      const id = Number(row.category_id);
+      const w = Number(row.adjusted_weight) || 0;
+      score.set(id, Math.max(score.get(id) || 0, w));
+    });
+
+    // Merge categories from name search + from synonyms
+    const byId = new Map<
+      number,
+      { id: number; nameEn: string; nameVn: string; nameRu: string; s: number }
+    >();
+    categories.forEach((c) =>
+      byId.set(c.id, {
+        id: c.id,
+        nameEn: c.nameEn,
+        nameVn: c.nameVn,
+        nameRu: c.nameRu,
+        s: score.get(c.id) || 0,
+      }),
+    );
+    synonymRows?.forEach((r) => {
+      const id = Number(r.category_id);
+      if (!byId.has(id)) {
+        byId.set(id, {
+          id,
+          nameEn: r.name_en,
+          nameVn: r.name_vn,
+          nameRu: r.name_ru,
+          s: score.get(id) || 0,
+        });
+      }
+    });
+
+    // Rank: synonym score desc, then alphabetical
+    const merged = Array.from(byId.values()).sort((a, b) => {
+      if (b.s !== a.s) return b.s - a.s;
+      const aName =
+        lang === 'vn'
+          ? a.nameVn || a.nameEn
+          : lang === 'ru'
+            ? a.nameRu || a.nameEn
+            : a.nameEn || a.nameVn;
+      const bName =
+        lang === 'vn'
+          ? b.nameVn || b.nameEn
+          : lang === 'ru'
+            ? b.nameRu || b.nameEn
+            : b.nameEn || b.nameVn;
+      return (aName || '').localeCompare(bName || '');
+    });
+
+    return merged.slice(0, limit).map(({ s, id, nameEn, nameVn, nameRu }) => ({
+      id,
+      name:
+        lang === 'vn'
+          ? nameVn || nameEn
+          : lang === 'ru'
+            ? nameRu || nameEn
+            : nameEn || nameVn,
+    }));
+  }
+
   async searchServicesByCategory(query: string, language: string = 'en') {
     try {
       console.log(`🔍 Booksy-style search for query: "${query}" (${language})`);
@@ -59,10 +174,13 @@ export class SearchService {
     // Простая эвристика для определения языка
     const vietnameseChars =
       /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i;
+    const cyrillicChars = /[А-Яа-яЁё]/;
     const englishChars = /[a-zA-Z]/;
 
     if (vietnameseChars.test(query)) {
       return 'vn';
+    } else if (cyrillicChars.test(query)) {
+      return 'ru';
     } else if (englishChars.test(query)) {
       return 'en';
     }
@@ -156,22 +274,45 @@ export class SearchService {
                 },
               ],
             }
-          : {
-              OR: [
-                {
-                  nameEn: {
-                    contains: query,
-                    mode: Prisma.QueryMode.insensitive,
+          : language === 'ru'
+            ? {
+                OR: [
+                  {
+                    nameRu: {
+                      contains: query,
+                      mode: Prisma.QueryMode.insensitive,
+                    },
                   },
-                },
-                {
-                  nameVn: {
-                    contains: query,
-                    mode: Prisma.QueryMode.insensitive,
+                  {
+                    nameEn: {
+                      contains: query,
+                      mode: Prisma.QueryMode.insensitive,
+                    },
                   },
-                },
-              ],
-            };
+                  {
+                    nameVn: {
+                      contains: query,
+                      mode: Prisma.QueryMode.insensitive,
+                    },
+                  },
+                ],
+              }
+            : {
+                OR: [
+                  {
+                    nameEn: {
+                      contains: query,
+                      mode: Prisma.QueryMode.insensitive,
+                    },
+                  },
+                  {
+                    nameVn: {
+                      contains: query,
+                      mode: Prisma.QueryMode.insensitive,
+                    },
+                  },
+                ],
+              };
 
       const categories = await this.prisma.serviceCategory.findMany({
         where: whereCondition,
@@ -449,20 +590,15 @@ export class SearchService {
         return this.usedCategoriesCache.ids;
       }
 
-      const salons = await this.prisma.salon.findMany({
-        select: {
-          categoryIds: true,
-        },
+      // derive used categories from existing services, not from salons.categoryIds
+      const distinct = await this.prisma.service.findMany({
+        where: { serviceCategoryId: { not: null } },
+        select: { serviceCategoryId: true },
+        distinct: ['serviceCategoryId'],
       });
-
-      const usedCategoryIds = new Set<number>();
-      salons.forEach((salon) => {
-        if (salon.categoryIds && Array.isArray(salon.categoryIds)) {
-          salon.categoryIds.forEach((id) => usedCategoryIds.add(id));
-        }
-      });
-
-      const ids = Array.from(usedCategoryIds);
+      const ids = distinct
+        .map((r) => r.serviceCategoryId)
+        .filter((v): v is number => typeof v === 'number');
       this.usedCategoriesCache = { ids, at: now };
       return ids;
     } catch (error) {

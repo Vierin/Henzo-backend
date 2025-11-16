@@ -123,13 +123,18 @@ export class SalonsService {
 
     // Category filter
     if (category && category !== 'all') {
-      where.services = {
-        some: {
-          serviceCategory: {
-            nameEn: { equals: category, mode: 'insensitive' },
+      const categoryId = parseInt(category, 10);
+      if (!Number.isNaN(categoryId)) {
+        where.services = { some: { serviceCategoryId: categoryId } };
+      } else {
+        where.services = {
+          some: {
+            serviceCategory: {
+              nameEn: { equals: category, mode: 'insensitive' },
+            },
           },
-        },
-      };
+        };
+      }
     }
 
     // Rating filter
@@ -248,21 +253,20 @@ export class SalonsService {
 
     console.log('🔍 Salon found:', salon ? `ID: ${salon.id}` : 'None');
     if (salon) {
-      // Get static categories based on categoryIds
-      const staticCategories = this.getSalonCategories();
-      const salonCategories = staticCategories.filter((cat) =>
-        (salon as any).categoryIds.includes(cat.id),
+      // Derive categories from services instead of salon.categoryIds
+      const serviceCategoryIds = Array.from(
+        new Set(
+          salon.services.map((s: any) => s.serviceCategoryId).filter(Boolean),
+        ),
       );
-
-      // Add categories to salon object
-      (salon as any).categories = salonCategories;
+      (salon as any).categories = serviceCategoryIds;
     }
     return salon;
   }
 
   async createCurrentUserSalon(createSalonDto: CreateSalonDto, userId: string) {
     try {
-      const { categoryIds, inviteCodeId, ...salonData } = createSalonDto;
+      const { inviteCodeId, ...salonData } = createSalonDto;
 
       // Create salon and subscription in a transaction
       const result = await this.prisma.$transaction(async (prisma) => {
@@ -271,7 +275,6 @@ export class SalonsService {
           data: {
             ...salonData,
             ownerId: userId,
-            categoryIds: categoryIds || [],
             inviteCodeId: inviteCodeId || null,
           } as any,
           include: {
@@ -313,12 +316,15 @@ export class SalonsService {
         return salon;
       });
 
-      // Add categories to salon object
-      const staticCategories = this.getSalonCategories();
-      const salonCategories = staticCategories.filter((cat) =>
-        (result as any).categoryIds.includes(cat.id),
+      // Add derived categories from services
+      const serviceCategoryIds = Array.from(
+        new Set(
+          (result as any).services
+            .map((s: any) => s.serviceCategoryId)
+            .filter(Boolean),
+        ),
       );
-      (result as any).categories = salonCategories;
+      (result as any).categories = serviceCategoryIds;
 
       console.log(
         `✅ Created salon "${result.name}" with freemium subscription`,
@@ -339,13 +345,12 @@ export class SalonsService {
       throw new Error('Salon not found');
     }
 
-    const { categoryIds, ...salonData } = updateSalonDto;
+    const { ...salonData } = updateSalonDto;
 
     const updatedSalon = await this.prisma.salon.update({
       where: { id: existingSalon.id },
       data: {
         ...salonData,
-        categoryIds: categoryIds || (existingSalon as any).categoryIds,
       } as any,
       include: {
         services: true,
@@ -360,12 +365,15 @@ export class SalonsService {
       },
     });
 
-    // Add categories to salon object
-    const staticCategories = this.getSalonCategories();
-    const salonCategories = staticCategories.filter((cat) =>
-      (updatedSalon as any).categoryIds.includes(cat.id),
+    // Add derived categories from services
+    const serviceCategoryIds = Array.from(
+      new Set(
+        (updatedSalon as any).services
+          .map((s: any) => s.serviceCategoryId)
+          .filter(Boolean),
+      ),
     );
-    (updatedSalon as any).categories = salonCategories;
+    (updatedSalon as any).categories = serviceCategoryIds;
 
     return updatedSalon; // Возвращаем салон напрямую
   }
@@ -448,12 +456,13 @@ export class SalonsService {
     });
 
     if (salon) {
-      // Add categories to salon object
-      const staticCategories = this.getSalonCategories();
-      const salonCategories = staticCategories.filter((cat) =>
-        (salon as any).categoryIds.includes(cat.id),
+      // Add derived categories from services
+      const serviceCategoryIds = Array.from(
+        new Set(
+          salon.services.map((s: any) => s.serviceCategoryId).filter(Boolean),
+        ),
       );
-      (salon as any).categories = salonCategories;
+      (salon as any).categories = serviceCategoryIds;
 
       // If reviews are missing from the main query, add them manually
       if (!salon.reviews || salon.reviews.length === 0) {
@@ -559,18 +568,8 @@ export class SalonsService {
           },
         },
       },
-      where: {
-        reviews: {
-          some: {
-            rating: { gte: 4.5 },
-          },
-        },
-      },
-      orderBy: {
-        reviews: {
-          _count: 'desc',
-        },
-      },
+      // Do not hard-filter by rating; we will sort by avg rating and reviews count
+      orderBy: { createdAt: 'desc' },
       take: limit,
     });
 
@@ -591,7 +590,7 @@ export class SalonsService {
     );
 
     // Calculate average rating and price range for each salon
-    return salonsWithCoordinates.map((salon) => {
+    const enriched = salonsWithCoordinates.map((salon) => {
       const avgRating =
         salon.reviews.length > 0
           ? salon.reviews.reduce((sum, r) => sum + r.rating, 0) /
@@ -633,6 +632,16 @@ export class SalonsService {
         _count: salon._count,
       };
     });
+
+    // Sort by avgRating desc, then by reviews count desc, then by newest
+    enriched.sort((a, b) => {
+      if (b.avgRating !== a.avgRating) return b.avgRating - a.avgRating;
+      const br = b._count.reviews - a._count.reviews;
+      if (br !== 0) return br;
+      return 0;
+    });
+
+    return enriched.slice(0, limit);
   }
 
   async findNearbySalons(params: {

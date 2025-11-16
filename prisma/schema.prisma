@@ -68,6 +68,7 @@ model ServiceCategory {
   id               Int                @id @default(autoincrement())
   nameEn           String             @unique @map("name_en")
   nameVn           String             @unique @map("name_vn")
+  nameRu           String             @unique @map("name_ru")
   services         Service[]
   service_synonyms service_synonyms[]
 
@@ -78,17 +79,39 @@ model Service {
   id                String           @id @default(cuid())
   name              String
   description       String?
+  // Multilingual fields (optional)
+  nameEn            String?
+  nameVi            String?
+  nameRu            String?
+  descriptionEn     String?
+  descriptionVi     String?
+  descriptionRu     String?
   duration          Int
   price             Float
   salonId           String
   categoryId        String?
   serviceCategoryId Int?
+  serviceGroupId    String?
   bookings          Booking[]
   salon             Salon            @relation(fields: [salonId], references: [id])
   serviceCategory   ServiceCategory? @relation(fields: [serviceCategoryId], references: [id])
+  serviceGroup      ServiceGroup?    @relation(fields: [serviceGroupId], references: [id])
   staff             Staff[]          @relation("StaffServices")
 
   @@unique([name, salonId])
+}
+
+model ServiceGroup {
+  id          String    @id @default(cuid())
+  salonId     String
+  name        String
+  description String?
+  position    Int       @default(0)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  services    Service[]
+
+  @@index([salonId, position])
 }
 
 model Booking {

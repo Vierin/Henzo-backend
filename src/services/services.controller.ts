@@ -9,12 +9,16 @@ import {
   Query,
 } from '@nestjs/common';
 import { ServicesService } from './services.service';
+import { TranslationService } from './translation.service';
 import { CreateServiceDto } from './dto/create-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
 
 @Controller('services')
 export class ServicesController {
-  constructor(private readonly servicesService: ServicesService) {}
+  constructor(
+    private readonly servicesService: ServicesService,
+    private readonly translationService: TranslationService,
+  ) {}
 
   @Get()
   async getServicesBySalon(@Query('salonId') salonId: string) {
@@ -71,6 +75,31 @@ export class ServicesController {
     }
   }
 
+  @Post('translate')
+  async generateTranslations(
+    @Body()
+    body: {
+      name: string;
+      description?: string;
+      sourceLanguage?: 'en' | 'vi' | 'ru';
+    },
+  ) {
+    const { name, description = '', sourceLanguage = 'ru' } = body;
+
+    if (!name || !name.trim()) {
+      throw new Error('Name is required');
+    }
+
+    const translations =
+      await this.translationService.generateServiceTranslations(
+        name,
+        description,
+        sourceLanguage,
+      );
+
+    return translations;
+  }
+
   @Get(':id')
   async getServiceById(@Param('id') id: string) {
     return this.servicesService.findById(id);
@@ -92,5 +121,45 @@ export class ServicesController {
   @Delete(':id')
   async deleteService(@Param('id') id: string) {
     return this.servicesService.delete(id);
+  }
+
+  // --- Service groups ---
+  @Get('groups/by-salon')
+  async getGroupsBySalon(@Query('salonId') salonId: string) {
+    if (!salonId) {
+      throw new Error('Salon ID is required');
+    }
+    return this.servicesService.findGroupsBySalon(salonId);
+  }
+
+  @Post('groups')
+  async createGroup(
+    @Body()
+    body: {
+      salonId: string;
+      name: string;
+      description?: string;
+    },
+  ) {
+    return this.servicesService.createGroup(body);
+  }
+
+  @Put('groups/:id')
+  async updateGroup(
+    @Param('id') id: string,
+    @Body()
+    body: {
+      name?: string;
+      description?: string;
+      position?: number;
+      isActive?: boolean;
+    },
+  ) {
+    return this.servicesService.updateGroup(id, body);
+  }
+
+  @Delete('groups/:id')
+  async deleteGroup(@Param('id') id: string) {
+    return this.servicesService.deleteGroup(id);
   }
 }

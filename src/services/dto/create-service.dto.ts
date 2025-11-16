@@ -14,6 +14,31 @@ export class CreateServiceDto {
   @IsString()
   description?: string;
 
+  // Optional localized fields
+  @IsOptional()
+  @IsString()
+  nameEn?: string;
+
+  @IsOptional()
+  @IsString()
+  nameVi?: string;
+
+  @IsOptional()
+  @IsString()
+  nameRu?: string;
+
+  @IsOptional()
+  @IsString()
+  descriptionEn?: string;
+
+  @IsOptional()
+  @IsString()
+  descriptionVi?: string;
+
+  @IsOptional()
+  @IsString()
+  descriptionRu?: string;
+
   @IsNumber()
   @IsPositive()
   duration: number;
@@ -28,4 +53,8 @@ export class CreateServiceDto {
   @IsOptional()
   @IsInt()
   serviceCategoryId?: number;
+
+  @IsOptional()
+  @IsString()
+  serviceGroupId?: string;
 }

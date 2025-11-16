@@ -26,7 +26,7 @@ export class SearchController {
       }
 
       // Валидация языка
-      const validLanguages = ['en', 'vn'];
+      const validLanguages = ['en', 'vn', 'ru'];
       const lang = validLanguages.includes(language) ? language : 'en';
 
       const results = await this.searchService.searchServicesByCategory(
@@ -57,7 +57,7 @@ export class SearchController {
   ) {
     try {
       // Валидация языка
-      const validLanguages = ['en', 'vn'];
+      const validLanguages = ['en', 'vn', 'ru'];
       const lang = validLanguages.includes(language) ? language : 'en';
 
       let results;
@@ -80,6 +80,35 @@ export class SearchController {
       console.error('❌ Search categories failed:', error.message);
       throw new HttpException(
         error.message || 'Search failed',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Get('core/suggest')
+  async suggestCore(
+    @Query('q') query: string,
+    @Query('lang') language: string = 'en',
+    @Query('limit') limit?: string,
+  ) {
+    try {
+      const q = (query || '').trim();
+      if (q.length < 2) {
+        return { success: true, data: [] };
+      }
+      const validLanguages = ['en', 'vn', 'ru'];
+      const lang = validLanguages.includes(language) ? language : 'en';
+      const take = limit ? Math.min(parseInt(limit, 10) || 10, 20) : 10;
+      const results = await this.searchService.suggestCoreCategories(
+        q,
+        lang,
+        take,
+      );
+      return { success: true, data: results };
+    } catch (error) {
+      console.error('❌ Core suggest failed:', (error as any).message);
+      throw new HttpException(
+        (error as any).message || 'Core suggest failed',
         HttpStatus.BAD_REQUEST,
       );
     }

@@ -48,10 +48,7 @@ export class CreateSalonDto {
   @IsOptional()
   workingHours?: InputJsonValue;
 
-  @IsOptional()
-  @IsArray()
-  @IsInt({ each: true })
-  categoryIds?: number[];
+  // categoryIds removed: categories are derived from services
 
   @IsOptional()
   @IsString()

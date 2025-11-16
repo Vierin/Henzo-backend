@@ -11,6 +11,7 @@ export class ServicesService {
       include: {
         staff: true,
         serviceCategory: true,
+        serviceGroup: true,
       },
       orderBy: {
         name: 'asc',
@@ -25,6 +26,7 @@ export class ServicesService {
         staff: true,
         salon: true,
         serviceCategory: true,
+        serviceGroup: true,
       },
     });
   }
@@ -41,6 +43,7 @@ export class ServicesService {
           },
         },
         serviceCategory: true,
+        serviceGroup: true,
       },
       orderBy: {
         name: 'asc',
@@ -51,10 +54,17 @@ export class ServicesService {
   async create(data: {
     name: string;
     description?: string;
+    nameEn?: string;
+    nameVi?: string;
+    nameRu?: string;
+    descriptionEn?: string;
+    descriptionVi?: string;
+    descriptionRu?: string;
     duration: number;
     price: number;
     salonId: string;
     serviceCategoryId?: number;
+    serviceGroupId?: string;
   }) {
     return this.prisma.service.create({
       data,
@@ -70,9 +80,16 @@ export class ServicesService {
     data: {
       name?: string;
       description?: string;
+      nameEn?: string;
+      nameVi?: string;
+      nameRu?: string;
+      descriptionEn?: string;
+      descriptionVi?: string;
+      descriptionRu?: string;
       duration?: number;
       price?: number;
       serviceCategoryId?: number;
+      serviceGroupId?: string | null;
     },
   ) {
     return this.prisma.service.update({
@@ -216,5 +233,60 @@ export class ServicesService {
       { id: 5, nameEn: 'Barber', nameVn: 'Cắt tóc nam' },
       { id: 6, nameEn: 'Spa', nameVn: 'Spa' },
     ];
+  }
+
+  // --- Service groups ---
+  async findGroupsBySalon(salonId: string) {
+    return this.prisma.serviceGroup.findMany({
+      where: { salonId, isActive: true },
+      orderBy: { position: 'asc' },
+    });
+  }
+
+  async createGroup(data: {
+    salonId: string;
+    name: string;
+    description?: string;
+  }) {
+    const count = await this.prisma.serviceGroup.count({
+      where: { salonId: data.salonId },
+    });
+    return this.prisma.serviceGroup.create({
+      data: {
+        salonId: data.salonId,
+        name: data.name,
+        description: data.description,
+        position: count * 10,
+      },
+    });
+  }
+
+  async updateGroup(
+    id: string,
+    data: {
+      name?: string;
+      description?: string;
+      position?: number;
+      isActive?: boolean;
+    },
+  ) {
+    return this.prisma.serviceGroup.update({
+      where: { id },
+      data,
+    });
+  }
+
+  async deleteGroup(id: string) {
+    // soft delete: mark inactive and detach from services
+    return this.prisma.$transaction(async (tx) => {
+      await tx.service.updateMany({
+        where: { serviceGroupId: id },
+        data: { serviceGroupId: null },
+      });
+      return tx.serviceGroup.update({
+        where: { id },
+        data: { isActive: false },
+      });
+    });
   }
 }
