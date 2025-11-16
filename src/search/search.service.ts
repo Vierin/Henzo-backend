@@ -84,6 +84,7 @@ export class SearchService {
         JOIN service_categories sc ON s.category_id = sc.id
         WHERE s.keyword ILIKE ${`%${query}%`}
         ORDER BY adjusted_weight DESC, s.weight DESC
+        LIMIT 50
       `;
 
       if (!synonyms || (synonyms as any[]).length === 0) {
@@ -110,27 +111,19 @@ export class SearchService {
             },
           ],
         },
-        include: {
-          serviceCategory: true,
-          salon: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          serviceCategoryId: true,
+          serviceCategory: {
             select: {
-              id: true,
-              name: true,
-              address: true,
-              phone: true,
-              email: true,
-              logo: true,
-              photos: true,
-              workingHours: true,
-            },
-          },
-          staff: {
-            select: {
-              id: true,
-              name: true,
+              nameEn: true,
+              nameVn: true,
             },
           },
         },
+        take: 20,
       });
 
       console.log(`📋 Found ${services.length} services via synonyms`);
@@ -182,6 +175,7 @@ export class SearchService {
 
       const categories = await this.prisma.serviceCategory.findMany({
         where: whereCondition,
+        take: 30,
       });
 
       if (categories.length === 0) {
@@ -196,27 +190,19 @@ export class SearchService {
             in: categoryIds,
           },
         },
-        include: {
-          serviceCategory: true,
-          salon: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          serviceCategoryId: true,
+          serviceCategory: {
             select: {
-              id: true,
-              name: true,
-              address: true,
-              phone: true,
-              email: true,
-              logo: true,
-              photos: true,
-              workingHours: true,
-            },
-          },
-          staff: {
-            select: {
-              id: true,
-              name: true,
+              nameEn: true,
+              nameVn: true,
             },
           },
         },
+        take: 20,
       });
 
       console.log(`📋 Found ${services.length} services via categories`);
@@ -322,32 +308,20 @@ export class SearchService {
             mode: Prisma.QueryMode.insensitive,
           },
         },
-        include: {
-          serviceCategory: true,
-          salon: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          serviceCategoryId: true,
+          serviceCategory: {
             select: {
-              id: true,
-              name: true,
-              address: true,
-              phone: true,
-              email: true,
-              logo: true,
-              photos: true,
-              workingHours: true,
-            },
-          },
-          staff: {
-            select: {
-              id: true,
-              name: true,
+              nameEn: true,
+              nameVn: true,
             },
           },
         },
-        orderBy: {
-          salon: {
-            name: 'asc',
-          },
-        },
+        orderBy: { name: 'asc' },
+        take: 20,
       });
 
       console.log(`🎯 Found ${services.length} services by name`);
@@ -462,9 +436,19 @@ export class SearchService {
     }
   }
 
+  private usedCategoriesCache: { ids: number[]; at: number } | null = null;
+  private readonly usedCategoriesTtlMs = 10 * 60 * 1000; // 10 minutes
+
   async getUsedCategoryIds(): Promise<number[]> {
     try {
-      // Получаем все уникальные categoryIds из салонов
+      const now = Date.now();
+      if (
+        this.usedCategoriesCache &&
+        now - this.usedCategoriesCache.at < this.usedCategoriesTtlMs
+      ) {
+        return this.usedCategoriesCache.ids;
+      }
+
       const salons = await this.prisma.salon.findMany({
         select: {
           categoryIds: true,
@@ -478,7 +462,9 @@ export class SearchService {
         }
       });
 
-      return Array.from(usedCategoryIds);
+      const ids = Array.from(usedCategoryIds);
+      this.usedCategoriesCache = { ids, at: now };
+      return ids;
     } catch (error) {
       console.error('❌ Error getting used category IDs:', error);
       return [];

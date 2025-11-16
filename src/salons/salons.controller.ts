@@ -101,6 +101,19 @@ export class SalonsController {
     return this.salonsService.findNearbySalons(params);
   }
 
+  @Get('suggest')
+  async suggestSalons(
+    @Query('search') search?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const limitNum = limit ? Math.min(parseInt(limit, 10), 10) : 5;
+    const results = await this.salonsService.suggestSalons({
+      search: search || '',
+      limit: limitNum,
+    });
+    return { success: true, data: results };
+  }
+
   @Get(':id/stats')
   async getSalonStats(@Param('id') id: string) {
     return this.salonsService.getSalonStats(id);

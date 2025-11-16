@@ -13,6 +13,29 @@ export class SalonsService {
     private geocodingCache: GeocodingCacheService,
   ) {}
 
+  async suggestSalons(params: { search: string; limit: number }) {
+    const { search, limit } = params;
+    if (!search || search.trim().length < 3) {
+      return [];
+    }
+    const term = search.trim();
+    return this.prisma.salon.findMany({
+      where: {
+        OR: [
+          { name: { contains: term, mode: 'insensitive' } },
+          { address: { contains: term, mode: 'insensitive' } },
+        ],
+      },
+      select: {
+        id: true,
+        name: true,
+        address: true,
+      },
+      take: limit,
+      orderBy: { name: 'asc' },
+    });
+  }
+
   async findSalonsWithServices() {
     return this.prisma.salon.findMany({
       include: {
