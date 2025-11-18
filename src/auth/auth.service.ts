@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { supabase } from '../lib/supabase';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { InviteCodesService } from '../invite-codes/invite-codes.service';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class AuthService {
@@ -785,6 +786,204 @@ export class AuthService {
       throw new Error(
         `Failed to remove salon from favorites: ${error.message}`,
       );
+    }
+  }
+
+  async authenticateWithTelegram(data: {
+    id: number;
+    first_name: string;
+    last_name?: string;
+    username?: string;
+    photo_url?: string;
+    auth_date: number;
+    hash: string;
+  }) {
+    try {
+      // Проверяем подлинность данных от Telegram
+      const isValid = this.validateTelegramAuth(data);
+      if (!isValid) {
+        throw new BadRequestException('Invalid Telegram authentication data');
+      }
+
+      // Проверяем, не устарели ли данные (не более 24 часов)
+      const currentTime = Math.floor(Date.now() / 1000);
+      if (currentTime - data.auth_date > 86400) {
+        throw new BadRequestException('Telegram authentication data expired');
+      }
+
+      // Формируем email из Telegram данных (если нет username, используем id)
+      const email = data.username
+        ? `${data.username}@telegram.local`
+        : `telegram_${data.id}@telegram.local`;
+
+      // Формируем имя
+      const name = data.last_name
+        ? `${data.first_name} ${data.last_name}`
+        : data.first_name;
+
+      // Ищем существующего пользователя по Telegram ID
+      let dbUser = await this.prisma.user.findFirst({
+        where: {
+          OR: [{ email }, { telegramId: data.id.toString() }],
+        },
+      });
+
+      let supabaseUser;
+
+      if (dbUser) {
+        // Пользователь существует, получаем его из Supabase
+        const { data: userData, error: userError } =
+          await supabase.auth.admin.getUserById(dbUser.id);
+
+        if (userError || !userData.user) {
+          throw new BadRequestException('User not found in Supabase');
+        }
+
+        supabaseUser = userData.user;
+
+        // Обновляем данные пользователя из Telegram
+        dbUser = await this.prisma.user.update({
+          where: { id: dbUser.id },
+          data: {
+            name,
+            telegramId: data.id.toString(),
+            telegramUsername: data.username,
+            telegramPhotoUrl: data.photo_url,
+          },
+        });
+      } else {
+        // Создаем нового пользователя
+        // Генерируем случайный пароль (пользователь не будет его использовать)
+        const randomPassword = crypto.randomBytes(32).toString('hex');
+
+        const { data: adminUser, error: adminError } =
+          await supabase.auth.admin.createUser({
+            email,
+            password: randomPassword,
+            email_confirm: true,
+            user_metadata: {
+              name,
+              role: 'CLIENT',
+            },
+          });
+
+        if (adminError || !adminUser.user) {
+          throw new BadRequestException(
+            adminError?.message || 'Failed to create user',
+          );
+        }
+
+        supabaseUser = adminUser.user;
+
+        // Создаем пользователя в базе данных
+        dbUser = await this.prisma.user.create({
+          data: {
+            id: supabaseUser.id,
+            email,
+            name,
+            role: 'CLIENT',
+            telegramId: data.id.toString(),
+            telegramUsername: data.username,
+            telegramPhotoUrl: data.photo_url,
+          },
+        });
+      }
+
+      // Создаем сессию для пользователя
+      // Генерируем временный пароль и создаем сессию
+      const tempPassword = crypto.randomBytes(32).toString('hex');
+
+      // Обновляем пароль пользователя
+      const { error: updateError } = await supabase.auth.admin.updateUserById(
+        supabaseUser.id,
+        {
+          password: tempPassword,
+        },
+      );
+
+      if (updateError) {
+        throw new BadRequestException('Failed to update user password');
+      }
+
+      // Создаем новый клиент Supabase с anon key для входа
+      const { createClient } = require('@supabase/supabase-js');
+      const supabaseUrl = process.env.SUPABASE_URL;
+      const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+
+      if (!supabaseUrl || !supabaseAnonKey) {
+        throw new BadRequestException('Supabase configuration missing');
+      }
+
+      const publicSupabase = createClient(supabaseUrl, supabaseAnonKey);
+
+      // Входим с временным паролем
+      const { data: signInData, error: signInError } =
+        await publicSupabase.auth.signInWithPassword({
+          email: supabaseUser.email!,
+          password: tempPassword,
+        });
+
+      if (signInError || !signInData.session) {
+        throw new BadRequestException(
+          signInError?.message || 'Failed to create session',
+        );
+      }
+
+      return {
+        success: true,
+        user: {
+          id: dbUser.id,
+          email: dbUser.email,
+          name: dbUser.name,
+          role: dbUser.role,
+        },
+        session: {
+          access_token: signInData.session.access_token,
+          refresh_token: signInData.session.refresh_token,
+        },
+      };
+    } catch (error) {
+      console.error('❌ Telegram authentication error:', error);
+      throw error;
+    }
+  }
+
+  private validateTelegramAuth(data: {
+    id: number;
+    first_name: string;
+    auth_date: number;
+    hash: string;
+  }): boolean {
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    if (!botToken) {
+      console.warn('TELEGRAM_BOT_TOKEN not set, skipping validation');
+      return true; // В режиме разработки пропускаем валидацию
+    }
+
+    try {
+      // Создаем строку для проверки
+      const dataCheckString = Object.keys(data)
+        .filter((key) => key !== 'hash')
+        .sort()
+        .map((key) => `${key}=${data[key as keyof typeof data]}`)
+        .join('\n');
+
+      // Создаем секретный ключ
+      const secretKey = crypto
+        .createHmac('sha256', 'WebAppData')
+        .update(botToken)
+        .digest();
+
+      // Вычисляем hash
+      const calculatedHash = crypto
+        .createHmac('sha256', secretKey)
+        .update(dataCheckString)
+        .digest('hex');
+
+      return calculatedHash === data.hash;
+    } catch (error) {
+      console.error('Error validating Telegram auth:', error);
+      return false;
     }
   }
 }

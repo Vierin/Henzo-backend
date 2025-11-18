@@ -84,12 +84,13 @@ export class ServicesController {
       sourceLanguage?: 'en' | 'vi' | 'ru';
     },
   ) {
-    const { name, description = '', sourceLanguage = 'ru' } = body;
+    const { name, description = '', sourceLanguage } = body;
 
     if (!name || !name.trim()) {
       throw new Error('Name is required');
     }
 
+    // sourceLanguage is optional - will be auto-detected if not provided
     const translations =
       await this.translationService.generateServiceTranslations(
         name,

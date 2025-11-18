@@ -6,7 +6,10 @@ async function bootstrap() {
   try {
     console.log('🚀 Starting backend server...');
 
-    const app = await NestFactory.create(AppModule);
+    const app = await NestFactory.create(AppModule, {
+      logger: ['error', 'warn', 'log'],
+    });
+
     console.log('✅ App module created successfully');
 
     // Enable global validation

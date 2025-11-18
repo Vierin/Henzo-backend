@@ -314,4 +314,42 @@ export class AuthController {
       );
     }
   }
+
+  @Get('telegram/bot-id')
+  async getTelegramBotId() {
+    try {
+      const botToken = process.env.TELEGRAM_BOT_TOKEN;
+      if (!botToken) {
+        throw new HttpException(
+          'Telegram bot token not configured',
+          HttpStatus.SERVICE_UNAVAILABLE,
+        );
+      }
+
+      // Извлекаем bot_id из токена (первые цифры до двоеточия)
+      const botId = botToken.split(':')[0];
+
+      return { botId };
+    } catch (error) {
+      console.error('❌ Failed to get bot ID:', error.message);
+      throw new HttpException(
+        error.message || 'Failed to get Telegram bot ID',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Post('telegram')
+  async telegramAuth(@Body() data: any) {
+    try {
+      const result = await this.authService.authenticateWithTelegram(data);
+      return result;
+    } catch (error) {
+      console.error('❌ Telegram auth failed:', error.message);
+      throw new HttpException(
+        error.message || 'Telegram authentication failed',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
 }

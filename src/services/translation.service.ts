@@ -3,6 +3,31 @@ import { Injectable } from '@nestjs/common';
 @Injectable()
 export class TranslationService {
   /**
+   * Detect language of text
+   */
+  detectLanguage(text: string): 'en' | 'vi' | 'ru' {
+    if (!text || !text.trim()) {
+      return 'en'; // default
+    }
+
+    // Check for Vietnamese characters
+    const vietnameseChars =
+      /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i;
+    if (vietnameseChars.test(text)) {
+      return 'vi';
+    }
+
+    // Check for Cyrillic characters (Russian)
+    const cyrillicChars = /[а-яё]/i;
+    if (cyrillicChars.test(text)) {
+      return 'ru';
+    }
+
+    // Default to English
+    return 'en';
+  }
+
+  /**
    * Translate text using Google Translate API
    * Note: Requires GOOGLE_TRANSLATE_API_KEY environment variable
    */
@@ -83,11 +108,12 @@ export class TranslationService {
 
   /**
    * Generate translations for service name and description
+   * Automatically detects the language of name and description
    */
   async generateServiceTranslations(
     name: string,
     description: string,
-    sourceLanguage: 'en' | 'vi' | 'ru' = 'ru',
+    sourceLanguage?: 'en' | 'vi' | 'ru',
   ): Promise<{
     nameEn: string;
     nameVi: string;
@@ -113,37 +139,59 @@ export class TranslationService {
       descriptionRu: '',
     };
 
-    // Set source language values
-    if (sourceLanguage === 'ru') {
+    // Auto-detect language if not provided
+    const nameLanguage = sourceLanguage || this.detectLanguage(name);
+    const descriptionLanguage = description
+      ? this.detectLanguage(description)
+      : nameLanguage;
+
+    console.log(
+      `[Translation] Detected languages - Name: ${nameLanguage}, Description: ${descriptionLanguage}`,
+    );
+
+    // Set source language values for name
+    if (nameLanguage === 'ru') {
       translations.nameRu = name;
-      translations.descriptionRu = description;
-    } else if (sourceLanguage === 'en') {
+    } else if (nameLanguage === 'en') {
       translations.nameEn = name;
-      translations.descriptionEn = description;
-    } else if (sourceLanguage === 'vi') {
+    } else if (nameLanguage === 'vi') {
       translations.nameVi = name;
-      translations.descriptionVi = description;
+    }
+
+    // Set source language values for description
+    if (description && description.trim()) {
+      if (descriptionLanguage === 'ru') {
+        translations.descriptionRu = description;
+      } else if (descriptionLanguage === 'en') {
+        translations.descriptionEn = description;
+      } else if (descriptionLanguage === 'vi') {
+        translations.descriptionVi = description;
+      }
     }
 
     // Translate to other languages
     const translationPromises: Promise<void>[] = [];
 
+    // Translate name to other languages
     for (const lang of languages) {
-      if (lang === sourceLanguage) continue;
+      if (lang === nameLanguage) continue;
 
-      // Translate name
       translationPromises.push(
-        this.translateText(name, lang, sourceLanguage).then((translated) => {
+        this.translateText(name, lang, nameLanguage).then((translated) => {
           if (lang === 'en') translations.nameEn = translated;
           else if (lang === 'vi') translations.nameVi = translated;
           else if (lang === 'ru') translations.nameRu = translated;
         }),
       );
+    }
 
-      // Translate description if provided
-      if (description && description.trim()) {
+    // Translate description to other languages
+    if (description && description.trim()) {
+      for (const lang of languages) {
+        if (lang === descriptionLanguage) continue;
+
         translationPromises.push(
-          this.translateText(description, lang, sourceLanguage).then(
+          this.translateText(description, lang, descriptionLanguage).then(
             (translated) => {
               if (lang === 'en') translations.descriptionEn = translated;
               else if (lang === 'vi') translations.descriptionVi = translated;

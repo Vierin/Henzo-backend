@@ -14,6 +14,9 @@ model User {
   name           String?
   phone          String?
   role           UserRole  @default(OWNER)
+  telegramId     String?   @unique
+  telegramUsername String?
+  telegramPhotoUrl String?
   createdAt      DateTime  @default(now())
   favoriteSalons String[]  @default([])
   bookings       Booking[] @relation("UserBookings")
