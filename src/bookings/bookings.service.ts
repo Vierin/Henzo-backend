@@ -10,7 +10,71 @@ export class BookingsService {
     private emailService: EmailService,
   ) {}
 
-  async createBooking(data: CreateBookingDto, userId: string) {
+  async findOrCreateClientUser(
+    email: string,
+    name?: string,
+    phone?: string,
+  ): Promise<string> {
+    try {
+      // Try to find existing user by email
+      let user = await this.prisma.user.findUnique({
+        where: { email: email.toLowerCase().trim() },
+      });
+
+      if (user) {
+        // If user exists but is not a client, throw error
+        if (user.role !== 'CLIENT') {
+          throw new Error(
+            `User with email ${email} exists but is not a client`,
+          );
+        }
+        // Update user info if provided
+        if (name || phone) {
+          user = await this.prisma.user.update({
+            where: { id: user.id },
+            data: {
+              ...(name && { name }),
+              ...(phone && { phone }),
+            },
+          });
+        }
+        return user.id;
+      }
+
+      // Create new client user
+      // Note: We create a user without password - they can set it later via password reset
+      const emailNormalized = email.toLowerCase().trim();
+      if (!emailNormalized) {
+        throw new Error('Email is required to create client user');
+      }
+
+      const newUser = await this.prisma.user.create({
+        data: {
+          email: emailNormalized,
+          name: name || emailNormalized.split('@')[0], // Use email prefix as default name
+          phone: phone || null,
+          role: 'CLIENT',
+          // Password will be set when user first logs in via password reset
+        },
+      });
+
+      console.log('✅ Created new client user:', {
+        id: newUser.id,
+        email: newUser.email,
+        name: newUser.name,
+      });
+      return newUser.id;
+    } catch (error) {
+      console.error('❌ Error finding/creating client user:', error.message);
+      throw error;
+    }
+  }
+
+  async createBooking(
+    data: CreateBookingDto,
+    userId: string,
+    isOwnerCreated: boolean = false,
+  ) {
     try {
       // Validate that the service exists and belongs to the salon
       const service = await this.prisma.service.findFirst({
@@ -36,7 +100,10 @@ export class BookingsService {
           )) || undefined;
       }
 
-      // Create booking with PENDING status
+      // If owner creates booking, set status as CONFIRMED, otherwise PENDING
+      const bookingStatus = isOwnerCreated ? 'CONFIRMED' : 'PENDING';
+
+      // Create booking
       const booking = await this.prisma.booking.create({
         data: {
           salonId: data.salonId,
@@ -44,20 +111,35 @@ export class BookingsService {
           serviceId: data.serviceId,
           staffId: selectedStaffId,
           dateTime: new Date(data.time),
-          status: 'PENDING',
+          status: bookingStatus,
           notes: data.notes,
         },
         include: {
           service: true,
           staff: true,
-          salon: true,
-          user: true,
+          salon: {
+            include: {
+              owner: true, // Include owner for email fallback
+            },
+          },
+          user: true, // Include user to get client email
         },
+      });
+
+      // Log booking creation details for debugging
+      console.log('📧 Booking created with email notification details:', {
+        bookingId: booking.id,
+        status: booking.status,
+        clientEmail: booking.user?.email,
+        clientName: booking.user?.name,
+        salonEmail: booking.salon?.email,
+        ownerEmail: booking.salon?.owner?.email,
       });
 
       // Send email notifications
       try {
         await this.sendBookingNotifications(booking);
+        console.log('✅ Email notifications sent successfully');
       } catch (emailError) {
         console.error('❌ Error sending email notifications:', emailError);
         // Don't fail the booking creation if email fails
@@ -406,32 +488,59 @@ export class BookingsService {
       const { formattedDate, formattedTime } =
         this.formatBookingDateTime(dateTimeString);
 
+      // Get client email - ensure it exists
+      const clientEmail = booking.user?.email;
+      const clientName = booking.user?.name || 'Client';
+
+      if (!clientEmail) {
+        console.error('❌ Cannot send email: client email is missing', {
+          bookingId: booking.id,
+          userId: booking.userId,
+          user: booking.user,
+        });
+        throw new Error('Client email is required for sending notifications');
+      }
+
+      console.log('📧 Preparing to send email notifications:', {
+        status: booking.status,
+        clientEmail,
+        clientName,
+        salonEmail: booking.salon?.email || booking.salon?.owner?.email,
+      });
+
       // For PENDING bookings, only send notification to salon with confirmation links
       if (booking.status === 'PENDING') {
-        await this.emailService.sendSalonBookingRequest(
-          booking.salon.email || booking.salon.owner?.email,
-          booking.salon.name,
-          {
-            bookingId: booking.id,
-            serviceName: booking.service.name,
-            date: formattedDate,
-            time: formattedTime,
-            duration: booking.service.duration,
-            price: booking.service.price,
-            clientName: booking.user.name || 'Client',
-            clientEmail: booking.user.email,
-            clientPhone: booking.user.phone,
-            staffName: booking.staff?.name,
-          },
-        );
+        const salonEmail = booking.salon?.email || booking.salon?.owner?.email;
+        if (salonEmail) {
+          await this.emailService.sendSalonBookingRequest(
+            salonEmail,
+            booking.salon.name,
+            {
+              bookingId: booking.id,
+              serviceName: booking.service.name,
+              date: formattedDate,
+              time: formattedTime,
+              duration: booking.service.duration,
+              price: booking.service.price,
+              clientName,
+              clientEmail,
+              clientPhone: booking.user.phone,
+              staffName: booking.staff?.name,
+            },
+          );
+          console.log('✅ Salon booking request email sent to:', salonEmail);
+        } else {
+          console.warn('⚠️ Salon email not found, skipping salon notification');
+        }
 
         // Note: Client does NOT receive email at this stage to avoid spam.
         // They only get notified after salon confirms or rejects the booking.
       } else if (booking.status === 'CONFIRMED') {
         // Send confirmation to client
+        console.log('📧 Sending confirmation email to client:', clientEmail);
         await this.emailService.sendBookingConfirmation(
-          booking.user.email,
-          booking.user.name || 'Client',
+          clientEmail,
+          clientName,
           {
             serviceName: booking.service.name,
             date: formattedDate,
@@ -444,23 +553,30 @@ export class BookingsService {
             staffName: booking.staff?.name,
           },
         );
+        console.log('✅ Client confirmation email sent to:', clientEmail);
 
         // Send notification to salon
-        await this.emailService.sendSalonNotification(
-          booking.salon.email || booking.salon.owner?.email,
-          booking.salon.name,
-          {
-            serviceName: booking.service.name,
-            date: formattedDate,
-            time: formattedTime,
-            duration: booking.service.duration,
-            price: booking.service.price,
-            clientName: booking.user.name || 'Client',
-            clientEmail: booking.user.email,
-            clientPhone: booking.user.phone,
-            staffName: booking.staff?.name,
-          },
-        );
+        const salonEmail = booking.salon?.email || booking.salon?.owner?.email;
+        if (salonEmail) {
+          await this.emailService.sendSalonNotification(
+            salonEmail,
+            booking.salon.name,
+            {
+              serviceName: booking.service.name,
+              date: formattedDate,
+              time: formattedTime,
+              duration: booking.service.duration,
+              price: booking.service.price,
+              clientName,
+              clientEmail,
+              clientPhone: booking.user.phone,
+              staffName: booking.staff?.name,
+            },
+          );
+          console.log('✅ Salon notification email sent to:', salonEmail);
+        } else {
+          console.warn('⚠️ Salon email not found, skipping salon notification');
+        }
       }
     } catch (error) {
       console.error('❌ Error sending booking notifications:', error);

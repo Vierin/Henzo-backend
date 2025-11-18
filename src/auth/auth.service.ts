@@ -49,6 +49,7 @@ export class AuthService {
           );
 
           // Создаем пользователя через Admin API с уже подтвержденным email
+          // Роль устанавливаем в app_metadata (включается в JWT токен)
           const { data: adminUser, error: adminError } =
             await supabase.auth.admin.createUser({
               email: data.email,
@@ -56,7 +57,9 @@ export class AuthService {
               email_confirm: true, // Сразу подтверждаем email
               user_metadata: {
                 name: data.name,
-                role: 'OWNER',
+              },
+              app_metadata: {
+                role: 'OWNER', // Роль в app_metadata включается в JWT
               },
             });
 
@@ -117,6 +120,28 @@ export class AuthService {
           role: (data.role as 'OWNER' | 'CLIENT' | 'ADMIN') || 'OWNER',
         },
       });
+
+      // Синхронизируем роль в app_metadata Supabase (если еще не установлена)
+      // Это гарантирует, что роль будет в JWT токене
+      try {
+        const { data: existingUser } =
+          await supabase.auth.admin.getUserById(userId);
+        const currentRole =
+          existingUser?.user?.app_metadata?.role ||
+          existingUser?.user?.user_metadata?.role;
+
+        if (currentRole !== user.role) {
+          await supabase.auth.admin.updateUserById(userId, {
+            app_metadata: {
+              role: user.role,
+            },
+          });
+          console.log(`✅ Role synced to app_metadata for user ${userId}`);
+        }
+      } catch (error) {
+        console.error('⚠️ Failed to sync role to app_metadata:', error);
+        // Не блокируем регистрацию, если не удалось обновить метаданные
+      }
 
       // Отмечаем код как использованный (будет сделано при создании салона)
       // Сохраняем inviteCodeId для связи с салоном позже
@@ -241,6 +266,22 @@ export class AuthService {
         },
       });
 
+      // Синхронизируем роль в app_metadata Supabase
+      // Это гарантирует, что роль будет в JWT токене
+      try {
+        await supabase.auth.admin.updateUserById(authData.user.id, {
+          app_metadata: {
+            role: 'CLIENT',
+          },
+        });
+        console.log(
+          `✅ Role synced to app_metadata for client ${authData.user.id}`,
+        );
+      } catch (error) {
+        console.error('⚠️ Failed to sync role to app_metadata:', error);
+        // Не блокируем регистрацию, если не удалось обновить метаданные
+      }
+
       return {
         user: {
           id: user.id,
@@ -340,6 +381,26 @@ export class AuthService {
         where: { id: user.id },
       });
 
+      // Синхронизируем роль в app_metadata если она есть в БД, но отсутствует в JWT
+      // Это гарантирует, что роль будет доступна в следующих запросах
+      if (dbUser) {
+        const currentRole = user.app_metadata?.role || user.user_metadata?.role;
+        if (currentRole !== dbUser.role) {
+          try {
+            await supabase.auth.admin.updateUserById(user.id, {
+              app_metadata: {
+                role: dbUser.role,
+              },
+            });
+            console.log(
+              `✅ Role synced to app_metadata for user ${user.id}: ${dbUser.role}`,
+            );
+          } catch (error) {
+            console.error('⚠️ Failed to sync role to app_metadata:', error);
+          }
+        }
+      }
+
       // If user not found by ID, try to find by email (for Google OAuth cases)
       if (!dbUser && user.email) {
         console.log('🔍 User not found by ID, trying to find by email...');
@@ -389,6 +450,7 @@ export class AuthService {
 
       // Если пользователь не найден в базе данных, но существует в Supabase Auth,
       // создаем его автоматически с ролью из метаданных или CLIENT по умолчанию
+      // Используем upsert для избежания race conditions
       if (!dbUser) {
         console.log('⚠️ User not found in database, creating automatically...');
         try {
@@ -401,8 +463,19 @@ export class AuthService {
           // Иначе создаем с ролью CLIENT по умолчанию
           const userRole = existingSalons.length > 0 ? 'OWNER' : 'CLIENT';
 
-          dbUser = await this.prisma.user.create({
-            data: {
+          // Используем upsert вместо create для избежания ошибок при race conditions
+          dbUser = await this.prisma.user.upsert({
+            where: { id: user.id },
+            update: {
+              // Обновляем только если данные изменились
+              email: user.email || '',
+              name:
+                user.user_metadata?.name ||
+                user.user_metadata?.full_name ||
+                null,
+              phone: user.user_metadata?.phone || null,
+            },
+            create: {
               id: user.id,
               email: user.email || '',
               name:
@@ -414,15 +487,27 @@ export class AuthService {
             },
           });
           console.log(
-            `✅ User created automatically in database with role ${userRole}:`,
+            `✅ User created/updated automatically in database with role ${userRole}:`,
             dbUser.id,
           );
         } catch (createError) {
           console.error(
-            '❌ Failed to create user in database:',
+            '❌ Failed to create/update user in database:',
             createError.message,
           );
-          throw new Error('Failed to create user in database');
+          // Если ошибка из-за уникальности, пытаемся получить пользователя еще раз
+          if (createError.message?.includes('Unique constraint')) {
+            dbUser = await this.prisma.user.findUnique({
+              where: { id: user.id },
+            });
+            if (dbUser) {
+              console.log('✅ User found after unique constraint error:', dbUser.id);
+            } else {
+              throw new Error('Failed to create user in database');
+            }
+          } else {
+            throw new Error('Failed to create user in database');
+          }
         }
       }
 
@@ -488,6 +573,7 @@ export class AuthService {
 
   async updateUserRole(userId: string, role: 'CLIENT' | 'OWNER' | 'ADMIN') {
     try {
+      // Обновляем роль в базе данных
       const updatedUser = await this.prisma.user.update({
         where: { id: userId },
         data: { role },
@@ -499,6 +585,22 @@ export class AuthService {
           role: true,
         },
       });
+
+      // Синхронизируем роль в app_metadata Supabase
+      // Это гарантирует, что роль будет в JWT токене для следующих запросов
+      try {
+        await supabase.auth.admin.updateUserById(userId, {
+          app_metadata: {
+            role: role,
+          },
+        });
+        console.log(
+          `✅ Role synced to app_metadata for user ${userId}: ${role}`,
+        );
+      } catch (error) {
+        console.error('⚠️ Failed to sync role to app_metadata:', error);
+        // Не блокируем обновление, если не удалось синхронизировать метаданные
+      }
 
       return updatedUser;
     } catch (error) {
@@ -518,18 +620,17 @@ export class AuthService {
         throw new Error('User not found in Supabase Auth');
       }
 
-      // Проверяем, существует ли пользователь в нашей базе данных
-      const existingUser = await this.prisma.user.findUnique({
+      // Используем upsert для избежания ошибок при race conditions
+      const newUser = await this.prisma.user.upsert({
         where: { id: user.id },
-      });
-
-      if (existingUser) {
-        return existingUser;
-      }
-
-      // Создаем пользователя в нашей базе данных
-      const newUser = await this.prisma.user.create({
-        data: {
+        update: {
+          // Обновляем данные если пользователь уже существует
+          email: user.email || '',
+          name:
+            user.user_metadata?.name || user.user_metadata?.full_name || null,
+          phone: user.user_metadata?.phone || null,
+        },
+        create: {
           id: user.id,
           email: user.email || '',
           name:
@@ -863,7 +964,9 @@ export class AuthService {
             email_confirm: true,
             user_metadata: {
               name,
-              role: 'CLIENT',
+            },
+            app_metadata: {
+              role: 'CLIENT', // Роль в app_metadata включается в JWT
             },
           });
 
@@ -875,9 +978,18 @@ export class AuthService {
 
         supabaseUser = adminUser.user;
 
-        // Создаем пользователя в базе данных
-        dbUser = await this.prisma.user.create({
-          data: {
+        // Используем upsert для избежания ошибок при race conditions
+        dbUser = await this.prisma.user.upsert({
+          where: { id: supabaseUser.id },
+          update: {
+            // Обновляем данные если пользователь уже существует
+            email,
+            name,
+            telegramId: data.id.toString(),
+            telegramUsername: data.username,
+            telegramPhotoUrl: data.photo_url,
+          },
+          create: {
             id: supabaseUser.id,
             email,
             name,

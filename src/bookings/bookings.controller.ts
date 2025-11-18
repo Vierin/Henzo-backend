@@ -31,14 +31,37 @@ export class BookingsController {
         hasAuthHeader: !!authHeader,
         serviceId: data.serviceId,
         salonId: data.salonId,
+        hasClientEmail: !!data.clientEmail,
       });
 
       const currentUser = await this.authService.getCurrentUser(authHeader);
       console.log('✅ User authenticated for booking:', currentUser.user.email);
 
+      // If owner is creating booking for a client, use client's user ID
+      let bookingUserId = currentUser.user.id;
+      const isOwnerCreated = currentUser.user.role === 'OWNER';
+
+      if (data.clientEmail && isOwnerCreated) {
+        // Owner is creating booking on behalf of a client
+        console.log('📧 Owner creating booking for client:', {
+          clientEmail: data.clientEmail,
+          clientName: data.clientName,
+          clientPhone: data.clientPhone,
+        });
+        bookingUserId = await this.bookingsService.findOrCreateClientUser(
+          data.clientEmail,
+          data.clientName,
+          data.clientPhone,
+        );
+        console.log('✅ Using client user ID for booking:', bookingUserId);
+      } else if (isOwnerCreated && !data.clientEmail) {
+        console.warn('⚠️ Owner creating booking but no clientEmail provided');
+      }
+
       const booking = await this.bookingsService.createBooking(
         data,
-        currentUser.user.id,
+        bookingUserId,
+        isOwnerCreated, // Pass flag to set status as CONFIRMED if owner created
       );
 
       console.log('✅ Booking created successfully:', booking.id);

@@ -35,6 +35,21 @@ export class EmailService {
     htmlContent: string;
   }) {
     try {
+      if (!this.brevoApiKey) {
+        console.error(
+          '❌ BREVO_API_KEY is not configured. Email cannot be sent.',
+        );
+        throw new Error('BREVO_API_KEY is not configured');
+      }
+
+      // Validate email addresses
+      const recipientEmails = emailData.to.map((recipient) => recipient.email);
+      console.log('📧 Attempting to send email via Brevo:', {
+        to: recipientEmails,
+        subject: emailData.subject,
+        hasApiKey: !!this.brevoApiKey,
+      });
+
       const response = await fetch(this.brevoApiUrl, {
         method: 'POST',
         headers: {
@@ -47,14 +62,25 @@ export class EmailService {
 
       if (!response.ok) {
         const errorData = await response.text();
+        console.error('❌ Brevo API error response:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData,
+        });
         throw new Error(`Brevo API error: ${response.status} - ${errorData}`);
       }
 
       const result = await response.json();
-      console.log('✅ Email sent via Brevo:', result.messageId);
+      console.log('✅ Email sent via Brevo successfully:', {
+        messageId: result.messageId,
+        to: recipientEmails,
+      });
       return result;
     } catch (error) {
-      console.error('❌ Brevo API error:', error);
+      console.error('❌ Brevo API error:', {
+        error: error instanceof Error ? error.message : error,
+        to: emailData.to.map((r) => r.email),
+      });
       throw error;
     }
   }
