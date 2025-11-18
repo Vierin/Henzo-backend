@@ -247,6 +247,7 @@ enum BookingStatus {
   CANCELED
   COMPLETED
   PENDING
+  NOSHOW
 }
 
 enum SubscriptionType {

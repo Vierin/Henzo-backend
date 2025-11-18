@@ -16,6 +16,7 @@ import { RemindersModule } from './reminders/reminders.module';
 import { ContactModule } from './contact/contact.module';
 import { SearchModule } from './search/search.module';
 import { InviteCodesModule } from './invite-codes/invite-codes.module';
+import { FeedbackModule } from './feedback/feedback.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { InviteCodesModule } from './invite-codes/invite-codes.module';
     ContactModule,
     SearchModule,
     InviteCodesModule,
+    FeedbackModule,
   ],
   controllers: [AppController],
   providers: [AppService],

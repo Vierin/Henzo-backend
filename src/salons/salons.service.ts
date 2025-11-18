@@ -42,6 +42,7 @@ export class SalonsService {
         services: {
           include: {
             serviceCategory: true,
+            serviceGroup: true,
           },
         },
         reviews: {
@@ -176,6 +177,7 @@ export class SalonsService {
         services: {
           include: {
             serviceCategory: true,
+            serviceGroup: true,
           },
         },
         reviews: {
@@ -239,7 +241,11 @@ export class SalonsService {
         ownerId: userId,
       },
       include: {
-        services: true,
+        services: {
+          include: {
+            serviceGroup: true,
+          },
+        },
         staff: true,
         owner: {
           select: {
@@ -278,7 +284,11 @@ export class SalonsService {
             inviteCodeId: inviteCodeId || null,
           } as any,
           include: {
-            services: true,
+            services: {
+              include: {
+                serviceGroup: true,
+              },
+            },
             staff: true,
             owner: {
               select: {
@@ -353,7 +363,11 @@ export class SalonsService {
         ...salonData,
       } as any,
       include: {
-        services: true,
+        services: {
+          include: {
+            serviceGroup: true,
+          },
+        },
         staff: true,
         owner: {
           select: {
@@ -413,6 +427,7 @@ export class SalonsService {
         services: {
           include: {
             serviceCategory: true,
+            serviceGroup: true,
           },
         },
         staff: true,
