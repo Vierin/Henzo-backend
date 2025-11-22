@@ -62,12 +62,30 @@ export class EmailService {
 
       if (!response.ok) {
         const errorData = await response.text();
+        let errorMessage = `Brevo API error: ${response.status} - ${errorData}`;
+
+        // Handle specific Brevo errors
+        if (response.status === 401) {
+          try {
+            const errorJson = JSON.parse(errorData);
+            if (
+              errorJson.code === 'unauthorized' &&
+              errorJson.message?.includes('IP address')
+            ) {
+              errorMessage = `Brevo IP authorization required: ${errorJson.message}. Please add your IP address at https://app.brevo.com/security/authorised_ips`;
+              console.error('❌ Brevo IP authorization error:', errorMessage);
+            }
+          } catch (e) {
+            // If parsing fails, use original error
+          }
+        }
+
         console.error('❌ Brevo API error response:', {
           status: response.status,
           statusText: response.statusText,
           error: errorData,
         });
-        throw new Error(`Brevo API error: ${response.status} - ${errorData}`);
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();
@@ -1293,6 +1311,114 @@ export class EmailService {
       console.log(`✅ Invite code email sent to ${ownerEmail}`);
     } catch (error) {
       console.error('❌ Error sending invite code email:', error);
+      throw error;
+    }
+  }
+
+  async sendMagicLinkConfirmation(
+    clientEmail: string,
+    data: {
+      confirmUrl: string;
+      serviceName: string;
+      salonName: string;
+      date: string;
+      time: string;
+    },
+  ) {
+    try {
+      console.log('📧 Sending magic link confirmation to:', clientEmail);
+
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <title>Confirm Your Booking - ${data.salonName}</title>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background-color: #ff5b5b; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+            .content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+            .booking-details { background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
+            .detail-row { display: flex; justify-content: space-between; margin: 10px 0; padding: 8px 0; border-bottom: 1px solid #eee; }
+            .detail-label { font-weight: bold; color: #555; }
+            .detail-value { color: #333; }
+            .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
+            .button { display: inline-block; background-color: #ff5b5b; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; font-weight: bold; }
+            .button-container { text-align: center; margin: 30px 0; }
+            .notice { background-color: #fff3cd; border: 1px solid #ffc107; padding: 15px; border-radius: 5px; margin: 20px 0; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>📧 Confirm Your Booking</h1>
+              <p>Click the link below to complete your reservation</p>
+            </div>
+            
+            <div class="content">
+              <h2>Hello!</h2>
+              <p>You've requested to book an appointment at <strong>${data.salonName}</strong>. Please confirm your booking by clicking the button below:</p>
+              
+              <div class="button-container">
+                <a href="${data.confirmUrl}" class="button">Confirm Booking</a>
+              </div>
+
+              <div class="booking-details">
+                <h3>📅 Booking Details</h3>
+                <div class="detail-row">
+                  <span class="detail-label">Service:</span>
+                  <span class="detail-value">${data.serviceName}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Date:</span>
+                  <span class="detail-value">${data.date}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Time:</span>
+                  <span class="detail-value">${data.time}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Salon:</span>
+                  <span class="detail-value">${data.salonName}</span>
+                </div>
+              </div>
+
+              <div class="notice">
+                <p><strong>⏰ Important:</strong> This confirmation link will expire in 1 hour.</p>
+                <p>If you didn't request this booking, please ignore this email.</p>
+              </div>
+
+              <p>If the button doesn't work, copy and paste this link into your browser:</p>
+              <p style="word-break: break-all; color: #666; font-size: 12px;">${data.confirmUrl}</p>
+            </div>
+            
+            <div class="footer">
+              <p>Thank you for choosing ${data.salonName}!</p>
+              <p>This is an automated message. Please do not reply to this email.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+
+      const emailData = {
+        to: [{ email: clientEmail, name: 'Guest' }],
+        sender: {
+          email:
+            this.configService.get<string>('BREVO_FROM_EMAIL') ||
+            'noreply@henzo.app',
+          name: 'Henzo Booking System',
+        },
+        subject: `Confirm Your Booking - ${data.salonName}`,
+        htmlContent: htmlContent,
+      };
+
+      const result = await this.sendEmailViaBrevo(emailData);
+      console.log('✅ Magic link confirmation sent successfully via Brevo');
+      return result;
+    } catch (error) {
+      console.error('❌ Error sending magic link confirmation:', error);
       throw error;
     }
   }

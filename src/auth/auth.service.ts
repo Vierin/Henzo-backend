@@ -463,52 +463,129 @@ export class AuthService {
           // Иначе создаем с ролью CLIENT по умолчанию
           const userRole = existingSalons.length > 0 ? 'OWNER' : 'CLIENT';
 
-          // Используем upsert вместо create для избежания ошибок при race conditions
-          dbUser = await this.prisma.user.upsert({
-            where: { id: user.id },
-            update: {
-              // Обновляем только если данные изменились
-              email: user.email || '',
-              name:
-                user.user_metadata?.name ||
-                user.user_metadata?.full_name ||
-                null,
-              phone: user.user_metadata?.phone || null,
-            },
-            create: {
-              id: user.id,
-              email: user.email || '',
-              name:
-                user.user_metadata?.name ||
-                user.user_metadata?.full_name ||
-                null,
-              phone: user.user_metadata?.phone || null,
-              role: userRole as 'CLIENT' | 'OWNER' | 'ADMIN',
-            },
-          });
-          console.log(
-            `✅ User created/updated automatically in database with role ${userRole}:`,
-            dbUser.id,
-          );
-        } catch (createError) {
-          console.error(
-            '❌ Failed to create/update user in database:',
-            createError.message,
-          );
-          // Если ошибка из-за уникальности, пытаемся получить пользователя еще раз
-          if (createError.message?.includes('Unique constraint')) {
+          // Проверяем, не существует ли пользователь с таким email (для Google OAuth случаев)
+          const existingUserByEmail = user.email
+            ? await this.prisma.user.findUnique({
+                where: { email: user.email },
+              })
+            : null;
+
+          if (existingUserByEmail && existingUserByEmail.id !== user.id) {
+            // Пользователь с таким email уже существует, но с другим ID
+            // Это может быть случай, когда пользователь регистрировался через email, а потом логинился через Google
+            console.log(
+              '⚠️ User with same email exists but different ID, updating ID...',
+            );
+            // Обновляем ID существующего пользователя на новый из Supabase Auth
+            await this.prisma.$transaction(async (prisma) => {
+              // Update salons
+              await prisma.salon.updateMany({
+                where: { ownerId: existingUserByEmail.id },
+                data: { ownerId: user.id },
+              });
+
+              // Update bookings
+              await prisma.booking.updateMany({
+                where: { userId: existingUserByEmail.id },
+                data: { userId: user.id },
+              });
+
+              // Update reviews
+              await prisma.review.updateMany({
+                where: { userId: existingUserByEmail.id },
+                data: { userId: user.id },
+              });
+
+              // Update user ID
+              await prisma.user.update({
+                where: { id: existingUserByEmail.id },
+                data: { id: user.id },
+              });
+            });
+
+            // Get updated user
             dbUser = await this.prisma.user.findUnique({
               where: { id: user.id },
             });
+          } else {
+            // Используем upsert вместо create для избежания ошибок при race conditions
+            dbUser = await this.prisma.user.upsert({
+              where: { id: user.id },
+              update: {
+                // Обновляем только если данные изменились
+                email: user.email || '',
+                name:
+                  user.user_metadata?.name ||
+                  user.user_metadata?.full_name ||
+                  null,
+                phone: user.user_metadata?.phone || null,
+              },
+              create: {
+                id: user.id,
+                email: user.email || '',
+                name:
+                  user.user_metadata?.name ||
+                  user.user_metadata?.full_name ||
+                  null,
+                phone: user.user_metadata?.phone || null,
+                role: userRole as 'CLIENT' | 'OWNER' | 'ADMIN',
+              },
+            });
+          }
+
+          if (dbUser) {
+            console.log(
+              `✅ User created/updated automatically in database with role ${dbUser.role}:`,
+              dbUser.id,
+            );
+          } else {
+            throw new Error('Failed to create or retrieve user from database');
+          }
+        } catch (createError: any) {
+          console.error(
+            '❌ Failed to create/update user in database:',
+            createError.message,
+            createError.code,
+          );
+          // Если ошибка из-за уникальности, пытаемся получить пользователя еще раз
+          if (
+            createError.message?.includes('Unique constraint') ||
+            createError.code === 'P2002'
+          ) {
+            // Try to find by email first
+            if (user.email) {
+              dbUser = await this.prisma.user.findUnique({
+                where: { email: user.email },
+              });
+            }
+            // If still not found, try by ID
+            if (!dbUser) {
+              dbUser = await this.prisma.user.findUnique({
+                where: { id: user.id },
+              });
+            }
             if (dbUser) {
-              console.log('✅ User found after unique constraint error:', dbUser.id);
+              console.log(
+                '✅ User found after unique constraint error:',
+                dbUser.id,
+              );
             } else {
-              throw new Error('Failed to create user in database');
+              console.error('❌ User not found after unique constraint error');
+              throw new Error(
+                `Failed to create user in database: ${createError.message}`,
+              );
             }
           } else {
-            throw new Error('Failed to create user in database');
+            throw new Error(
+              `Failed to create user in database: ${createError.message}`,
+            );
           }
         }
+      }
+
+      if (!dbUser) {
+        console.error('❌ User not found in database after all attempts');
+        throw new Error('User not found in database');
       }
 
       console.log('✅ User found in database:', dbUser.id, dbUser.email);
@@ -522,8 +599,15 @@ export class AuthService {
           role: dbUser.role,
         },
       };
-    } catch (error) {
-      throw new Error(`Failed to get user: ${error.message}`);
+    } catch (error: any) {
+      console.error('❌ Error in getCurrentUser:', {
+        message: error.message,
+        code: error.code,
+        stack: error.stack,
+      });
+      throw new Error(
+        `Failed to get user: ${error.message || 'Unknown error'}`,
+      );
     }
   }
 

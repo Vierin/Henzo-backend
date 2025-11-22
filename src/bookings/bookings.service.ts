@@ -1,13 +1,16 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { EmailService } from '../email/email.service';
+import { nanoid } from 'nanoid';
 
 @Injectable()
 export class BookingsService {
   constructor(
     private prisma: PrismaService,
     private emailService: EmailService,
+    private configService: ConfigService,
   ) {}
 
   async findOrCreateClientUser(
@@ -1095,6 +1098,112 @@ export class BookingsService {
         formattedDate: 'Invalid Date',
         formattedTime: 'Invalid Time',
       };
+    }
+  }
+
+  async sendMagicLink(email: string, bookingData: CreateBookingDto) {
+    try {
+      // Generate secure token
+      const token = nanoid(32);
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+      // Store pending booking in database
+      const pendingBooking = await this.prisma.pendingBooking.create({
+        data: {
+          token,
+          email: email.toLowerCase().trim(),
+          bookingData: bookingData as any,
+          expiresAt,
+        },
+      });
+
+      // Generate confirmation URL
+      const frontendUrl =
+        this.configService.get<string>('FRONTEND_URL') ||
+        'http://localhost:3000';
+      // Default to 'en' locale, but can be customized
+      const confirmUrl = `${frontendUrl}/en/booking-confirmed?token=${token}`;
+
+      // Format booking data for email
+      const service = await this.prisma.service.findUnique({
+        where: { id: bookingData.serviceId },
+      });
+
+      const salon = await this.prisma.salon.findUnique({
+        where: { id: bookingData.salonId },
+      });
+
+      const bookingDateTime = new Date(bookingData.time);
+      const { formattedDate, formattedTime } = this.formatBookingDateTime(
+        bookingDateTime.toISOString(),
+      );
+
+      // Send magic link email
+      await this.emailService.sendMagicLinkConfirmation(email, {
+        confirmUrl,
+        serviceName: service?.name || 'Service',
+        salonName: salon?.name || 'Salon',
+        date: formattedDate,
+        time: formattedTime,
+      });
+
+      console.log('✅ Magic link sent to:', email);
+      return { success: true, token: pendingBooking.id };
+    } catch (error) {
+      console.error('❌ Error sending magic link:', error.message);
+      throw error;
+    }
+  }
+
+  async confirmMagicLink(token: string) {
+    try {
+      // Find pending booking
+      const pendingBooking = await this.prisma.pendingBooking.findFirst({
+        where: {
+          token,
+          expiresAt: {
+            gt: new Date(),
+          },
+        },
+      });
+
+      if (!pendingBooking) {
+        throw new Error('Invalid or expired confirmation link');
+      }
+
+      // Find or create client user
+      const userId = await this.findOrCreateClientUser(
+        pendingBooking.email,
+        undefined,
+        undefined,
+      );
+
+      // Convert bookingData from Json to CreateBookingDto
+      const bookingData =
+        pendingBooking.bookingData as unknown as CreateBookingDto;
+
+      // Validate booking data structure
+      if (!bookingData.serviceId || !bookingData.time || !bookingData.salonId) {
+        throw new Error('Invalid booking data in pending booking');
+      }
+
+      // Create booking
+      const booking = await this.createBooking(
+        bookingData,
+        userId,
+        false, // Not owner-created, so status will be PENDING
+      );
+
+      // Delete pending booking
+      await this.prisma.pendingBooking.delete({
+        where: { id: pendingBooking.id },
+      });
+
+      console.log('✅ Magic link confirmed, booking created:', booking.id);
+      return { bookingId: booking.id, booking };
+    } catch (error) {
+      console.error('❌ Error confirming magic link:', error.message);
+      throw error;
     }
   }
 }

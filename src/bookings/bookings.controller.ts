@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { BookingsService } from './bookings.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
+import { SendMagicLinkDto } from './dto/send-magic-link.dto';
 import { AuthService } from '../auth/auth.service';
 
 @Controller('bookings')
@@ -34,8 +35,25 @@ export class BookingsController {
         hasClientEmail: !!data.clientEmail,
       });
 
-      const currentUser = await this.authService.getCurrentUser(authHeader);
-      console.log('✅ User authenticated for booking:', currentUser.user.email);
+      // getCurrentUser автоматически создаст пользователя в БД, если его нет
+      let currentUser;
+      try {
+        currentUser = await this.authService.getCurrentUser(authHeader);
+        console.log(
+          '✅ User authenticated for booking:',
+          currentUser.user.email,
+        );
+      } catch (error) {
+        console.error('❌ Failed to get/create user:', error.message);
+        // Если не удалось получить/создать пользователя, пробуем еще раз
+        // (может быть race condition при создании)
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        currentUser = await this.authService.getCurrentUser(authHeader);
+        console.log(
+          '✅ User authenticated for booking (retry):',
+          currentUser.user.email,
+        );
+      }
 
       // If owner is creating booking for a client, use client's user ID
       let bookingUserId = currentUser.user.id;
@@ -183,11 +201,24 @@ export class BookingsController {
         status,
       });
 
-      const currentUser = await this.authService.getCurrentUser(authHeader);
-      console.log(
-        '✅ User authenticated for fetching bookings:',
-        currentUser.user.email,
-      );
+      // Авторизация опциональна для получения bookings (публичный доступ)
+      if (authHeader) {
+        try {
+          const currentUser = await this.authService.getCurrentUser(authHeader);
+          console.log(
+            '✅ User authenticated for fetching bookings:',
+            currentUser.user.email,
+          );
+        } catch (error) {
+          console.log(
+            '⚠️ Auth failed, continuing without authentication:',
+            error.message,
+          );
+          // Продолжаем без авторизации
+        }
+      } else {
+        console.log('ℹ️ No auth header, fetching bookings as public');
+      }
 
       const bookings = await this.bookingsService.getBookingsByDateAndSalon(
         salonId,
@@ -429,6 +460,64 @@ export class BookingsController {
       console.error('❌ Reject booking failed:', error.message);
       throw new HttpException(
         error.message || 'Failed to reject booking',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Post('send-magic-link')
+  async sendMagicLink(@Body() data: SendMagicLinkDto) {
+    try {
+      console.log('🔗 Send magic link request:', {
+        email: data.email,
+        hasBookingData: !!data.bookingData,
+      });
+
+      const result = await this.bookingsService.sendMagicLink(
+        data.email,
+        data.bookingData,
+      );
+
+      console.log('✅ Magic link sent successfully');
+      return {
+        success: true,
+        message: 'Confirmation email sent successfully',
+      };
+    } catch (error) {
+      console.error('❌ Send magic link failed:', error.message);
+      throw new HttpException(
+        error.message || 'Failed to send magic link',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Get('confirm-magic-link')
+  async confirmMagicLink(@Query('token') token: string) {
+    try {
+      console.log('🔗 Confirm magic link request:', {
+        hasToken: !!token,
+      });
+
+      if (!token) {
+        throw new HttpException('Token is required', HttpStatus.BAD_REQUEST);
+      }
+
+      const result = await this.bookingsService.confirmMagicLink(token);
+
+      console.log(
+        '✅ Magic link confirmed, booking created:',
+        result.bookingId,
+      );
+      return {
+        success: true,
+        bookingId: result.bookingId,
+        message: 'Booking confirmed successfully',
+      };
+    } catch (error) {
+      console.error('❌ Confirm magic link failed:', error.message);
+      throw new HttpException(
+        error.message || 'Failed to confirm magic link',
         HttpStatus.BAD_REQUEST,
       );
     }

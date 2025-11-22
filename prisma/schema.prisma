@@ -231,6 +231,19 @@ model TimeBlock {
   @@index([startDate, endDate])
 }
 
+model PendingBooking {
+  id          String   @id @default(cuid())
+  token       String   @unique
+  email       String
+  bookingData Json
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([token])
+  @@index([email])
+  @@index([expiresAt])
+}
+
 enum UserRole {
   OWNER
   ADMIN
