@@ -1231,7 +1231,7 @@ export class AuthService {
       const frontendUrl =
         this.configService.get<string>('FRONTEND_URL') ||
         'http://localhost:3000';
-      const registerUrl = `${frontendUrl}/business/register?email=${encodeURIComponent(email)}&token=${token}`;
+      const registerUrl = `${frontendUrl}/business/register?email=${encodeURIComponent(email)}&token=${token}&name=${encodeURIComponent(name)}`;
 
       // Отправляем email
       await this.emailService.sendBusinessRegistrationMagicLink(

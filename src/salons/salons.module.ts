@@ -3,10 +3,11 @@ import { SalonsController } from './salons.controller';
 import { SalonsService } from './salons.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AuthModule } from '../auth/auth.module';
-import { GeocodingModule } from '../geocoding/geocoding.module';
+import { MapboxModule } from '../mapbox/mapbox.module';
+import { ServicesModule } from '../services/services.module';
 
 @Module({
-  imports: [PrismaModule, AuthModule, GeocodingModule],
+  imports: [PrismaModule, AuthModule, MapboxModule, ServicesModule],
   controllers: [SalonsController],
   providers: [SalonsService],
 })

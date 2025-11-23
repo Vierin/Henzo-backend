@@ -26,8 +26,6 @@ model Booking {
   Review       Review[]
 }
 
- 
-
 model PendingBooking {
   id          String   @id @default(cuid())
   token       String   @unique
@@ -73,7 +71,12 @@ model Salon {
   id           String        @id @default(cuid())
   name         String
   description  String?
+  descriptionEn String?
+  descriptionVi String?
+  descriptionRu String?
   address      String?
+  latitude     Float?
+  longitude    Float?
   phone        String?
   email        String?
   website      String?
@@ -83,15 +86,17 @@ model Salon {
   workingHours Json?
   ownerId      String
   createdAt    DateTime      @default(now())
-  categoryIds  Int[] 
+  categoryIds  Int[]
   Booking      Booking[]
-  Review       Review[] 
+  Review       Review[]
   User         User          @relation(fields: [ownerId], references: [id])
   Service      Service[]
   SmsUsage     SmsUsage[]
   Staff        Staff[]
   Subscription Subscription?
   TimeBlock    TimeBlock[]
+
+  @@index([latitude, longitude])
 }
 
 model Service {
@@ -267,8 +272,6 @@ enum ConflictAction {
   CANCEL
   RESCHEDULE
 }
-
- 
 
 enum StaffAccessLevel {
   ADMIN

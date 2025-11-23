@@ -17,6 +17,7 @@ import { ContactModule } from './contact/contact.module';
 import { SearchModule } from './search/search.module';
 import { FeedbackModule } from './feedback/feedback.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { MapboxModule } from './mapbox/mapbox.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     SearchModule,
     FeedbackModule,
     NotificationsModule,
+    MapboxModule,
   ],
   controllers: [AppController],
   providers: [AppService],

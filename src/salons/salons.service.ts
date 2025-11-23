@@ -2,13 +2,15 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateSalonDto } from './dto/update-salon.dto';
 import { CreateSalonDto } from './dto/create-salon.dto';
-import { GeocodingCacheService } from '../services/geocoding-cache.service';
+import { MapboxService } from '../mapbox/mapbox.service';
+import { TranslationService } from '../services/translation.service';
 
 @Injectable()
 export class SalonsService {
   constructor(
     private prisma: PrismaService,
-    private geocodingCache: GeocodingCacheService,
+    private mapboxService: MapboxService,
+    private translationService: TranslationService,
   ) {}
 
   async suggestSalons(params: { search: string; limit: number }) {
@@ -270,12 +272,77 @@ export class SalonsService {
 
   async createCurrentUserSalon(createSalonDto: CreateSalonDto, userId: string) {
     try {
+      // Check if salon already exists for this user
+      const existingSalon = await this.prisma.salon.findFirst({
+        where: { ownerId: userId },
+      });
+
+      if (existingSalon) {
+        throw new Error('User already has a salon');
+      }
+
+      // Geocode address if provided and coordinates not provided
+      let latitude = createSalonDto.latitude;
+      let longitude = createSalonDto.longitude;
+
+      if (createSalonDto.address && !latitude && !longitude) {
+        try {
+          const geocodeResult = await this.mapboxService.geocodeAddress(
+            createSalonDto.address,
+            'VN',
+          );
+          if (geocodeResult) {
+            latitude = geocodeResult.lat;
+            longitude = geocodeResult.lon;
+          }
+        } catch (error) {
+          console.error('⚠️ Failed to geocode address:', error);
+          // Continue without coordinates
+        }
+      }
+
+      // Generate translations for description if provided
+      let descriptionTranslations: {
+        descriptionEn?: string;
+        descriptionVi?: string;
+        descriptionRu?: string;
+      } = {};
+
+      if (createSalonDto.description && createSalonDto.description.trim()) {
+        try {
+          console.log('🌐 Generating translations for salon description...');
+          const translations =
+            await this.translationService.generateDescriptionTranslations(
+              createSalonDto.description.trim(),
+            );
+          descriptionTranslations = {
+            descriptionEn: translations.descriptionEn || undefined,
+            descriptionVi: translations.descriptionVi || undefined,
+            descriptionRu: translations.descriptionRu || undefined,
+          };
+          console.log('✅ Translations generated:', {
+            en: descriptionTranslations.descriptionEn?.substring(0, 50),
+            vi: descriptionTranslations.descriptionVi?.substring(0, 50),
+            ru: descriptionTranslations.descriptionRu?.substring(0, 50),
+          });
+        } catch (error) {
+          console.error(
+            '⚠️ Failed to generate description translations:',
+            error,
+          );
+          // Continue without translations, will use original description
+        }
+      }
+
       // Create salon and subscription in a transaction
       const result = await this.prisma.$transaction(async (prisma) => {
         // Create the salon
         const salon = await prisma.salon.create({
           data: {
             ...createSalonDto,
+            ...descriptionTranslations,
+            latitude,
+            longitude,
             ownerId: userId,
           } as any,
           include: {
@@ -346,10 +413,61 @@ export class SalonsService {
 
     const { ...salonData } = updateSalonDto;
 
+    // Geocode address if provided and coordinates not provided
+    let latitude = updateSalonDto.latitude;
+    let longitude = updateSalonDto.longitude;
+
+    if (updateSalonDto.address && !latitude && !longitude) {
+      try {
+        const geocodeResult = await this.mapboxService.geocodeAddress(
+          updateSalonDto.address,
+          'VN',
+        );
+        if (geocodeResult) {
+          latitude = geocodeResult.lat;
+          longitude = geocodeResult.lon;
+        }
+      } catch (error) {
+        console.error('⚠️ Failed to geocode address:', error);
+        // Continue without coordinates
+      }
+    }
+
+    // Generate translations for description if provided and changed
+    let descriptionTranslations: {
+      descriptionEn?: string;
+      descriptionVi?: string;
+      descriptionRu?: string;
+    } = {};
+
+    if (updateSalonDto.description && updateSalonDto.description.trim()) {
+      try {
+        console.log(
+          '🌐 Generating translations for updated salon description...',
+        );
+        const translations =
+          await this.translationService.generateDescriptionTranslations(
+            updateSalonDto.description.trim(),
+          );
+        descriptionTranslations = {
+          descriptionEn: translations.descriptionEn || undefined,
+          descriptionVi: translations.descriptionVi || undefined,
+          descriptionRu: translations.descriptionRu || undefined,
+        };
+        console.log('✅ Translations generated for update');
+      } catch (error) {
+        console.error('⚠️ Failed to generate description translations:', error);
+        // Continue without translations
+      }
+    }
+
     const updatedSalon = await this.prisma.salon.update({
       where: { id: existingSalon.id },
       data: {
         ...salonData,
+        ...descriptionTranslations,
+        ...(latitude !== undefined && { latitude }),
+        ...(longitude !== undefined && { longitude }),
       } as any,
       include: {
         Service: {
@@ -643,6 +761,8 @@ export class SalonsService {
         id: true,
         name: true,
         address: true,
+        latitude: true,
+        longitude: true,
         logo: true,
         photos: true,
         Service: {
@@ -668,21 +788,12 @@ export class SalonsService {
       take: limit,
     });
 
-    // Get coordinates for salons with addresses
-    const salonsWithCoordinates = await Promise.all(
-      salons.map(async (salon) => {
-        let coordinates: { latitude: number; longitude: number } | null = null;
-        if (salon.address) {
-          coordinates = await this.geocodingCache.getCoordinates(salon.address);
-        }
-
-        return {
-          ...salon,
-          latitude: coordinates?.latitude ?? undefined,
-          longitude: coordinates?.longitude ?? undefined,
-        };
-      }),
-    );
+    // Salons already have coordinates from the database
+    const salonsWithCoordinates = salons.map((salon) => ({
+      ...salon,
+      latitude: salon.latitude ?? undefined,
+      longitude: salon.longitude ?? undefined,
+    }));
 
     // Calculate average rating and price range for each salon
     const enriched = salonsWithCoordinates.map((salon) => {
@@ -740,6 +851,33 @@ export class SalonsService {
     return enriched.slice(0, limit);
   }
 
+  /**
+   * Calculate distance between two coordinates using Haversine formula
+   * Returns distance in kilometers
+   */
+  private calculateDistance(
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number,
+  ): number {
+    const R = 6371; // Earth's radius in kilometers
+    const dLat = this.toRad(lat2 - lat1);
+    const dLon = this.toRad(lon2 - lon1);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(this.toRad(lat1)) *
+        Math.cos(this.toRad(lat2)) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
+
+  private toRad(degrees: number): number {
+    return degrees * (Math.PI / 180);
+  }
+
   async findNearbySalons(params: {
     lat?: number;
     lng?: number;
@@ -748,37 +886,59 @@ export class SalonsService {
   }) {
     const { lat, lng, radius, limit } = params;
 
-    // For now, return featured salons since we don't have geocoding
-    // In production, you'd implement proper geospatial queries
+    // If no coordinates provided, return featured salons
     if (!lat || !lng) {
       return this.findFeaturedSalons(limit);
     }
 
-    // TODO: Implement proper geospatial search with coordinates
-    // For MVP, return salons with good ratings
-    return this.prisma.salon.findMany({
+    // Get all salons with coordinates
+    const salons = await this.prisma.salon.findMany({
+      where: {
+        latitude: { not: null },
+        longitude: { not: null },
+      },
       select: {
         id: true,
         name: true,
         address: true,
+        latitude: true,
+        longitude: true,
         logo: true,
         photos: true,
-        _count: true,
-      },
-      where: {
-        Review: {
-          some: {
-            rating: { gte: 4.0 },
+        _count: {
+          select: {
+            Review: true,
+            Booking: true,
           },
         },
       },
-      orderBy: {
-        Review: {
-          _count: 'desc',
-        },
-      },
-      take: limit,
     });
+
+    // Calculate distances and filter by radius
+    const salonsWithDistance = salons
+      .map((salon) => {
+        if (!salon.latitude || !salon.longitude) {
+          return null;
+        }
+        const distance = this.calculateDistance(
+          lat,
+          lng,
+          salon.latitude,
+          salon.longitude,
+        );
+        return {
+          ...salon,
+          distance,
+        };
+      })
+      .filter(
+        (salon): salon is NonNullable<typeof salon> =>
+          salon !== null && salon.distance <= radius,
+      )
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, limit);
+
+    return salonsWithDistance;
   }
 
   async getSalonStats(salonId: string) {

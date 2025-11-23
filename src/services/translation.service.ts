@@ -206,4 +206,70 @@ export class TranslationService {
 
     return translations;
   }
+
+  /**
+   * Generate translations for salon description
+   * Automatically detects the language and translates to other languages
+   */
+  async generateDescriptionTranslations(description: string): Promise<{
+    descriptionEn: string;
+    descriptionVi: string;
+    descriptionRu: string;
+  }> {
+    if (!description || !description.trim()) {
+      return {
+        descriptionEn: '',
+        descriptionVi: '',
+        descriptionRu: '',
+      };
+    }
+
+    // Detect language
+    const sourceLanguage = this.detectLanguage(description);
+    const languages: Array<'en' | 'vi' | 'ru'> = ['en', 'vi', 'ru'];
+
+    const translations: {
+      descriptionEn: string;
+      descriptionVi: string;
+      descriptionRu: string;
+    } = {
+      descriptionEn: '',
+      descriptionVi: '',
+      descriptionRu: '',
+    };
+
+    // Set source language value
+    if (sourceLanguage === 'ru') {
+      translations.descriptionRu = description;
+    } else if (sourceLanguage === 'en') {
+      translations.descriptionEn = description;
+    } else if (sourceLanguage === 'vi') {
+      translations.descriptionVi = description;
+    }
+
+    console.log(
+      `[Translation] Detected language for description: ${sourceLanguage}`,
+    );
+
+    // Translate to other languages
+    const translationPromises: Promise<void>[] = [];
+
+    for (const lang of languages) {
+      if (lang === sourceLanguage) continue;
+
+      translationPromises.push(
+        this.translateText(description, lang, sourceLanguage).then(
+          (translated) => {
+            if (lang === 'en') translations.descriptionEn = translated;
+            else if (lang === 'vi') translations.descriptionVi = translated;
+            else if (lang === 'ru') translations.descriptionRu = translated;
+          },
+        ),
+      );
+    }
+
+    await Promise.all(translationPromises);
+
+    return translations;
+  }
 }
