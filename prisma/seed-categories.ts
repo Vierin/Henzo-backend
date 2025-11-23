@@ -299,16 +299,16 @@ async function main() {
   for (const category of categories) {
     try {
       // Create or update category
-      const createdCategory = await prisma.serviceCategory.upsert({
-        where: { nameEn: category.nameEn },
+      const createdCategory = await prisma.service_categories.upsert({
+        where: { name_en: category.nameEn },
         update: {
-          nameVn: category.nameVn,
-          nameRu: category.nameRu,
+          name_vn: category.nameVn,
+          name_ru: category.nameRu,
         },
         create: {
-          nameEn: category.nameEn,
-          nameVn: category.nameVn,
-          nameRu: category.nameRu,
+          name_en: category.nameEn,
+          name_vn: category.nameVn,
+          name_ru: category.nameRu,
         },
       });
 
@@ -358,7 +358,7 @@ async function main() {
   }
 
   // Summary
-  const totalCategories = await prisma.serviceCategory.count();
+  const totalCategories = await prisma.service_categories.count();
   const totalSynonyms = await prisma.service_synonyms.count();
 
   console.log('\n✅ Seeding completed!');

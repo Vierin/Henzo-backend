@@ -9,7 +9,7 @@ export class StaffService {
     return this.prisma.staff.findMany({
       where: { salonId },
       include: {
-        services: true,
+        Service: true,
       },
       orderBy: {
         name: 'asc',
@@ -21,8 +21,8 @@ export class StaffService {
     return this.prisma.staff.findUnique({
       where: { id },
       include: {
-        services: true,
-        salon: true,
+        Service: true,
+        Salon: true,
       },
     });
   }
@@ -37,7 +37,7 @@ export class StaffService {
     return this.prisma.staff.create({
       data,
       include: {
-        services: true,
+        Service: true,
       },
     });
   }
@@ -55,7 +55,7 @@ export class StaffService {
       where: { id },
       data,
       include: {
-        services: true,
+        Service: true,
       },
     });
   }

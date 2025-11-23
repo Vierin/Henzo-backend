@@ -165,14 +165,14 @@ export class AnalyticsService {
         const service = await this.prisma.service.findUnique({
           where: { id: item.serviceId },
           include: {
-            serviceCategory: true,
+            service_categories: true,
           },
         });
 
         return {
           name: service?.name || 'Unknown',
           count: item._count.serviceId,
-          categoryName: service?.serviceCategory?.nameEn,
+          categoryName: service?.service_categories?.name_en,
         };
       }),
     );

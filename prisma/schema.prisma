@@ -8,20 +8,67 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-model User {
-  id             String    @id @default(cuid())
-  email          String    @unique
-  name           String?
-  phone          String?
-  role           UserRole  @default(OWNER)
-  telegramId     String?   @unique
-  telegramUsername String?
-  telegramPhotoUrl String?
-  createdAt      DateTime  @default(now())
-  favoriteSalons String[]  @default([])
-  bookings       Booking[] @relation("UserBookings")
-  reviews        Review[]  @relation("UserReviews")
-  salons         Salon[]   @relation("UserSalons")
+model Booking {
+  id           String        @id @default(cuid())
+  salonId      String
+  userId       String
+  serviceId    String
+  staffId      String?
+  status       BookingStatus @default(PENDING)
+  notes        String?
+  createdAt    DateTime      @default(now())
+  dateTime     DateTime
+  reminderSent Boolean       @default(false)
+  Salon        Salon         @relation(fields: [salonId], references: [id])
+  Service      Service       @relation(fields: [serviceId], references: [id])
+  Staff        Staff?        @relation(fields: [staffId], references: [id])
+  User         User          @relation(fields: [userId], references: [id])
+  Review       Review[]
+}
+
+model InviteCode {
+  id          String           @id @default(cuid())
+  code        String           @unique
+  maxUses     Int              @default(1)
+  usedCount   Int              @default(0)
+  source      String?
+  note        String?
+  status      InviteCodeStatus @default(ACTIVE)
+  expiresAt   DateTime?
+  createdById String
+  createdAt   DateTime         @default(now())
+  Salon       Salon[]
+
+  @@index([code])
+  @@index([status])
+}
+
+model PendingBooking {
+  id          String   @id @default(cuid())
+  token       String   @unique
+  email       String
+  bookingData Json
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([email])
+  @@index([expiresAt])
+  @@index([token])
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  salonId   String
+  userId    String
+  bookingId String?
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+  Booking   Booking? @relation(fields: [bookingId], references: [id])
+  Salon     Salon    @relation(fields: [salonId], references: [id])
+  User      User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, salonId, bookingId])
 }
 
 model Salon {
@@ -40,66 +87,38 @@ model Salon {
   createdAt    DateTime      @default(now())
   categoryIds  Int[]
   inviteCodeId String?
-  bookings     Booking[]
-  reviews      Review[]
-  inviteCode   InviteCode?   @relation("InviteCodeUsage", fields: [inviteCodeId], references: [id])
-  owner        User          @relation("UserSalons", fields: [ownerId], references: [id])
-  services     Service[]
-  smsUsage     SmsUsage[]
-  staff        Staff[]
-  subscription Subscription?
+  Booking      Booking[]
+  Review       Review[]
+  InviteCode   InviteCode?   @relation(fields: [inviteCodeId], references: [id])
+  User         User          @relation(fields: [ownerId], references: [id])
+  Service      Service[]
+  SmsUsage     SmsUsage[]
+  Staff        Staff[]
+  Subscription Subscription?
   TimeBlock    TimeBlock[]
 }
 
-model Staff {
-  id          String           @id @default(cuid())
-  name        String
-  accessLevel StaffAccessLevel @default(EMPLOYEE)
-  email       String?
-  phone       String?
-  salonId     String
-  bookings    Booking[]
-  salon       Salon            @relation(fields: [salonId], references: [id])
-  TimeBlock   TimeBlock[]
-  RescheduledTimeBlocks TimeBlock[] @relation("TimeBlockReschedule")
-  services    Service[]        @relation("StaffServices")
-
-  @@unique([name, salonId])
-}
-
-model ServiceCategory {
-  id               Int                @id @default(autoincrement())
-  nameEn           String             @unique @map("name_en")
-  nameVn           String             @unique @map("name_vn")
-  nameRu           String             @unique @map("name_ru")
-  services         Service[]
-  service_synonyms service_synonyms[]
-
-  @@map("service_categories")
-}
-
 model Service {
-  id                String           @id @default(cuid())
-  name              String
-  description       String?
-  // Multilingual fields (optional)
-  nameEn            String?
-  nameVi            String?
-  nameRu            String?
-  descriptionEn     String?
-  descriptionVi     String?
-  descriptionRu     String?
-  duration          Int
-  price             Float
-  salonId           String
-  categoryId        String?
-  serviceCategoryId Int?
-  serviceGroupId    String?
-  bookings          Booking[]
-  salon             Salon            @relation(fields: [salonId], references: [id])
-  serviceCategory   ServiceCategory? @relation(fields: [serviceCategoryId], references: [id])
-  serviceGroup      ServiceGroup?    @relation(fields: [serviceGroupId], references: [id])
-  staff             Staff[]          @relation("StaffServices")
+  id                 String              @id @default(cuid())
+  name               String
+  description        String?
+  duration           Int
+  price              Float
+  salonId            String
+  categoryId         String?
+  serviceCategoryId  Int?
+  nameEn             String?
+  nameVi             String?
+  nameRu             String?
+  descriptionEn      String?
+  descriptionVi      String?
+  descriptionRu      String?
+  serviceGroupId     String?
+  Booking            Booking[]
+  Salon              Salon               @relation(fields: [salonId], references: [id])
+  service_categories service_categories? @relation(fields: [serviceCategoryId], references: [id])
+  ServiceGroup       ServiceGroup?       @relation(fields: [serviceGroupId], references: [id])
+  Staff              Staff[]             @relation("StaffServices")
 
   @@unique([name, salonId])
 }
@@ -112,42 +131,39 @@ model ServiceGroup {
   position    Int       @default(0)
   isActive    Boolean   @default(true)
   createdAt   DateTime  @default(now())
-  services    Service[]
+  Service     Service[]
 
   @@index([salonId, position])
 }
 
-model Booking {
-  id           String        @id @default(cuid())
-  salonId      String
-  userId       String
-  serviceId    String
-  staffId      String?
-  status       BookingStatus @default(PENDING)
-  notes        String?
-  createdAt    DateTime      @default(now())
-  dateTime     DateTime
-  reminderSent Boolean       @default(false)
-  salon        Salon         @relation(fields: [salonId], references: [id])
-  service      Service       @relation(fields: [serviceId], references: [id])
-  staff        Staff?        @relation(fields: [staffId], references: [id])
-  user         User          @relation("UserBookings", fields: [userId], references: [id])
-  reviews      Review[]      @relation("BookingReviews")
+model SmsUsage {
+  id        String   @id
+  salonId   String
+  sent      Int      @default(0)
+  balance   Int      @default(0)
+  month     Int
+  year      Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+  Salon     Salon    @relation(fields: [salonId], references: [id])
+
+  @@unique([salonId, month, year])
 }
 
-model Review {
-  id        String   @id @default(cuid())
-  salonId   String
-  userId    String
-  bookingId String?
-  rating    Int
-  comment   String?
-  createdAt DateTime @default(now())
-  booking   Booking? @relation("BookingReviews", fields: [bookingId], references: [id])
-  salon     Salon    @relation(fields: [salonId], references: [id])
-  user      User     @relation("UserReviews", fields: [userId], references: [id])
+model Staff {
+  id                                           String           @id @default(cuid())
+  name                                         String
+  accessLevel                                  StaffAccessLevel @default(EMPLOYEE)
+  email                                        String?
+  phone                                        String?
+  salonId                                      String
+  Booking                                      Booking[]
+  Salon                                        Salon            @relation(fields: [salonId], references: [id])
+  TimeBlock_TimeBlock_rescheduleStaffIdToStaff TimeBlock[]      @relation("TimeBlock_rescheduleStaffIdToStaff")
+  TimeBlock_TimeBlock_staffIdToStaff           TimeBlock[]      @relation("TimeBlock_staffIdToStaff")
+  Service                                      Service[]        @relation("StaffServices")
 
-  @@unique([userId, salonId, bookingId])
+  @@unique([name, salonId])
 }
 
 model Subscription {
@@ -160,99 +176,86 @@ model Subscription {
   nextPaymentDate DateTime?
   amount          Float
   createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
-  salon           Salon              @relation(fields: [salonId], references: [id])
-}
-
-model SmsUsage {
-  id        String   @id @default(cuid())
-  salonId   String
-  sent      Int      @default(0)
-  balance   Int      @default(0)
-  month     Int
-  year      Int
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  salon     Salon    @relation(fields: [salonId], references: [id])
-
-  @@unique([salonId, month, year])
-}
-
-model service_synonyms {
-  id                 Int              @id @default(autoincrement())
-  category_id        Int?
-  keyword            String           @db.VarChar(100)
-  language           String?          @default("en") @db.VarChar(2)
-  weight             Decimal?         @default(1.0) @db.Decimal(3, 2)
-  created_at         DateTime?        @default(now()) @db.Timestamp(6)
-  service_categories ServiceCategory? @relation(fields: [category_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-
-  @@unique([category_id, keyword, language])
-  @@index([category_id], map: "idx_service_synonyms_category")
-  @@index([keyword], map: "idx_service_synonyms_keyword")
-}
-
-model InviteCode {
-  id          String           @id @default(cuid())
-  code        String           @unique
-  maxUses     Int              @default(1)
-  usedCount   Int              @default(0)
-  source      String?
-  note        String?
-  status      InviteCodeStatus @default(ACTIVE)
-  expiresAt   DateTime?
-  createdById String
-  createdAt   DateTime         @default(now())
-  usedBy      Salon[]          @relation("InviteCodeUsage")
-
-  @@index([code])
-  @@index([status])
+  updatedAt       DateTime           @default(now())
+  Salon           Salon              @relation(fields: [salonId], references: [id])
 }
 
 model TimeBlock {
-  id                  String         @id
-  salonId             String
-  staffId             String?
-  type                TimeBlockType
-  reason              String
-  startDate           DateTime
-  endDate             DateTime
-  notes               String?
-  conflictAction      ConflictAction @default(CANCEL)
-  rescheduleStaffId   String?
-  createdAt           DateTime       @default(now())
-  updatedAt           DateTime
-  Salon               Salon          @relation(fields: [salonId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  Staff               Staff?         @relation(fields: [staffId], references: [id], onUpdate: NoAction)
-  RescheduleStaff     Staff?         @relation("TimeBlockReschedule", fields: [rescheduleStaffId], references: [id], onUpdate: NoAction)
+  id                                       String         @id
+  salonId                                  String
+  staffId                                  String?
+  type                                     TimeBlockType
+  reason                                   String
+  startDate                                DateTime
+  endDate                                  DateTime
+  notes                                    String?
+  conflictAction                           ConflictAction @default(CANCEL)
+  createdAt                                DateTime       @default(now())
+  updatedAt                                DateTime
+  rescheduleStaffId                        String?
+  Staff_TimeBlock_rescheduleStaffIdToStaff Staff?         @relation("TimeBlock_rescheduleStaffIdToStaff", fields: [rescheduleStaffId], references: [id], onUpdate: NoAction)
+  Salon                                    Salon          @relation(fields: [salonId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  Staff_TimeBlock_staffIdToStaff           Staff?         @relation("TimeBlock_staffIdToStaff", fields: [staffId], references: [id], onUpdate: NoAction)
 
   @@index([salonId])
   @@index([staffId])
   @@index([startDate, endDate])
 }
 
-model PendingBooking {
-  id          String   @id @default(cuid())
-  token       String   @unique
-  email       String
-  bookingData Json
-  expiresAt   DateTime
-  createdAt   DateTime @default(now())
+model User {
+  id               String      @id @default(cuid())
+  email            String      @unique
+  name             String?
+  phone            String?
+  role             UserRole    @default(OWNER)
+  createdAt        DateTime    @default(now())
+  favoriteSalons   String[]    @default([])
+  telegramId       String?     @unique
+  telegramUsername String?
+  telegramPhotoUrl String?
+  Booking          Booking[]
+  pushTokens       PushToken[]
+  Review           Review[]
+  Salon            Salon[]
+}
 
+model PushToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  platform  String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
   @@index([token])
-  @@index([email])
-  @@index([expiresAt])
+  @@index([isActive])
 }
 
-enum UserRole {
-  OWNER
-  ADMIN
-  CLIENT
+model service_categories {
+  id               Int                @id @default(autoincrement())
+  name_en          String             @unique
+  name_vn          String             @unique
+  name_ru          String             @unique
+  Service          Service[]
+  service_synonyms service_synonyms[]
 }
 
-enum StaffAccessLevel {
-  ADMIN
-  EMPLOYEE
+model service_synonyms {
+  id                 Int                 @id @default(autoincrement())
+  category_id        Int?
+  keyword            String              @db.VarChar(100)
+  language           String?             @default("en") @db.VarChar(2)
+  weight             Decimal?            @default(1.0) @db.Decimal(3, 2)
+  created_at         DateTime?           @default(now()) @db.Timestamp(6)
+  service_categories service_categories? @relation(fields: [category_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([category_id, keyword, language])
+  @@index([category_id], map: "idx_service_synonyms_category")
+  @@index([category_id], map: "idx_service_synonyms_category_id")
+  @@index([keyword], map: "idx_service_synonyms_keyword")
 }
 
 enum BookingStatus {
@@ -263,17 +266,10 @@ enum BookingStatus {
   NOSHOW
 }
 
-enum SubscriptionType {
-  BASIC
-  ENTERPRISE
-  FREEMIUM
-}
-
-enum SubscriptionStatus {
-  ACTIVE
-  INACTIVE
-  CANCELLED
-  EXPIRED
+enum ConflictAction {
+  KEEP
+  CANCEL
+  RESCHEDULE
 }
 
 enum InviteCodeStatus {
@@ -283,14 +279,32 @@ enum InviteCodeStatus {
   EXHAUSTED
 }
 
-enum ConflictAction {
-  KEEP
-  RESCHEDULE
-  CANCEL
+enum StaffAccessLevel {
+  ADMIN
+  EMPLOYEE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  INACTIVE
+  CANCELLED
+  EXPIRED
+}
+
+enum SubscriptionType {
+  BASIC
+  ENTERPRISE
+  FREEMIUM
 }
 
 enum TimeBlockType {
   TIME_OFF
   BUSY
   CLOSURE
+}
+
+enum UserRole {
+  OWNER
+  ADMIN
+  CLIENT
 }

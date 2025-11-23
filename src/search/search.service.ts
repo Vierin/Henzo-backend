@@ -15,29 +15,37 @@ export class SearchService {
       lang === 'vn'
         ? {
             OR: [
-              { nameVn: { contains: q, mode: Prisma.QueryMode.insensitive } },
-              { nameEn: { contains: q, mode: Prisma.QueryMode.insensitive } },
+              { name_vn: { contains: q, mode: Prisma.QueryMode.insensitive } },
+              { name_en: { contains: q, mode: Prisma.QueryMode.insensitive } },
             ],
           }
         : lang === 'ru'
           ? {
               OR: [
                 { nameRu: { contains: q, mode: Prisma.QueryMode.insensitive } },
-                { nameEn: { contains: q, mode: Prisma.QueryMode.insensitive } },
-                { nameVn: { contains: q, mode: Prisma.QueryMode.insensitive } },
+                {
+                  name_en: { contains: q, mode: Prisma.QueryMode.insensitive },
+                },
+                {
+                  name_vn: { contains: q, mode: Prisma.QueryMode.insensitive },
+                },
               ],
             }
           : {
               OR: [
-                { nameEn: { contains: q, mode: Prisma.QueryMode.insensitive } },
-                { nameVn: { contains: q, mode: Prisma.QueryMode.insensitive } },
+                {
+                  name_en: { contains: q, mode: Prisma.QueryMode.insensitive },
+                },
+                {
+                  name_vn: { contains: q, mode: Prisma.QueryMode.insensitive },
+                },
               ],
             };
 
     const [categories, synonymRows]: [any[], any[]] = await Promise.all([
-      this.prisma.serviceCategory.findMany({
+      this.prisma.service_categories.findMany({
         where: catWhere,
-        select: { id: true, nameEn: true, nameVn: true, nameRu: true },
+        select: { id: true, name_en: true, name_vn: true, name_ru: true },
         take: limit,
       }),
       this.prisma.$queryRawUnsafe<any[]>(
@@ -73,9 +81,9 @@ export class SearchService {
     categories.forEach((c) =>
       byId.set(c.id, {
         id: c.id,
-        nameEn: c.nameEn,
-        nameVn: c.nameVn,
-        nameRu: c.nameRu,
+        nameEn: c.name_en,
+        nameVn: c.name_vn,
+        nameRu: c.name_ru,
         s: score.get(c.id) || 0,
       }),
     );
@@ -234,10 +242,10 @@ export class SearchService {
           name: true,
           description: true,
           serviceCategoryId: true,
-          serviceCategory: {
+          service_categories: {
             select: {
-              nameEn: true,
-              nameVn: true,
+              name_en: true,
+              name_vn: true,
             },
           },
         },
@@ -261,13 +269,13 @@ export class SearchService {
           ? {
               OR: [
                 {
-                  nameVn: {
+                  name_vn: {
                     contains: query,
                     mode: Prisma.QueryMode.insensitive,
                   },
                 },
                 {
-                  nameEn: {
+                  name_en: {
                     contains: query,
                     mode: Prisma.QueryMode.insensitive,
                   },
@@ -284,13 +292,13 @@ export class SearchService {
                     },
                   },
                   {
-                    nameEn: {
+                    name_en: {
                       contains: query,
                       mode: Prisma.QueryMode.insensitive,
                     },
                   },
                   {
-                    nameVn: {
+                    name_vn: {
                       contains: query,
                       mode: Prisma.QueryMode.insensitive,
                     },
@@ -300,13 +308,13 @@ export class SearchService {
             : {
                 OR: [
                   {
-                    nameEn: {
+                    name_en: {
                       contains: query,
                       mode: Prisma.QueryMode.insensitive,
                     },
                   },
                   {
-                    nameVn: {
+                    name_vn: {
                       contains: query,
                       mode: Prisma.QueryMode.insensitive,
                     },
@@ -314,7 +322,7 @@ export class SearchService {
                 ],
               };
 
-      const categories = await this.prisma.serviceCategory.findMany({
+      const categories = await this.prisma.service_categories.findMany({
         where: whereCondition,
         take: 30,
       });
@@ -336,10 +344,10 @@ export class SearchService {
           name: true,
           description: true,
           serviceCategoryId: true,
-          serviceCategory: {
+          service_categories: {
             select: {
-              nameEn: true,
-              nameVn: true,
+              name_en: true,
+              name_vn: true,
             },
           },
         },
@@ -381,13 +389,13 @@ export class SearchService {
         // Бонус за совпадение в категории (с приоритетом по языку)
         if (language === 'vn') {
           if (
-            service.serviceCategory?.nameVn
+            service.service_categories?.name_vn
               ?.toLowerCase()
               .includes(query.toLowerCase())
           ) {
             score += 12; // Высший приоритет для вьетнамского
           } else if (
-            service.serviceCategory?.nameEn
+            service.service_categories?.name_en
               ?.toLowerCase()
               .includes(query.toLowerCase())
           ) {
@@ -395,13 +403,13 @@ export class SearchService {
           }
         } else {
           if (
-            service.serviceCategory?.nameEn
+            service.service_categories?.name_en
               ?.toLowerCase()
               .includes(query.toLowerCase())
           ) {
             score += 12; // Высший приоритет для английского
           } else if (
-            service.serviceCategory?.nameVn
+            service.service_categories?.name_vn
               ?.toLowerCase()
               .includes(query.toLowerCase())
           ) {
@@ -454,10 +462,10 @@ export class SearchService {
           name: true,
           description: true,
           serviceCategoryId: true,
-          serviceCategory: {
+          service_categories: {
             select: {
-              nameEn: true,
-              nameVn: true,
+              name_en: true,
+              name_vn: true,
             },
           },
         },
@@ -496,13 +504,13 @@ export class SearchService {
                 {
                   OR: [
                     {
-                      nameVn: {
+                      name_vn: {
                         contains: query,
                         mode: Prisma.QueryMode.insensitive,
                       },
                     },
                     {
-                      nameEn: {
+                      name_en: {
                         contains: query,
                         mode: Prisma.QueryMode.insensitive,
                       },
@@ -521,13 +529,13 @@ export class SearchService {
                 {
                   OR: [
                     {
-                      nameEn: {
+                      name_en: {
                         contains: query,
                         mode: Prisma.QueryMode.insensitive,
                       },
                     },
                     {
-                      nameVn: {
+                      name_vn: {
                         contains: query,
                         mode: Prisma.QueryMode.insensitive,
                       },
@@ -537,9 +545,9 @@ export class SearchService {
               ],
             };
 
-      const categories = await this.prisma.serviceCategory.findMany({
+      const categories = await this.prisma.service_categories.findMany({
         where: whereCondition,
-        orderBy: language === 'vn' ? { nameVn: 'asc' } : { nameEn: 'asc' },
+        orderBy: language === 'vn' ? { name_vn: 'asc' } : { name_en: 'asc' },
         take: 10, // Limit to 10 suggestions
       });
 
@@ -559,14 +567,14 @@ export class SearchService {
       // Получаем только категории, которые используются в салонах
       const usedCategoryIds = await this.getUsedCategoryIds();
 
-      const categories = await this.prisma.serviceCategory.findMany({
+      const categories = await this.prisma.service_categories.findMany({
         where: {
           id: {
             in: usedCategoryIds,
           },
         },
         orderBy: {
-          nameEn: 'asc',
+          name_en: 'asc',
         },
       });
 

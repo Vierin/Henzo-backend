@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
+import { AllExceptionsFilter } from './common/filters/http-exception.filter';
 
 async function bootstrap() {
   try {
@@ -11,6 +12,10 @@ async function bootstrap() {
     });
 
     console.log('✅ App module created successfully');
+
+    // Enable global exception filter
+    app.useGlobalFilters(new AllExceptionsFilter());
+    console.log('✅ Global exception filter enabled');
 
     // Enable global validation
     app.useGlobalPipes(

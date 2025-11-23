@@ -7,24 +7,24 @@ type BookingWithRelations = {
   dateTime: Date;
   status: string;
   reminderSent: boolean;
-  user: {
+  User: {
     id: string;
     name: string | null;
     email: string;
   };
-  service: {
+  Service: {
     id: string;
     name: string;
     duration: number;
     price: number;
   };
-  salon: {
+  Salon: {
     id: string;
     name: string;
     address: string | null;
     phone: string | null;
   };
-  staff: {
+  Staff: {
     id: string;
     name: string;
   } | null;
@@ -68,14 +68,14 @@ export class RemindersService {
             reminderSent: false, // Only send reminders that haven't been sent yet
           },
           include: {
-            user: {
+            User: {
               select: {
                 id: true,
                 name: true,
                 email: true,
               },
             },
-            service: {
+            Service: {
               select: {
                 id: true,
                 name: true,
@@ -83,7 +83,7 @@ export class RemindersService {
                 price: true,
               },
             },
-            salon: {
+            Salon: {
               select: {
                 id: true,
                 name: true,
@@ -91,7 +91,7 @@ export class RemindersService {
                 phone: true,
               },
             },
-            staff: {
+            Staff: {
               select: {
                 id: true,
                 name: true,
@@ -124,21 +124,21 @@ export class RemindersService {
 
           // Prepare booking data for email
           const bookingData = {
-            serviceName: booking.service.name,
+            serviceName: booking.Service.name,
             date: dateStr,
             time: timeStr,
-            duration: booking.service.duration,
-            price: booking.service.price,
-            salonName: booking.salon.name,
-            salonAddress: booking.salon.address || undefined,
-            salonPhone: booking.salon.phone || undefined,
-            staffName: booking.staff?.name || undefined,
+            duration: booking.Service.duration,
+            price: booking.Service.price,
+            salonName: booking.Salon.name,
+            salonAddress: booking.Salon.address || undefined,
+            salonPhone: booking.Salon.phone || undefined,
+            staffName: booking.Staff?.name || undefined,
           };
 
           // Send reminder email
           await this.emailService.sendBookingReminder(
-            booking.user.email,
-            booking.user.name || 'Valued Customer',
+            booking.User.email,
+            booking.User.name || 'Valued Customer',
             bookingData,
           );
 
@@ -149,7 +149,7 @@ export class RemindersService {
           });
 
           console.log(
-            `✅ Reminder sent for booking ${booking.id} to ${booking.user.email}`,
+            `✅ Reminder sent for booking ${booking.id} to ${booking.User.email}`,
           );
           successCount++;
         } catch (error) {
@@ -197,20 +197,20 @@ export class RemindersService {
           },
         },
         include: {
-          user: {
+          User: {
             select: {
               id: true,
               name: true,
               email: true,
             },
           },
-          service: {
+          Service: {
             select: {
               id: true,
               name: true,
             },
           },
-          salon: {
+          Salon: {
             select: {
               id: true,
               name: true,

@@ -161,16 +161,6 @@ export class InviteCodesService {
   async getAllCodes() {
     const codes = await this.prisma.inviteCode.findMany({
       orderBy: { createdAt: 'desc' },
-      include: {
-        usedBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            createdAt: true,
-          },
-        },
-      },
     });
 
     return codes.map((code) => ({

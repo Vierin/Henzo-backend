@@ -1,16 +1,21 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject, forwardRef, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { EmailService } from '../email/email.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { nanoid } from 'nanoid';
 
 @Injectable()
 export class BookingsService {
+  private readonly logger = new Logger(BookingsService.name);
+
   constructor(
     private prisma: PrismaService,
     private emailService: EmailService,
     private configService: ConfigService,
+    @Inject(forwardRef(() => NotificationsService))
+    private notificationsService: NotificationsService,
   ) {}
 
   async findOrCreateClientUser(
@@ -61,14 +66,14 @@ export class BookingsService {
         },
       });
 
-      console.log('✅ Created new client user:', {
+      this.logger.log('Created new client user', {
         id: newUser.id,
         email: newUser.email,
         name: newUser.name,
       });
       return newUser.id;
     } catch (error) {
-      console.error('❌ Error finding/creating client user:', error.message);
+      this.logger.error('Error finding/creating client user', error);
       throw error;
     }
   }
@@ -118,41 +123,111 @@ export class BookingsService {
           notes: data.notes,
         },
         include: {
-          service: true,
-          staff: true,
-          salon: {
+          Service: true,
+          Staff: true,
+          Salon: {
             include: {
-              owner: true, // Include owner for email fallback
+              User: true, // Include owner for email fallback
             },
           },
-          user: true, // Include user to get client email
+          User: true, // Include user to get client email
         },
       });
 
       // Log booking creation details for debugging
-      console.log('📧 Booking created with email notification details:', {
+      this.logger.log('Booking created with email notification details', {
         bookingId: booking.id,
         status: booking.status,
-        clientEmail: booking.user?.email,
-        clientName: booking.user?.name,
-        salonEmail: booking.salon?.email,
-        ownerEmail: booking.salon?.owner?.email,
+        clientEmail: booking.User?.email,
+        clientName: booking.User?.name,
+        salonEmail: booking.Salon?.email,
+        ownerEmail: booking.Salon?.User?.email,
       });
 
       // Send email notifications
       try {
         await this.sendBookingNotifications(booking);
-        console.log('✅ Email notifications sent successfully');
+        this.logger.log('Email notifications sent successfully');
       } catch (emailError) {
-        console.error('❌ Error sending email notifications:', emailError);
+        this.logger.error('Error sending email notifications', emailError);
         // Don't fail the booking creation if email fails
+      }
+
+      // Send push notifications if booking is PENDING
+      if (booking.status === 'PENDING') {
+        try {
+          const clientName =
+            booking.User?.name || booking.User?.email || 'Unknown Client';
+          const serviceName = booking.Service?.name || 'Service';
+
+          await this.notificationsService.sendBookingNotification(
+            booking.salonId,
+            booking.id,
+            clientName,
+            serviceName,
+            booking.dateTime,
+          );
+          this.logger.log('Push notification sent successfully');
+        } catch (pushError) {
+          this.logger.error('Error sending push notification', pushError);
+          // Don't fail the booking creation if push notification fails
+        }
       }
 
       return booking;
     } catch (error) {
-      console.error('❌ Error creating booking:', error.message);
+      this.logger.error('Error creating booking', error);
       throw error;
     }
+  }
+
+  /**
+   * Transform Prisma booking response to frontend DTO format (camelCase)
+   * Centralized transformation to avoid code duplication
+   */
+  private transformBookingToDto(booking: any) {
+    return {
+      id: booking.id,
+      salonId: booking.salonId,
+      serviceId: booking.serviceId,
+      staffId: booking.staffId,
+      time: booking.dateTime,
+      status: booking.status,
+      notes: booking.notes,
+      createdAt: booking.createdAt,
+      service: booking.Service
+        ? {
+            id: booking.Service.id,
+            name: booking.Service.name,
+            description: booking.Service.description,
+            duration: booking.Service.duration,
+            price: booking.Service.price,
+          }
+        : null,
+      staff: booking.Staff
+        ? {
+            id: booking.Staff.id,
+            name: booking.Staff.name,
+          }
+        : null,
+      salon: booking.Salon
+        ? {
+            id: booking.Salon.id,
+            name: booking.Salon.name,
+            address: booking.Salon.address,
+            phone: booking.Salon.phone,
+            logo: booking.Salon.logo,
+            photos: booking.Salon.photos || [],
+          }
+        : null,
+      user: booking.User
+        ? {
+            id: booking.User.id,
+            name: booking.User.name,
+            email: booking.User.email,
+          }
+        : null,
+    };
   }
 
   async getUserBookings(userId: string) {
@@ -162,21 +237,20 @@ export class BookingsService {
           userId: userId,
         },
         include: {
-          service: true,
-          staff: true,
-          salon: true,
-          user: true,
+          Service: true,
+          Staff: true,
+          Salon: true,
+          User: true,
         },
         orderBy: {
           dateTime: 'desc',
         },
       });
 
-      // Map dateTime to time for frontend compatibility
-      return bookings.map((booking) => ({
-        ...booking,
-        time: booking.dateTime,
-      }));
+      // Transform Prisma response to frontend format (camelCase)
+      return bookings.map((booking: any) =>
+        this.transformBookingToDto(booking),
+      );
     } catch (error) {
       throw error;
     }
@@ -196,21 +270,20 @@ export class BookingsService {
           },
         },
         include: {
-          service: true,
-          staff: true,
-          salon: true,
-          user: true,
+          Service: true,
+          Staff: true,
+          Salon: true,
+          User: true,
         },
         orderBy: {
           dateTime: 'asc',
         },
       });
 
-      // Map dateTime to time for frontend compatibility
-      return bookings.map((booking) => ({
-        ...booking,
-        time: booking.dateTime,
-      }));
+      // Transform Prisma response to frontend format (camelCase)
+      return bookings.map((booking: any) =>
+        this.transformBookingToDto(booking),
+      );
     } catch (error) {
       throw error;
     }
@@ -230,21 +303,20 @@ export class BookingsService {
           },
         },
         include: {
-          service: true,
-          staff: true,
-          salon: true,
-          user: true,
+          Service: true,
+          Staff: true,
+          Salon: true,
+          User: true,
         },
         orderBy: {
           dateTime: 'desc',
         },
       });
 
-      // Map dateTime to time for frontend compatibility
-      return bookings.map((booking) => ({
-        ...booking,
-        time: booking.dateTime,
-      }));
+      // Transform Prisma response to frontend format (camelCase)
+      return bookings.map((booking: any) =>
+        this.transformBookingToDto(booking),
+      );
     } catch (error) {
       throw error;
     }
@@ -257,9 +329,9 @@ export class BookingsService {
           salonId: salonId,
         },
         include: {
-          service: true,
-          staff: true,
-          user: true,
+          Service: true,
+          Staff: true,
+          User: true,
         },
         orderBy: {
           dateTime: 'desc',
@@ -272,14 +344,105 @@ export class BookingsService {
         time: booking.dateTime,
       }));
     } catch (error) {
-      console.error('❌ Error fetching salon bookings:', error.message);
+      this.logger.error('Error fetching salon bookings', error);
       throw error;
+    }
+  }
+
+  async getPendingBookingsForSalon(salonId: string) {
+    try {
+      this.logger.log('Fetching pending bookings for salon', { salonId });
+
+      const bookings = await this.prisma.booking.findMany({
+        where: {
+          salonId: salonId,
+          status: 'PENDING',
+        },
+        include: {
+          Service: {
+            select: {
+              id: true,
+              name: true,
+              duration: true,
+              price: true,
+            },
+          },
+          Staff: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+          User: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true,
+            },
+          },
+          Salon: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'desc', // Новые сначала
+        },
+      });
+
+      // Map dateTime to time for frontend compatibility
+      return bookings.map((booking) => ({
+        ...booking,
+        time: booking.dateTime,
+      }));
+    } catch (error) {
+      this.logger.error('Error fetching pending bookings', error);
+      throw error;
+    }
+  }
+
+  async getPendingBookingsCountForSalon(salonId: string): Promise<number> {
+    try {
+      const count = await this.prisma.booking.count({
+        where: {
+          salonId: salonId,
+          status: 'PENDING',
+        },
+      });
+
+      return count;
+    } catch (error) {
+      this.logger.error('Error counting pending bookings', error);
+      throw error;
+    }
+  }
+
+  async verifySalonOwnership(
+    salonId: string,
+    ownerId: string,
+  ): Promise<boolean> {
+    try {
+      const salon = await this.prisma.salon.findFirst({
+        where: {
+          id: salonId,
+          ownerId: ownerId,
+        },
+      });
+
+      return !!salon;
+    } catch (error) {
+      this.logger.error('Error verifying salon ownership', error);
+      return false;
     }
   }
 
   async getOwnerBookings(ownerId: string) {
     try {
-      console.log('📅 Fetching bookings for owner:', ownerId);
+      this.logger.log('Fetching bookings for owner', { ownerId });
 
       // Сначала находим салоны, принадлежащие владельцу
       const ownerSalons = await this.prisma.salon.findMany({
@@ -292,7 +455,7 @@ export class BookingsService {
       });
 
       if (ownerSalons.length === 0) {
-        console.log('⚠️ No salons found for owner');
+        this.logger.warn('No salons found for owner', { ownerId });
         return [];
       }
 
@@ -306,7 +469,7 @@ export class BookingsService {
           },
         },
         include: {
-          service: {
+          Service: {
             select: {
               id: true,
               name: true,
@@ -314,14 +477,14 @@ export class BookingsService {
               price: true,
             },
           },
-          staff: {
+          Staff: {
             select: {
               id: true,
               name: true,
               email: true,
             },
           },
-          user: {
+          User: {
             select: {
               id: true,
               name: true,
@@ -329,7 +492,7 @@ export class BookingsService {
               phone: true,
             },
           },
-          salon: {
+          Salon: {
             select: {
               id: true,
               name: true,
@@ -341,56 +504,69 @@ export class BookingsService {
         },
       });
 
-      // Update status to COMPLETED for past bookings
+      // OPTIMIZED: Update status to COMPLETED for past bookings in batch
       const now = new Date();
-      const updatedBookings: any[] = [];
+      const pastBookingIds = bookings
+        .filter(
+          (b) =>
+            (b.status === 'CONFIRMED' || b.status === 'PENDING') &&
+            b.dateTime < now,
+        )
+        .map((b) => b.id);
 
-      for (const booking of bookings) {
-        if (
-          (booking.status === 'CONFIRMED' || booking.status === 'PENDING') &&
-          booking.dateTime < now
-        ) {
-          // Update booking status to COMPLETED
-          const updatedBooking = await this.prisma.booking.update({
-            where: { id: booking.id },
-            data: { status: 'COMPLETED' as any },
-            include: {
-              service: {
-                select: {
-                  id: true,
-                  name: true,
-                  duration: true,
-                  price: true,
-                },
-              },
-              staff: {
-                select: {
-                  id: true,
-                  name: true,
-                  email: true,
-                },
-              },
-              user: {
-                select: {
-                  id: true,
-                  name: true,
-                  email: true,
-                  phone: true,
-                },
-              },
-              salon: {
-                select: {
-                  id: true,
-                  name: true,
-                },
-              },
-            },
-          });
-          updatedBookings.push(updatedBooking);
-        } else {
-          updatedBookings.push(booking);
-        }
+      if (pastBookingIds.length > 0) {
+        await this.prisma.booking.updateMany({
+          where: {
+            id: { in: pastBookingIds },
+            salonId: { in: salonIds },
+          },
+          data: { status: 'COMPLETED' as any },
+        });
+        this.logger.log(
+          `Updated ${pastBookingIds.length} bookings to COMPLETED status`,
+        );
       }
+
+      // Fetch updated bookings with all relations
+      const updatedBookings = await this.prisma.booking.findMany({
+        where: {
+          salonId: { in: salonIds },
+        },
+        include: {
+          Service: {
+            select: {
+              id: true,
+              name: true,
+              duration: true,
+              price: true,
+            },
+          },
+          Staff: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+          User: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true,
+            },
+          },
+          Salon: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+        orderBy: {
+          dateTime: 'desc',
+        },
+      });
 
       // Map dateTime to time for frontend compatibility
       return updatedBookings.map((booking) => ({
@@ -398,7 +574,7 @@ export class BookingsService {
         time: booking.dateTime,
       }));
     } catch (error) {
-      console.error('❌ Error fetching owner bookings:', error.message);
+      this.logger.error('Error fetching owner bookings', error);
       throw error;
     }
   }
@@ -422,47 +598,53 @@ export class BookingsService {
       });
 
       if (allStaff.length === 0) {
-        console.log('⚠️ No staff members found for salon');
+        this.logger.warn('No staff members found for salon', { salonId });
         return null;
       }
 
-      // Check which staff members are available at this time
-      const availableStaff: typeof allStaff = [];
-
-      for (const staff of allStaff) {
-        // Check if staff has any conflicting bookings (including pending ones)
-        const conflictingBooking = await this.prisma.booking.findFirst({
-          where: {
-            staffId: staff.id,
-            status: {
-              in: ['PENDING', 'CONFIRMED'], // Consider both pending and confirmed bookings
-            },
-            OR: [
-              // Booking starts during our booking time
-              {
-                dateTime: {
-                  gte: bookingTime,
-                  lt: bookingEndTime,
-                },
-              },
-              // Booking ends during our booking time
-              {
-                dateTime: {
-                  lte: bookingTime,
-                  gte: new Date(bookingTime.getTime() - 60 * 60 * 1000), // Check 1 hour before
-                },
-              },
-            ],
+      // OPTIMIZED: Get all conflicting bookings in one query instead of N+1
+      const staffIds = allStaff.map((s) => s.id);
+      const conflictingBookings = await this.prisma.booking.findMany({
+        where: {
+          salonId,
+          staffId: { in: staffIds },
+          status: {
+            in: ['PENDING', 'CONFIRMED'],
           },
-        });
+          OR: [
+            // Booking starts during our booking time
+            {
+              dateTime: {
+                gte: bookingTime,
+                lt: bookingEndTime,
+              },
+            },
+            // Booking ends during our booking time
+            {
+              dateTime: {
+                lte: bookingTime,
+                gte: new Date(bookingTime.getTime() - 60 * 60 * 1000), // Check 1 hour before
+              },
+            },
+          ],
+        },
+        select: { staffId: true },
+      });
 
-        if (!conflictingBooking) {
-          availableStaff.push(staff);
-        }
-      }
+      // Create a set of busy staff IDs for O(1) lookup
+      const busyStaffIds = new Set(
+        conflictingBookings.map((b) => b.staffId).filter(Boolean),
+      );
+
+      // Filter available staff
+      const availableStaff = allStaff.filter(
+        (staff) => !busyStaffIds.has(staff.id),
+      );
 
       if (availableStaff.length === 0) {
-        console.log('⚠️ No available staff found, using first staff member');
+        this.logger.warn('No available staff found, using first staff member', {
+          salonId,
+        });
         return allStaff[0].id;
       }
 
@@ -472,7 +654,7 @@ export class BookingsService {
 
       return selectedStaff.id;
     } catch (error) {
-      console.error('❌ Error finding available staff:', error.message);
+      this.logger.error('Error finding available staff', error);
       // Fallback to first staff member if error occurs
       const fallbackStaff = await this.prisma.staff.findFirst({
         where: { salonId },
@@ -492,55 +674,59 @@ export class BookingsService {
         this.formatBookingDateTime(dateTimeString);
 
       // Get client email - ensure it exists
-      const clientEmail = booking.user?.email;
-      const clientName = booking.user?.name || 'Client';
+      const clientEmail = booking.User?.email;
+      const clientName = booking.User?.name || 'Client';
 
       if (!clientEmail) {
-        console.error('❌ Cannot send email: client email is missing', {
+        this.logger.error('Cannot send email: client email is missing', {
           bookingId: booking.id,
           userId: booking.userId,
-          user: booking.user,
+          user: booking.User,
         });
         throw new Error('Client email is required for sending notifications');
       }
 
-      console.log('📧 Preparing to send email notifications:', {
+      this.logger.log('Preparing to send email notifications', {
         status: booking.status,
         clientEmail,
         clientName,
-        salonEmail: booking.salon?.email || booking.salon?.owner?.email,
+        salonEmail: booking.Salon?.email || booking.Salon?.owner?.email,
       });
 
       // For PENDING bookings, only send notification to salon with confirmation links
       if (booking.status === 'PENDING') {
-        const salonEmail = booking.salon?.email || booking.salon?.owner?.email;
+        const salonEmail = booking.Salon?.email || booking.Salon?.owner?.email;
         if (salonEmail) {
           await this.emailService.sendSalonBookingRequest(
             salonEmail,
-            booking.salon.name,
+            booking.Salon?.name || '',
             {
               bookingId: booking.id,
-              serviceName: booking.service.name,
+              serviceName: booking.Service?.name || '',
               date: formattedDate,
               time: formattedTime,
-              duration: booking.service.duration,
-              price: booking.service.price,
+              duration: booking.Service?.duration || 0,
+              price: booking.Service?.price || 0,
               clientName,
               clientEmail,
-              clientPhone: booking.user.phone,
-              staffName: booking.staff?.name,
+              clientPhone: booking.User?.phone || null,
+              staffName: booking.Staff?.name,
             },
           );
-          console.log('✅ Salon booking request email sent to:', salonEmail);
+          this.logger.log('Salon booking request email sent', { salonEmail });
         } else {
-          console.warn('⚠️ Salon email not found, skipping salon notification');
+          this.logger.warn(
+            'Salon email not found, skipping salon notification',
+          );
         }
 
         // Note: Client does NOT receive email at this stage to avoid spam.
         // They only get notified after salon confirms or rejects the booking.
       } else if (booking.status === 'CONFIRMED') {
         // Send confirmation to client
-        console.log('📧 Sending confirmation email to client:', clientEmail);
+        this.logger.log('Sending confirmation email to client', {
+          clientEmail,
+        });
         await this.emailService.sendBookingConfirmation(
           clientEmail,
           clientName,
@@ -550,39 +736,41 @@ export class BookingsService {
             time: formattedTime,
             duration: booking.service.duration,
             price: booking.service.price,
-            salonName: booking.salon.name,
-            salonAddress: booking.salon.address,
-            salonPhone: booking.salon.phone,
-            staffName: booking.staff?.name,
+            salonName: booking.Salon?.name || '',
+            salonAddress: booking.Salon?.address || null,
+            salonPhone: booking.Salon?.phone || null,
+            staffName: booking.Staff?.name,
           },
         );
-        console.log('✅ Client confirmation email sent to:', clientEmail);
+        this.logger.log('Client confirmation email sent', { clientEmail });
 
         // Send notification to salon
-        const salonEmail = booking.salon?.email || booking.salon?.owner?.email;
+        const salonEmail = booking.Salon?.email || booking.Salon?.owner?.email;
         if (salonEmail) {
           await this.emailService.sendSalonNotification(
             salonEmail,
-            booking.salon.name,
+            booking.Salon?.name || '',
             {
-              serviceName: booking.service.name,
+              serviceName: booking.Service?.name || '',
               date: formattedDate,
               time: formattedTime,
-              duration: booking.service.duration,
-              price: booking.service.price,
+              duration: booking.Service?.duration || 0,
+              price: booking.Service?.price || 0,
               clientName,
               clientEmail,
-              clientPhone: booking.user.phone,
-              staffName: booking.staff?.name,
+              clientPhone: booking.User?.phone || null,
+              staffName: booking.Staff?.name,
             },
           );
-          console.log('✅ Salon notification email sent to:', salonEmail);
+          this.logger.log('Salon notification email sent', { salonEmail });
         } else {
-          console.warn('⚠️ Salon email not found, skipping salon notification');
+          this.logger.warn(
+            'Salon email not found, skipping salon notification',
+          );
         }
       }
     } catch (error) {
-      console.error('❌ Error sending booking notifications:', error);
+      this.logger.error('Error sending booking notifications', error);
       throw error;
     }
   }
@@ -595,24 +783,32 @@ export class BookingsService {
           id: bookingId,
         },
         include: {
-          salon: true,
-          user: true,
+          Salon: true,
+          User: true,
         },
       });
 
       if (!booking) {
-        console.log('❌ Booking not found:', bookingId);
+        this.logger.warn('Booking not found', { bookingId });
         throw new Error('Booking not found');
       }
 
       // Check if user has permission to cancel (either the client or salon owner)
       const isClient = booking.userId === userId;
-      const isOwner = booking.salon.ownerId === userId;
+      const isOwner = booking.Salon?.ownerId === userId;
 
-      console.log('🔐 Permission check:', { isClient, isOwner });
+      this.logger.log('Permission check', {
+        isClient,
+        isOwner,
+        bookingId,
+        userId,
+      });
 
       if (!isClient && !isOwner) {
-        console.log('❌ No permission to cancel booking');
+        this.logger.warn('No permission to cancel booking', {
+          bookingId,
+          userId,
+        });
         throw new Error('You do not have permission to cancel this booking');
       }
 
@@ -640,10 +836,10 @@ export class BookingsService {
           status: 'CANCELED',
         },
         include: {
-          service: true,
-          staff: true,
-          salon: true,
-          user: true,
+          Service: true,
+          Staff: true,
+          Salon: true,
+          User: true,
         },
       });
 
@@ -669,9 +865,9 @@ export class BookingsService {
       const existingBooking = await this.prisma.booking.findFirst({
         where: { id: bookingId },
         include: {
-          salon: true,
-          service: true,
-          staff: true,
+          Salon: true,
+          Service: true,
+          Staff: true,
         },
       });
 
@@ -679,7 +875,7 @@ export class BookingsService {
         throw new Error('Booking not found');
       }
 
-      if (existingBooking.salon.ownerId !== ownerId) {
+      if (existingBooking.Salon?.ownerId !== ownerId) {
         throw new Error(
           'Access denied. This booking does not belong to your salon.',
         );
@@ -744,7 +940,7 @@ export class BookingsService {
         where: { id: bookingId },
         data: updateData,
         include: {
-          service: {
+          Service: {
             select: {
               id: true,
               name: true,
@@ -752,14 +948,14 @@ export class BookingsService {
               price: true,
             },
           },
-          staff: {
+          Staff: {
             select: {
               id: true,
               name: true,
               email: true,
             },
           },
-          user: {
+          User: {
             select: {
               id: true,
               name: true,
@@ -767,7 +963,7 @@ export class BookingsService {
               phone: true,
             },
           },
-          salon: {
+          Salon: {
             select: {
               id: true,
               name: true,
@@ -777,7 +973,7 @@ export class BookingsService {
       });
 
       // Send email notification if status changed
-      if (statusChanged && updatedBooking.user.email) {
+      if (statusChanged && updatedBooking.User?.email) {
         try {
           // Format date and time for email
           const bookingDate = new Date(updatedBooking.dateTime);
@@ -795,41 +991,41 @@ export class BookingsService {
           if (data.status === 'CONFIRMED') {
             // Send confirmation email to client
             await this.emailService.sendBookingConfirmation(
-              updatedBooking.user.email,
-              updatedBooking.user.name || 'Client',
+              updatedBooking.User?.email || '',
+              updatedBooking.User?.name || 'Client',
               {
-                serviceName: updatedBooking.service.name,
+                serviceName: updatedBooking.Service?.name || '',
                 date: formattedDate,
                 time: formattedTime,
-                duration: updatedBooking.service.duration,
-                price: updatedBooking.service.price,
-                salonName: updatedBooking.salon.name,
+                duration: updatedBooking.Service?.duration || 0,
+                price: updatedBooking.Service?.price || 0,
+                salonName: updatedBooking.Salon?.name || '',
               },
             );
           } else if (data.status === 'CANCELED') {
             // Send rejection email to client
             await this.emailService.sendBookingRejection(
-              updatedBooking.user.email,
-              updatedBooking.user.name || 'Client',
+              updatedBooking.User?.email || '',
+              updatedBooking.User?.name || 'Client',
               {
-                serviceName: updatedBooking.service.name,
+                serviceName: updatedBooking.Service?.name || '',
                 date: formattedDate,
                 time: formattedTime,
-                duration: updatedBooking.service.duration,
-                price: updatedBooking.service.price,
-                salonName: updatedBooking.salon.name,
+                duration: updatedBooking.Service?.duration || 0,
+                price: updatedBooking.Service?.price || 0,
+                salonName: updatedBooking.Salon?.name || '',
               },
             );
           }
         } catch (emailError) {
-          console.error('❌ Error sending status change email:', emailError);
+          this.logger.error('Error sending status change email', emailError);
           // Don't fail the update if email fails
         }
       }
 
       return updatedBooking;
     } catch (error) {
-      console.error('❌ Update booking error:', error);
+      this.logger.error('Update booking error', error);
       throw error;
     }
   }
@@ -864,7 +1060,7 @@ export class BookingsService {
 
       return { count: result.count };
     } catch (error) {
-      console.error('❌ Update bookings to completed error:', error);
+      this.logger.error('Update bookings to completed error', error);
       throw error;
     }
   }
@@ -888,7 +1084,7 @@ export class BookingsService {
           },
         },
         include: {
-          service: {
+          Service: {
             select: {
               duration: true,
             },
@@ -905,7 +1101,7 @@ export class BookingsService {
         time: booking.dateTime,
       }));
     } catch (error) {
-      console.error('❌ Error fetching bookings by date and salon:', error);
+      this.logger.error('Error fetching bookings by date and salon', error);
       throw error;
     }
   }
@@ -916,10 +1112,10 @@ export class BookingsService {
       const booking = await this.prisma.booking.findUnique({
         where: { id: bookingId },
         include: {
-          service: true,
-          staff: true,
-          salon: true,
-          user: true,
+          Service: true,
+          Staff: true,
+          Salon: true,
+          User: true,
         },
       });
 
@@ -936,10 +1132,10 @@ export class BookingsService {
         where: { id: bookingId },
         data: { status: 'CONFIRMED' },
         include: {
-          service: true,
-          staff: true,
-          salon: true,
-          user: true,
+          Service: true,
+          Staff: true,
+          Salon: true,
+          User: true,
         },
       });
 
@@ -949,24 +1145,24 @@ export class BookingsService {
         this.formatBookingDateTime(dateTimeString);
 
       await this.emailService.sendBookingConfirmation(
-        updatedBooking.user.email,
-        updatedBooking.user.name || 'Client',
+        updatedBooking.User?.email || '',
+        updatedBooking.User?.name || 'Client',
         {
-          serviceName: updatedBooking.service.name,
+          serviceName: updatedBooking.Service?.name || '',
           date: formattedDate,
           time: formattedTime,
-          duration: updatedBooking.service.duration,
-          price: updatedBooking.service.price,
-          salonName: updatedBooking.salon.name,
-          salonAddress: updatedBooking.salon.address ?? undefined,
-          salonPhone: updatedBooking.salon.phone ?? undefined,
-          staffName: updatedBooking.staff?.name,
+          duration: updatedBooking.Service?.duration || 0,
+          price: updatedBooking.Service?.price || 0,
+          salonName: updatedBooking.Salon?.name || '',
+          salonAddress: updatedBooking.Salon?.address ?? undefined,
+          salonPhone: updatedBooking.Salon?.phone ?? undefined,
+          staffName: updatedBooking.Staff?.name,
         },
       );
 
       return updatedBooking;
     } catch (error) {
-      console.error('❌ Error confirming booking:', error);
+      this.logger.error('Error confirming booking', error);
       throw error;
     }
   }
@@ -977,10 +1173,10 @@ export class BookingsService {
       const booking = await this.prisma.booking.findUnique({
         where: { id: bookingId },
         include: {
-          service: true,
-          staff: true,
-          salon: true,
-          user: true,
+          Service: true,
+          Staff: true,
+          Salon: true,
+          User: true,
         },
       });
 
@@ -997,10 +1193,10 @@ export class BookingsService {
         where: { id: bookingId },
         data: { status: 'CANCELED' },
         include: {
-          service: true,
-          staff: true,
-          salon: true,
-          user: true,
+          Service: true,
+          Staff: true,
+          Salon: true,
+          User: true,
         },
       });
 
@@ -1010,26 +1206,26 @@ export class BookingsService {
         this.formatBookingDateTime(dateTimeString);
 
       await this.emailService.sendBookingRejection(
-        updatedBooking.user.email,
-        updatedBooking.user.name || 'Client',
+        updatedBooking.User?.email || '',
+        updatedBooking.User?.name || 'Client',
         {
-          serviceName: updatedBooking.service.name,
+          serviceName: updatedBooking.Service?.name || '',
           date: formattedDate,
           time: formattedTime,
-          duration: updatedBooking.service.duration,
-          price: updatedBooking.service.price,
-          salonName: updatedBooking.salon.name,
-          salonAddress: updatedBooking.salon.address ?? undefined,
-          salonPhone: updatedBooking.salon.phone ?? undefined,
-          staffName: updatedBooking.staff?.name,
+          duration: updatedBooking.Service?.duration || 0,
+          price: updatedBooking.Service?.price || 0,
+          salonName: updatedBooking.Salon?.name || '',
+          salonAddress: updatedBooking.Salon?.address ?? undefined,
+          salonPhone: updatedBooking.Salon?.phone ?? undefined,
+          staffName: updatedBooking.Staff?.name,
           reason,
         },
       );
 
-      console.log('❌ Booking rejected successfully:', bookingId);
+      this.logger.log('Booking rejected successfully', { bookingId });
       return updatedBooking;
     } catch (error) {
-      console.error('❌ Error rejecting booking:', error);
+      this.logger.error('Error rejecting booking', error);
       throw error;
     }
   }
@@ -1092,7 +1288,7 @@ export class BookingsService {
 
       return { formattedDate, formattedTime };
     } catch (error) {
-      console.error('❌ Error formatting booking datetime:', error);
+      this.logger.error('Error formatting booking datetime', error);
       // Fallback to original string
       return {
         formattedDate: 'Invalid Date',
@@ -1147,10 +1343,10 @@ export class BookingsService {
         time: formattedTime,
       });
 
-      console.log('✅ Magic link sent to:', email);
+      this.logger.log('Magic link sent', { email });
       return { success: true, token: pendingBooking.id };
     } catch (error) {
-      console.error('❌ Error sending magic link:', error.message);
+      this.logger.error('Error sending magic link', error);
       throw error;
     }
   }
@@ -1199,10 +1395,12 @@ export class BookingsService {
         where: { id: pendingBooking.id },
       });
 
-      console.log('✅ Magic link confirmed, booking created:', booking.id);
+      this.logger.log('Magic link confirmed, booking created', {
+        bookingId: booking.id,
+      });
       return { bookingId: booking.id, booking };
     } catch (error) {
-      console.error('❌ Error confirming magic link:', error.message);
+      this.logger.error('Error confirming magic link', error);
       throw error;
     }
   }

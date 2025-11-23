@@ -39,15 +39,15 @@ export class SalonsService {
   async findSalonsWithServices() {
     return this.prisma.salon.findMany({
       include: {
-        services: {
+        Service: {
           include: {
-            serviceCategory: true,
-            serviceGroup: true,
+            service_categories: true,
+            ServiceGroup: true,
           },
         },
-        reviews: {
+        Review: {
           include: {
-            user: {
+            User: {
               select: {
                 id: true,
                 name: true,
@@ -56,7 +56,7 @@ export class SalonsService {
             },
           },
         },
-        owner: {
+        User: {
           select: {
             id: true,
             name: true,
@@ -105,7 +105,7 @@ export class SalonsService {
         { description: { contains: searchTerm, mode: 'insensitive' } },
         { address: { contains: searchTerm, mode: 'insensitive' } },
         {
-          services: {
+          Service: {
             some: {
               OR: [
                 { name: { contains: searchTerm, mode: 'insensitive' } },
@@ -126,12 +126,12 @@ export class SalonsService {
     if (category && category !== 'all') {
       const categoryId = parseInt(category, 10);
       if (!Number.isNaN(categoryId)) {
-        where.services = { some: { serviceCategoryId: categoryId } };
+        where.Service = { some: { serviceCategoryId: categoryId } };
       } else {
-        where.services = {
+        where.Service = {
           some: {
-            serviceCategory: {
-              nameEn: { equals: category, mode: 'insensitive' },
+            service_categories: {
+              name_en: { equals: category, mode: 'insensitive' },
             },
           },
         };
@@ -140,7 +140,7 @@ export class SalonsService {
 
     // Rating filter
     if (minRating > 0) {
-      where.reviews = {
+      where.Review = {
         some: {
           rating: { gte: minRating },
         },
@@ -157,10 +157,10 @@ export class SalonsService {
         orderBy = { name: 'desc' };
         break;
       case 'rating':
-        orderBy = { reviews: { _count: 'desc' } };
+        orderBy = { Review: { _count: 'desc' } };
         break;
       case 'services':
-        orderBy = { services: { _count: 'desc' } };
+        orderBy = { Service: { _count: 'desc' } };
         break;
       case 'created':
         orderBy = { createdAt: 'desc' };
@@ -174,15 +174,15 @@ export class SalonsService {
     const salons = await this.prisma.salon.findMany({
       where,
       include: {
-        services: {
+        Service: {
           include: {
-            serviceCategory: true,
-            serviceGroup: true,
+            service_categories: true,
+            ServiceGroup: true,
           },
         },
-        reviews: {
+        Review: {
           include: {
-            user: {
+            User: {
               select: {
                 id: true,
                 name: true,
@@ -191,7 +191,7 @@ export class SalonsService {
             },
           },
         },
-        owner: {
+        User: {
           select: {
             id: true,
             name: true,
@@ -241,13 +241,13 @@ export class SalonsService {
         ownerId: userId,
       },
       include: {
-        services: {
+        Service: {
           include: {
-            serviceGroup: true,
+            ServiceGroup: true,
           },
         },
-        staff: true,
-        owner: {
+        Staff: true,
+        User: {
           select: {
             id: true,
             name: true,
@@ -262,7 +262,7 @@ export class SalonsService {
       // Derive categories from services instead of salon.categoryIds
       const serviceCategoryIds = Array.from(
         new Set(
-          salon.services.map((s: any) => s.serviceCategoryId).filter(Boolean),
+          salon.Service.map((s: any) => s.serviceCategoryId).filter(Boolean),
         ),
       );
       (salon as any).categories = serviceCategoryIds;
@@ -284,13 +284,13 @@ export class SalonsService {
             inviteCodeId: inviteCodeId || null,
           } as any,
           include: {
-            services: {
+            Service: {
               include: {
-                serviceGroup: true,
+                ServiceGroup: true,
               },
             },
-            staff: true,
-            owner: {
+            Staff: true,
+            User: {
               select: {
                 id: true,
                 name: true,
@@ -363,13 +363,13 @@ export class SalonsService {
         ...salonData,
       } as any,
       include: {
-        services: {
+        Service: {
           include: {
-            serviceGroup: true,
+            ServiceGroup: true,
           },
         },
-        staff: true,
-        owner: {
+        Staff: true,
+        User: {
           select: {
             id: true,
             name: true,
@@ -406,7 +406,7 @@ export class SalonsService {
     const reviewsCheck = await this.prisma.review.findMany({
       where: { salonId: id },
       include: {
-        user: {
+        User: {
           select: {
             id: true,
             name: true,
@@ -418,22 +418,22 @@ export class SalonsService {
     console.log('Reviews check for salon:', {
       salonId: id,
       reviewsCount: reviewsCheck.length,
-      reviews: reviewsCheck.slice(0, 2),
+      Review: reviewsCheck.slice(0, 2),
     });
 
     const salon = await this.prisma.salon.findUnique({
       where: { id },
       include: {
-        services: {
+        Service: {
           include: {
-            serviceCategory: true,
-            serviceGroup: true,
+            service_categories: true,
+            ServiceGroup: true,
           },
         },
-        staff: true,
-        reviews: {
+        Staff: true,
+        Review: {
           include: {
-            user: {
+            User: {
               select: {
                 id: true,
                 name: true,
@@ -445,7 +445,7 @@ export class SalonsService {
             createdAt: 'desc',
           },
         },
-        owner: {
+        User: {
           select: {
             id: true,
             name: true,
@@ -455,38 +455,127 @@ export class SalonsService {
       },
     });
 
+    // Load all service groups for this salon separately to ensure all groups are available
+    const allGroups = await this.prisma.serviceGroup.findMany({
+      where: { salonId: id, isActive: true },
+      orderBy: { position: 'asc' },
+    });
+
     console.log('SalonsService.findById result:', {
       salonId: salon?.id,
       salonName: salon?.name,
-      reviewsCount: salon?.reviews?.length || 0,
-      reviews:
-        salon?.reviews?.map((r) => ({
-          id: r.id,
-          rating: r.rating,
-          comment: r.comment,
-          userId: r.userId,
-          user: r.user,
-        })) || [],
-      fullSalonKeys: salon ? Object.keys(salon) : [],
+      servicesCount: salon?.Service?.length || 0,
+      servicesWithGroups: salon?.Service?.filter((s: any) => s.ServiceGroup)?.length || 0,
+      groupsCount: allGroups.length,
+      groups: allGroups.map((g) => ({ id: g.id, name: g.name, position: g.position })),
+      reviewsCount: salon?.Review?.length || 0,
     });
 
-    if (salon) {
-      // Add derived categories from services
-      const serviceCategoryIds = Array.from(
-        new Set(
-          salon.services.map((s: any) => s.serviceCategoryId).filter(Boolean),
-        ),
-      );
-      (salon as any).categories = serviceCategoryIds;
-
-      // If reviews are missing from the main query, add them manually
-      if (!salon.reviews || salon.reviews.length === 0) {
-        console.log('Reviews missing from main query, adding manually...');
-        salon.reviews = reviewsCheck;
-      }
+    if (!salon) {
+      return null;
     }
 
-    return salon;
+    // Create a map of service groups by ID for quick lookup
+    const groupsMap = new Map<string, any>();
+    allGroups.forEach((group) => {
+      groupsMap.set(group.id, group);
+    });
+    
+    // Also add groups from services if they're not already in the map
+    (salon.Service || []).forEach((service: any) => {
+      if (service.ServiceGroup && service.serviceGroupId && !groupsMap.has(service.serviceGroupId)) {
+        groupsMap.set(service.serviceGroupId, service.ServiceGroup);
+      }
+    });
+
+    // Transform Prisma response to frontend format
+    const transformedSalon = {
+      ...salon,
+      services: (salon.Service || []).map((service: any) => {
+        const transformedService: any = {
+          id: service.id,
+          name: service.name,
+          description: service.description,
+          nameEn: service.nameEn,
+          nameVi: service.nameVi,
+          nameRu: service.nameRu,
+          descriptionEn: service.descriptionEn,
+          descriptionVi: service.descriptionVi,
+          descriptionRu: service.descriptionRu,
+          duration: service.duration,
+          price: service.price,
+          salonId: service.salonId,
+          categoryId: service.categoryId,
+          serviceCategoryId: service.serviceCategoryId,
+          serviceGroupId: service.serviceGroupId,
+        };
+
+        if (service.service_categories) {
+          transformedService.serviceCategory = {
+            id: service.service_categories.id,
+            nameEn: service.service_categories.name_en,
+            nameVn: service.service_categories.name_vn,
+            nameRu: service.service_categories.name_ru,
+          };
+        }
+
+        // Use ServiceGroup from service if available, otherwise lookup from map
+        const serviceGroup = service.ServiceGroup || (service.serviceGroupId ? groupsMap.get(service.serviceGroupId) : null);
+        if (serviceGroup) {
+          transformedService.serviceGroup = {
+            id: serviceGroup.id,
+            salonId: serviceGroup.salonId,
+            name: serviceGroup.name,
+            description: serviceGroup.description,
+            position: serviceGroup.position,
+            isActive: serviceGroup.isActive,
+            createdAt:
+              serviceGroup.createdAt?.toISOString() ||
+              new Date().toISOString(),
+          };
+        }
+
+        return transformedService;
+      }),
+      staff: (salon.Staff || []).map((staff: any) => ({
+        ...staff,
+        Staff: undefined,
+      })),
+      reviews: (salon.Review || []).map((review: any) => ({
+        ...review,
+        user: review.User
+          ? {
+              id: review.User.id,
+              name: review.User.name,
+              email: review.User.email,
+            }
+          : undefined,
+        User: undefined,
+      })),
+      owner: salon.User
+        ? {
+            id: salon.User.id,
+            name: salon.User.name,
+            email: salon.User.email,
+          }
+        : undefined,
+      // Add derived categories from services
+      categories: Array.from(
+        new Set(
+          (salon.Service || [])
+            .map((s: any) => s.serviceCategoryId)
+            .filter(Boolean),
+        ),
+      ),
+    };
+
+    // Remove Prisma-specific fields
+    delete (transformedSalon as any).Service;
+    delete (transformedSalon as any).Staff;
+    delete (transformedSalon as any).Review;
+    delete (transformedSalon as any).User;
+
+    return transformedSalon as any;
   }
 
   // New optimized methods for better performance
@@ -508,7 +597,7 @@ export class SalonsService {
 
     if (featured) {
       // Featured salons could be determined by rating, review count, etc.
-      where.reviews = {
+      where.Review = {
         some: {
           rating: { gte: 4.0 },
         },
@@ -525,12 +614,7 @@ export class SalonsService {
           phone: true,
           logo: true,
           photos: true, // Get all photos, but we'll only use the first one
-          _count: {
-            select: {
-              reviews: true,
-              services: true,
-            },
-          },
+          _count: true,
         },
         orderBy: { createdAt: 'desc' },
         skip,
@@ -560,28 +644,23 @@ export class SalonsService {
         address: true,
         logo: true,
         photos: true,
-        services: {
+        Service: {
           select: {
             price: true,
-            serviceCategory: {
+            service_categories: {
               select: {
-                nameEn: true,
-                nameVn: true,
+                name_en: true,
+                name_vn: true,
               },
             },
           },
         },
-        reviews: {
+        Review: {
           select: {
             rating: true,
           },
         },
-        _count: {
-          select: {
-            reviews: true,
-            services: true,
-          },
-        },
+        _count: true,
       },
       // Do not hard-filter by rating; we will sort by avg rating and reviews count
       orderBy: { createdAt: 'desc' },
@@ -607,22 +686,23 @@ export class SalonsService {
     // Calculate average rating and price range for each salon
     const enriched = salonsWithCoordinates.map((salon) => {
       const avgRating =
-        salon.reviews.length > 0
-          ? salon.reviews.reduce((sum, r) => sum + r.rating, 0) /
-            salon.reviews.length
+        salon.Review.length > 0
+          ? salon.Review.reduce((sum, r) => sum + r.rating, 0) /
+            salon.Review.length
           : 0;
 
       // Extract unique categories from services
       const categories = Array.from(
         new Set(
-          salon.services
-            .map((s) => s.serviceCategory?.nameEn || s.serviceCategory?.nameVn)
-            .filter(Boolean),
+          salon.Service.map(
+            (s) =>
+              s.service_categories?.name_en || s.service_categories?.name_vn,
+          ).filter(Boolean),
         ),
       );
 
       // Calculate price range
-      const prices = salon.services.map((s) => s.price).filter((p) => p > 0);
+      const prices = salon.Service.map((s) => s.price).filter((p) => p > 0);
       let priceRange = '$$';
       if (prices.length > 0) {
         const avgPrice = prices.reduce((sum, p) => sum + p, 0) / prices.length;
@@ -651,7 +731,7 @@ export class SalonsService {
     // Sort by avgRating desc, then by reviews count desc, then by newest
     enriched.sort((a, b) => {
       if (b.avgRating !== a.avgRating) return b.avgRating - a.avgRating;
-      const br = b._count.reviews - a._count.reviews;
+      const br = (b._count?.Review || 0) - (a._count?.Review || 0);
       if (br !== 0) return br;
       return 0;
     });
@@ -682,22 +762,17 @@ export class SalonsService {
         address: true,
         logo: true,
         photos: true,
-        _count: {
-          select: {
-            reviews: true,
-            services: true,
-          },
-        },
+        _count: true,
       },
       where: {
-        reviews: {
+        Review: {
           some: {
             rating: { gte: 4.0 },
           },
         },
       },
       orderBy: {
-        reviews: {
+        Review: {
           _count: 'desc',
         },
       },

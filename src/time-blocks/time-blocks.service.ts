@@ -154,12 +154,12 @@ export class TimeBlocksService {
     const conflictingBookings = await this.prisma.booking.findMany({
       where,
       include: {
-        service: {
+        Service: {
           select: {
             name: true,
           },
         },
-        user: {
+        User: {
           select: {
             name: true,
             email: true,
@@ -175,8 +175,8 @@ export class TimeBlocksService {
       id: booking.id,
       time: booking.dateTime,
       userId: booking.userId,
-      user: booking.user,
-      service: booking.service,
+      user: booking.User,
+      service: booking.Service,
     }));
   }
 

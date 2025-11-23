@@ -34,10 +34,10 @@ export class ReviewsService {
           comment: data.comment,
         },
         include: {
-          salon: true,
-          booking: {
+          Salon: true,
+          Booking: {
             include: {
-              service: true,
+              Service: true,
             },
           },
         },
@@ -58,10 +58,10 @@ export class ReviewsService {
           userId: userId,
         },
         include: {
-          salon: true,
-          booking: {
+          Salon: true,
+          Booking: {
             include: {
-              service: true,
+              Service: true,
             },
           },
         },
@@ -105,10 +105,10 @@ export class ReviewsService {
           comment: data.comment,
         },
         include: {
-          salon: true,
-          booking: {
+          Salon: true,
+          Booking: {
             include: {
-              service: true,
+              Service: true,
             },
           },
         },

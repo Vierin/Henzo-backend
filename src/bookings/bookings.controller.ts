@@ -273,6 +273,106 @@ export class BookingsController {
     }
   }
 
+  @Get('salon/:salonId/pending')
+  async getPendingBookings(
+    @Param('salonId') salonId: string,
+    @Headers('authorization') authHeader: string,
+  ) {
+    try {
+      console.log('📅 Fetching pending bookings for salon:', {
+        salonId,
+        hasAuthHeader: !!authHeader,
+      });
+
+      const currentUser = await this.authService.getCurrentUser(authHeader);
+      console.log(
+        '✅ User authenticated for fetching pending bookings:',
+        currentUser.user.email,
+      );
+
+      // Проверяем, что пользователь является владельцем
+      if (currentUser.user.role !== 'OWNER') {
+        throw new HttpException(
+          'Access denied. Only salon owners can access this endpoint.',
+          HttpStatus.FORBIDDEN,
+        );
+      }
+
+      // Проверяем владение салоном через метод сервиса
+      const hasAccess = await this.bookingsService.verifySalonOwnership(
+        salonId,
+        currentUser.user.id,
+      );
+
+      if (!hasAccess) {
+        throw new HttpException(
+          'Salon not found or access denied',
+          HttpStatus.FORBIDDEN,
+        );
+      }
+
+      const bookings =
+        await this.bookingsService.getPendingBookingsForSalon(salonId);
+
+      console.log('✅ Pending bookings fetched successfully:', bookings.length);
+      return {
+        success: true,
+        bookings,
+      };
+    } catch (error) {
+      console.error('❌ Fetch pending bookings failed:', error.message);
+      throw new HttpException(
+        error.message || 'Failed to fetch pending bookings',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Get('salon/:salonId/pending/count')
+  async getPendingBookingsCount(
+    @Param('salonId') salonId: string,
+    @Headers('authorization') authHeader: string,
+  ) {
+    try {
+      const currentUser = await this.authService.getCurrentUser(authHeader);
+
+      // Проверяем, что пользователь является владельцем
+      if (currentUser.user.role !== 'OWNER') {
+        throw new HttpException(
+          'Access denied. Only salon owners can access this endpoint.',
+          HttpStatus.FORBIDDEN,
+        );
+      }
+
+      // Проверяем владение салоном через метод сервиса
+      const hasAccess = await this.bookingsService.verifySalonOwnership(
+        salonId,
+        currentUser.user.id,
+      );
+
+      if (!hasAccess) {
+        throw new HttpException(
+          'Salon not found or access denied',
+          HttpStatus.FORBIDDEN,
+        );
+      }
+
+      const count =
+        await this.bookingsService.getPendingBookingsCountForSalon(salonId);
+
+      return {
+        success: true,
+        count,
+      };
+    } catch (error) {
+      console.error('❌ Fetch pending bookings count failed:', error.message);
+      throw new HttpException(
+        error.message || 'Failed to fetch pending bookings count',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
   @Put(':id/cancel')
   async cancelBooking(
     @Param('id') bookingId: string,

@@ -199,7 +199,7 @@ async function main() {
         await prisma.service.update({
           where: { id: service.id },
           data: {
-            staff: {
+            Staff: {
               connect: selectedStaff.map((s) => ({ id: s.id })),
             },
           },

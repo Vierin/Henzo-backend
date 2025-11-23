@@ -301,22 +301,22 @@ async function main() {
   // Link services to staff
   await prisma.service.update({
     where: { id: service1_1.id },
-    data: { staff: { connect: [{ id: staff1_1.id }, { id: staff1_2.id }] } },
+    data: { Staff: { connect: [{ id: staff1_1.id }, { id: staff1_2.id }] } },
   });
 
   await prisma.service.update({
     where: { id: service1_2.id },
-    data: { staff: { connect: [{ id: staff1_2.id }] } },
+    data: { Staff: { connect: [{ id: staff1_2.id }] } },
   });
 
   await prisma.service.update({
     where: { id: service2_1.id },
-    data: { staff: { connect: [{ id: staff2_1.id }] } },
+    data: { Staff: { connect: [{ id: staff2_1.id }] } },
   });
 
   await prisma.service.update({
     where: { id: service3_1.id },
-    data: { staff: { connect: [{ id: staff3_1.id }] } },
+    data: { Staff: { connect: [{ id: staff3_1.id }] } },
   });
 
   // Create Bookings

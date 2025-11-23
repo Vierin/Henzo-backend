@@ -158,7 +158,7 @@ export class AdminService {
         select: {
           id: true,
           name: true,
-          bookings: {
+          Booking: {
             select: {
               userId: true,
             },
@@ -169,7 +169,7 @@ export class AdminService {
 
       const customersData = salonCustomers.map((salon) => ({
         salon: salon.name,
-        totalCustomers: salon.bookings.length,
+        totalCustomers: salon.Booking.length,
       }));
 
       // Get subscription data (mock data for now)
@@ -225,7 +225,7 @@ export class AdminService {
     try {
       const salons = await this.prisma.salon.findMany({
         include: {
-          owner: {
+          User: {
             select: {
               id: true,
               name: true,
@@ -234,10 +234,10 @@ export class AdminService {
           },
           _count: {
             select: {
-              bookings: true,
-              reviews: true,
-              staff: true,
-              services: true,
+              Booking: true,
+              Review: true,
+              Staff: true,
+              Service: true,
             },
           },
         },
@@ -256,27 +256,27 @@ export class AdminService {
     try {
       const bookings = await this.prisma.booking.findMany({
         include: {
-          salon: {
+          Salon: {
             select: {
               id: true,
               name: true,
             },
           },
-          user: {
+          User: {
             select: {
               id: true,
               name: true,
               email: true,
             },
           },
-          service: {
+          Service: {
             select: {
               id: true,
               name: true,
               price: true,
             },
           },
-          staff: {
+          Staff: {
             select: {
               id: true,
               name: true,
@@ -351,7 +351,7 @@ export class AdminService {
         select: {
           id: true,
           name: true,
-          bookings: {
+          Booking: {
             select: {
               userId: true,
             },
@@ -362,7 +362,7 @@ export class AdminService {
 
       return salons.map((salon) => ({
         salon: salon.name,
-        totalCustomers: salon.bookings.length,
+        totalCustomers: salon.Booking.length,
       }));
     } catch (error) {
       throw new Error(`Failed to get customers: ${error.message}`);

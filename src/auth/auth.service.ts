@@ -738,9 +738,9 @@ export class AuthService {
       const user = await this.prisma.user.findUnique({
         where: { id: userId },
         include: {
-          salons: true,
-          bookings: true,
-          reviews: true,
+          Salon: true,
+          Booking: true,
+          Review: true,
         },
       });
 
@@ -752,14 +752,14 @@ export class AuthService {
         userId: user.id,
         email: user.email,
         role: user.role,
-        hasSalon: !!user.salons && user.salons.length > 0,
-        bookingsCount: user.bookings.length,
-        reviewsCount: user.reviews.length,
+        hasSalon: !!user.Salon && user.Salon.length > 0,
+        bookingsCount: user.Booking.length,
+        reviewsCount: user.Review.length,
       });
 
       // Удаляем связанные данные в зависимости от роли
-      if (user.role === 'OWNER' && user.salons && user.salons.length > 0) {
-        const salon = user.salons[0];
+      if (user.role === 'OWNER' && user.Salon && user.Salon.length > 0) {
+        const salon = user.Salon[0];
         console.log(`🏢 Deleting salon data for owner: ${salon.id}`);
 
         // Удаляем все связанные с салоном данные
@@ -786,16 +786,16 @@ export class AuthService {
       }
 
       // Удаляем все бронирования пользователя
-      if (user.bookings.length > 0) {
-        console.log(`📅 Deleting ${user.bookings.length} bookings`);
+      if (user.Booking.length > 0) {
+        console.log(`📅 Deleting ${user.Booking.length} bookings`);
         await this.prisma.booking.deleteMany({
           where: { userId: userId },
         });
       }
 
       // Удаляем все отзывы пользователя
-      if (user.reviews.length > 0) {
-        console.log(`⭐ Deleting ${user.reviews.length} reviews`);
+      if (user.Review.length > 0) {
+        console.log(`⭐ Deleting ${user.Review.length} reviews`);
         await this.prisma.review.deleteMany({
           where: { userId: userId },
         });
@@ -862,7 +862,7 @@ export class AuthService {
           },
         },
         include: {
-          services: {
+          Service: {
             select: {
               id: true,
               name: true,
@@ -870,7 +870,7 @@ export class AuthService {
               duration: true,
             },
           },
-          reviews: {
+          Review: {
             select: {
               id: true,
               rating: true,
@@ -882,15 +882,15 @@ export class AuthService {
       // Calculate average rating for each salon
       const salonsWithRating = salons.map((salon) => {
         const avgRating =
-          salon.reviews.length > 0
-            ? salon.reviews.reduce((sum, review) => sum + review.rating, 0) /
-              salon.reviews.length
+          salon.Review.length > 0
+            ? salon.Review.reduce((sum, review) => sum + review.rating, 0) /
+              salon.Review.length
             : 0;
 
         return {
           ...salon,
           averageRating: avgRating,
-          reviewCount: salon.reviews.length,
+          reviewCount: salon.Review.length,
         };
       });
 

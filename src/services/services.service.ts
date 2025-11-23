@@ -9,9 +9,9 @@ export class ServicesService {
     return this.prisma.service.findMany({
       where: { salonId },
       include: {
-        staff: true,
-        serviceCategory: true,
-        serviceGroup: true,
+        Staff: true,
+        service_categories: true,
+        ServiceGroup: true,
       },
       orderBy: {
         name: 'asc',
@@ -23,10 +23,10 @@ export class ServicesService {
     return this.prisma.service.findUnique({
       where: { id },
       include: {
-        staff: true,
-        salon: true,
-        serviceCategory: true,
-        serviceGroup: true,
+        Staff: true,
+        Salon: true,
+        service_categories: true,
+        ServiceGroup: true,
       },
     });
   }
@@ -34,7 +34,7 @@ export class ServicesService {
   async findAllPublic() {
     return this.prisma.service.findMany({
       include: {
-        salon: {
+        Salon: {
           select: {
             id: true,
             name: true,
@@ -42,8 +42,8 @@ export class ServicesService {
             phone: true,
           },
         },
-        serviceCategory: true,
-        serviceGroup: true,
+        service_categories: true,
+        ServiceGroup: true,
       },
       orderBy: {
         name: 'asc',
@@ -69,8 +69,8 @@ export class ServicesService {
     return this.prisma.service.create({
       data,
       include: {
-        staff: true,
-        serviceCategory: true,
+        Staff: true,
+        service_categories: true,
       },
     });
   }
@@ -96,8 +96,8 @@ export class ServicesService {
       where: { id },
       data,
       include: {
-        staff: true,
-        serviceCategory: true,
+        Staff: true,
+        service_categories: true,
       },
     });
   }
@@ -123,16 +123,16 @@ export class ServicesService {
             },
           },
           {
-            serviceCategory: {
+            service_categories: {
               OR: [
                 {
-                  nameEn: {
+                  name_en: {
                     contains: query,
                     mode: 'insensitive',
                   },
                 },
                 {
-                  nameVn: {
+                  name_vn: {
                     contains: query,
                     mode: 'insensitive',
                   },
@@ -143,13 +143,13 @@ export class ServicesService {
         ],
       },
       include: {
-        serviceCategory: {
+        service_categories: {
           select: {
-            nameEn: true,
-            nameVn: true,
+            name_en: true,
+            name_vn: true,
           },
         },
-        salon: {
+        Salon: {
           select: {
             name: true,
           },
@@ -172,16 +172,16 @@ export class ServicesService {
         description: true,
         duration: true,
         price: true,
-        salon: {
+        Salon: {
           select: {
             id: true,
             name: true,
             address: true,
           },
         },
-        serviceCategory: {
+        service_categories: {
           select: {
-            nameEn: true,
+            name_en: true,
           },
         },
       },
@@ -202,16 +202,16 @@ export class ServicesService {
         description: true,
         duration: true,
         price: true,
-        salon: {
+        Salon: {
           select: {
             id: true,
             name: true,
             address: true,
           },
         },
-        serviceCategory: {
+        service_categories: {
           select: {
-            nameEn: true,
+            name_en: true,
           },
         },
       },

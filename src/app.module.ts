@@ -17,6 +17,7 @@ import { ContactModule } from './contact/contact.module';
 import { SearchModule } from './search/search.module';
 import { InviteCodesModule } from './invite-codes/invite-codes.module';
 import { FeedbackModule } from './feedback/feedback.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { FeedbackModule } from './feedback/feedback.module';
     SearchModule,
     InviteCodesModule,
     FeedbackModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
