@@ -26,22 +26,7 @@ model Booking {
   Review       Review[]
 }
 
-model InviteCode {
-  id          String           @id @default(cuid())
-  code        String           @unique
-  maxUses     Int              @default(1)
-  usedCount   Int              @default(0)
-  source      String?
-  note        String?
-  status      InviteCodeStatus @default(ACTIVE)
-  expiresAt   DateTime?
-  createdById String
-  createdAt   DateTime         @default(now())
-  Salon       Salon[]
-
-  @@index([code])
-  @@index([status])
-}
+ 
 
 model PendingBooking {
   id          String   @id @default(cuid())
@@ -50,6 +35,19 @@ model PendingBooking {
   bookingData Json
   expiresAt   DateTime
   createdAt   DateTime @default(now())
+
+  @@index([email])
+  @@index([expiresAt])
+  @@index([token])
+}
+
+model PendingBusinessRegistration {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  email     String
+  name      String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 
   @@index([email])
   @@index([expiresAt])
@@ -85,11 +83,9 @@ model Salon {
   workingHours Json?
   ownerId      String
   createdAt    DateTime      @default(now())
-  categoryIds  Int[]
-  inviteCodeId String?
+  categoryIds  Int[] 
   Booking      Booking[]
-  Review       Review[]
-  InviteCode   InviteCode?   @relation(fields: [inviteCodeId], references: [id])
+  Review       Review[] 
   User         User          @relation(fields: [ownerId], references: [id])
   Service      Service[]
   SmsUsage     SmsUsage[]
@@ -272,12 +268,7 @@ enum ConflictAction {
   RESCHEDULE
 }
 
-enum InviteCodeStatus {
-  ACTIVE
-  EXPIRED
-  REVOKED
-  EXHAUSTED
-}
+ 
 
 enum StaffAccessLevel {
   ADMIN

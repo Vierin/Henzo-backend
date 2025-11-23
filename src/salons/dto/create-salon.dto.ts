@@ -49,8 +49,4 @@ export class CreateSalonDto {
   workingHours?: InputJsonValue;
 
   // categoryIds removed: categories are derived from services
-
-  @IsOptional()
-  @IsString()
-  inviteCodeId?: string;
 }

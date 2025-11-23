@@ -19,6 +19,28 @@ import { GetUserRoleDto } from './dto/get-user-role.dto';
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  @Post('send-business-magic-link')
+  async sendBusinessMagicLink(@Body() data: { email: string; name: string }) {
+    try {
+      console.log('📧 Send business magic link request:', {
+        email: data.email,
+        name: data.name,
+      });
+      const result = await this.authService.sendBusinessMagicLink(
+        data.email,
+        data.name,
+      );
+      console.log('✅ Business magic link sent successfully');
+      return result;
+    } catch (error) {
+      console.error('❌ Send business magic link failed:', error.message);
+      throw new HttpException(
+        error.message || 'Failed to send magic link',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
   @Post('register')
   async registerUser(
     @Body()
@@ -28,8 +50,7 @@ export class AuthController {
       password?: string;
       name?: string;
       role?: string;
-      inviteCode?: string;
-      fromInviteLink?: boolean;
+      magicLinkToken?: string;
     },
   ) {
     try {

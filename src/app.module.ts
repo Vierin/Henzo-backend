@@ -15,7 +15,6 @@ import { AdminModule } from './admin/admin.module';
 import { RemindersModule } from './reminders/reminders.module';
 import { ContactModule } from './contact/contact.module';
 import { SearchModule } from './search/search.module';
-import { InviteCodesModule } from './invite-codes/invite-codes.module';
 import { FeedbackModule } from './feedback/feedback.module';
 import { NotificationsModule } from './notifications/notifications.module';
 
@@ -35,7 +34,6 @@ import { NotificationsModule } from './notifications/notifications.module';
     RemindersModule,
     ContactModule,
     SearchModule,
-    InviteCodesModule,
     FeedbackModule,
     NotificationsModule,
   ],

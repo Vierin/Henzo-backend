@@ -2,14 +2,17 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { supabase } from '../lib/supabase';
 import { UpdateProfileDto } from './dto/update-profile.dto';
-import { InviteCodesService } from '../invite-codes/invite-codes.service';
+import { EmailService } from '../email/email.service';
+import { ConfigService } from '@nestjs/config';
+import { nanoid } from 'nanoid';
 import * as crypto from 'crypto';
 
 @Injectable()
 export class AuthService {
   constructor(
     private prisma: PrismaService,
-    private inviteCodesService: InviteCodesService,
+    private emailService: EmailService,
+    private configService: ConfigService,
   ) {}
 
   async registerOwner(data: {
@@ -18,34 +21,42 @@ export class AuthService {
     password?: string;
     name?: string;
     role?: string;
-    inviteCode?: string;
-    fromInviteLink?: boolean;
+    magicLinkToken?: string;
   }) {
     try {
-      // Валидация инвайт-кода (обязательно для beta)
-      if (!data.inviteCode) {
-        throw new BadRequestException(
-          'Invite code is required for registration',
-        );
-      }
+      // Проверяем magic link token
+      let emailConfirmed = false;
+      if (data.magicLinkToken) {
+        const pendingReg =
+          await this.prisma.pendingBusinessRegistration.findFirst({
+            where: {
+              token: data.magicLinkToken,
+              email: data.email.toLowerCase().trim(),
+              expiresAt: {
+                gt: new Date(),
+              },
+            },
+          });
 
-      const validation = await this.inviteCodesService.validateCode(
-        data.inviteCode,
-      );
-      if (!validation.valid) {
-        throw new BadRequestException(
-          validation.error || 'Invalid invite code',
-        );
+        if (!pendingReg) {
+          throw new BadRequestException('Invalid or expired magic link');
+        }
+
+        emailConfirmed = true;
+        // Удаляем использованный токен
+        await this.prisma.pendingBusinessRegistration.delete({
+          where: { id: pendingReg.id },
+        });
       }
 
       let userId = data.userId;
-      let emailConfirmed = false;
+      // emailConfirmed уже установлен выше если есть magicLinkToken
 
-      // Если регистрация из инвайт-ссылки и userId null, создаем пользователя через Admin API
-      if (data.fromInviteLink && !userId && data.password) {
+      // Если регистрация из magic link и userId null, создаем пользователя через Admin API
+      if (emailConfirmed && !userId && data.password) {
         try {
           console.log(
-            '✅ Creating user with confirmed email via Admin API for invite link registration',
+            '✅ Creating user with confirmed email via Admin API for magic link registration',
           );
 
           // Создаем пользователя через Admin API с уже подтвержденным email
@@ -143,9 +154,6 @@ export class AuthService {
         // Не блокируем регистрацию, если не удалось обновить метаданные
       }
 
-      // Отмечаем код как использованный (будет сделано при создании салона)
-      // Сохраняем inviteCodeId для связи с салоном позже
-
       return {
         user: {
           id: user.id,
@@ -154,7 +162,6 @@ export class AuthService {
           phone: user.phone,
           role: user.role,
         },
-        inviteCodeId: validation.inviteCodeId,
         emailConfirmed,
       };
     } catch (error) {
@@ -1180,6 +1187,64 @@ export class AuthService {
     } catch (error) {
       console.error('Error validating Telegram auth:', error);
       return false;
+    }
+  }
+
+  async sendBusinessMagicLink(email: string, name: string) {
+    try {
+      // Проверяем, не существует ли уже пользователь с этим email
+      const existingUser = await this.prisma.user.findUnique({
+        where: { email: email.toLowerCase().trim() },
+      });
+
+      if (existingUser) {
+        throw new BadRequestException(
+          'User with this email already exists. Please login instead.',
+        );
+      }
+
+      // Удаляем старые pending registrations для этого email
+      await this.prisma.pendingBusinessRegistration.deleteMany({
+        where: {
+          email: email.toLowerCase().trim(),
+          expiresAt: {
+            lt: new Date(),
+          },
+        },
+      });
+
+      // Генерируем токен
+      const token = nanoid(32);
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+      // Сохраняем pending registration
+      const pendingReg = await this.prisma.pendingBusinessRegistration.create({
+        data: {
+          token,
+          email: email.toLowerCase().trim(),
+          name,
+          expiresAt,
+        },
+      });
+
+      // Генерируем URL для регистрации
+      const frontendUrl =
+        this.configService.get<string>('FRONTEND_URL') ||
+        'http://localhost:3000';
+      const registerUrl = `${frontendUrl}/business/register?email=${encodeURIComponent(email)}&token=${token}`;
+
+      // Отправляем email
+      await this.emailService.sendBusinessRegistrationMagicLink(
+        email,
+        name,
+        registerUrl,
+      );
+
+      console.log('✅ Business magic link sent:', { email });
+      return { success: true, token: pendingReg.id };
+    } catch (error) {
+      console.error('❌ Error sending business magic link:', error);
+      throw error;
     }
   }
 }

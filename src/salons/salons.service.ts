@@ -2,14 +2,12 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateSalonDto } from './dto/update-salon.dto';
 import { CreateSalonDto } from './dto/create-salon.dto';
-import { InviteCodesService } from '../invite-codes/invite-codes.service';
 import { GeocodingCacheService } from '../services/geocoding-cache.service';
 
 @Injectable()
 export class SalonsService {
   constructor(
     private prisma: PrismaService,
-    private inviteCodesService: InviteCodesService,
     private geocodingCache: GeocodingCacheService,
   ) {}
 
@@ -272,16 +270,13 @@ export class SalonsService {
 
   async createCurrentUserSalon(createSalonDto: CreateSalonDto, userId: string) {
     try {
-      const { inviteCodeId, ...salonData } = createSalonDto;
-
       // Create salon and subscription in a transaction
       const result = await this.prisma.$transaction(async (prisma) => {
         // Create the salon
         const salon = await prisma.salon.create({
           data: {
-            ...salonData,
+            ...createSalonDto,
             ownerId: userId,
-            inviteCodeId: inviteCodeId || null,
           } as any,
           include: {
             Service: {
@@ -316,12 +311,6 @@ export class SalonsService {
             amount: 0.0, // Free subscription
           },
         });
-
-        // Отмечаем инвайт-код как использованный
-        if (inviteCodeId) {
-          await this.inviteCodesService.markAsUsed(inviteCodeId);
-          console.log(`✅ Invite code marked as used: ${inviteCodeId}`);
-        }
 
         return salon;
       });
@@ -465,9 +454,14 @@ export class SalonsService {
       salonId: salon?.id,
       salonName: salon?.name,
       servicesCount: salon?.Service?.length || 0,
-      servicesWithGroups: salon?.Service?.filter((s: any) => s.ServiceGroup)?.length || 0,
+      servicesWithGroups:
+        salon?.Service?.filter((s: any) => s.ServiceGroup)?.length || 0,
       groupsCount: allGroups.length,
-      groups: allGroups.map((g) => ({ id: g.id, name: g.name, position: g.position })),
+      groups: allGroups.map((g) => ({
+        id: g.id,
+        name: g.name,
+        position: g.position,
+      })),
       reviewsCount: salon?.Review?.length || 0,
     });
 
@@ -480,10 +474,14 @@ export class SalonsService {
     allGroups.forEach((group) => {
       groupsMap.set(group.id, group);
     });
-    
+
     // Also add groups from services if they're not already in the map
     (salon.Service || []).forEach((service: any) => {
-      if (service.ServiceGroup && service.serviceGroupId && !groupsMap.has(service.serviceGroupId)) {
+      if (
+        service.ServiceGroup &&
+        service.serviceGroupId &&
+        !groupsMap.has(service.serviceGroupId)
+      ) {
         groupsMap.set(service.serviceGroupId, service.ServiceGroup);
       }
     });
@@ -520,7 +518,11 @@ export class SalonsService {
         }
 
         // Use ServiceGroup from service if available, otherwise lookup from map
-        const serviceGroup = service.ServiceGroup || (service.serviceGroupId ? groupsMap.get(service.serviceGroupId) : null);
+        const serviceGroup =
+          service.ServiceGroup ||
+          (service.serviceGroupId
+            ? groupsMap.get(service.serviceGroupId)
+            : null);
         if (serviceGroup) {
           transformedService.serviceGroup = {
             id: serviceGroup.id,
@@ -530,8 +532,7 @@ export class SalonsService {
             position: serviceGroup.position,
             isActive: serviceGroup.isActive,
             createdAt:
-              serviceGroup.createdAt?.toISOString() ||
-              new Date().toISOString(),
+              serviceGroup.createdAt?.toISOString() || new Date().toISOString(),
           };
         }
 

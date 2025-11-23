@@ -1422,4 +1422,72 @@ export class EmailService {
       throw error;
     }
   }
+
+  async sendBusinessRegistrationMagicLink(
+    email: string,
+    name: string,
+    registerUrl: string,
+  ) {
+    try {
+      console.log('📧 Sending business registration magic link to:', email);
+
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <title>Complete Your Business Registration - Henzo</title>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background-color: #ff5b5b; color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+            .content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+            .button { display: inline-block; background-color: #ff5b5b; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+            .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>🚀 Complete Your Business Registration</h1>
+            </div>
+            <div class="content">
+              <p>Hi ${name},</p>
+              <p>Thank you for your interest in Henzo! Click the button below to complete your business account registration:</p>
+              <div style="text-align: center;">
+                <a href="${registerUrl}" class="button">Complete Registration</a>
+              </div>
+              <p>Or copy and paste this link into your browser:</p>
+              <p style="word-break: break-all; color: #666;">${registerUrl}</p>
+              <p><strong>This link will expire in 24 hours.</strong></p>
+              <p>If you didn't request this registration, please ignore this email.</p>
+            </div>
+            <div class="footer">
+              <p>This is an automated message from Henzo. Please do not reply to this email.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+
+      const emailData = {
+        to: [{ email, name }],
+        sender: {
+          email:
+            this.configService.get<string>('BREVO_FROM_EMAIL') ||
+            'noreply@henzo.app',
+          name: 'Henzo Business Platform',
+        },
+        subject: 'Complete Your Business Registration - Henzo',
+        htmlContent,
+      };
+
+      const result = await this.sendEmailViaBrevo(emailData);
+      console.log('✅ Business registration magic link sent successfully via Brevo');
+      return result;
+    } catch (error) {
+      console.error('❌ Error sending business registration magic link:', error);
+      throw error;
+    }
+  }
 }
