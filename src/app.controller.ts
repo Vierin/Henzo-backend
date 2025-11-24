@@ -19,4 +19,16 @@ export class AppController {
       environment: process.env.NODE_ENV || 'development',
     };
   }
+
+  @Get('test-routes')
+  testRoutes() {
+    return {
+      message: 'Routes are working',
+      availableEndpoints: [
+        '/health',
+        '/auth/send-business-magic-link',
+        '/auth/register',
+      ],
+    };
+  }
 }
