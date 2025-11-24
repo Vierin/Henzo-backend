@@ -54,12 +54,24 @@ export class AuthController {
     },
   ) {
     try {
+      console.log('📝 POST /auth/register called with:', {
+        userId: data.userId,
+        email: data.email,
+        hasPassword: !!data.password,
+        role: data.role,
+      });
       const result = await this.authService.registerOwner(data);
+      console.log('✅ Registration successful');
       return result;
-    } catch (error) {
+    } catch (error: any) {
+      console.error('❌ Registration error:', {
+        message: error.message,
+        stack: error.stack,
+        code: error.code,
+      });
       throw new HttpException(
         error.message || 'Registration failed',
-        HttpStatus.BAD_REQUEST,
+        error.status || HttpStatus.BAD_REQUEST,
       );
     }
   }

@@ -5,3 +5,4 @@ ADD COLUMN IF NOT EXISTS "longitude" DOUBLE PRECISION;
 -- CreateIndex
 CREATE INDEX IF NOT EXISTS "Salon_latitude_longitude_idx" ON "Salon"("latitude", "longitude");
 
+

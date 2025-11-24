@@ -50,13 +50,19 @@ export class AllExceptionsFilter implements ExceptionFilter {
     }
 
     // Return formatted error response
-    response.status(status).json({
-      statusCode: status,
-      message: errorMessage,
+    const errorResponse: any = {
+      code: status,
+      error_code: status >= 500 ? 'unexpected_failure' : 'client_error',
+      msg: errorMessage,
       timestamp: new Date().toISOString(),
       path: request.url,
-      ...(process.env.NODE_ENV === 'development' &&
-        exception instanceof Error && { stack: exception.stack }),
-    });
+    };
+
+    if (process.env.NODE_ENV === 'development' && exception instanceof Error) {
+      errorResponse.stack = exception.stack;
+      errorResponse.details = errorDetails;
+    }
+
+    response.status(status).json(errorResponse);
   }
 }

@@ -24,6 +24,14 @@ export class AuthService {
     magicLinkToken?: string;
   }) {
     try {
+      console.log('🔐 registerOwner called with:', {
+        userId: data.userId,
+        email: data.email,
+        hasPassword: !!data.password,
+        hasMagicLinkToken: !!data.magicLinkToken,
+        role: data.role,
+      });
+
       // Проверяем magic link token
       let emailConfirmed = false;
       if (data.magicLinkToken) {
@@ -108,64 +116,243 @@ export class AuthService {
         });
 
         if (existingUser) {
-          throw new Error('User already exists in database');
+          // Пользователь уже существует - обновляем роль на OWNER если нужно
+          // Для бизнес-регистрации всегда устанавливаем OWNER
+          const targetRole =
+            (data.role as 'OWNER' | 'CLIENT' | 'ADMIN') || 'OWNER';
+
+          if (existingUser.role !== targetRole) {
+            console.log(
+              `🔄 Updating user role from ${existingUser.role} to ${targetRole}`,
+            );
+            const updatedUser = await this.prisma.user.update({
+              where: { id: userId },
+              data: {
+                role: targetRole,
+                name: data.name || existingUser.name,
+                email: data.email || existingUser.email,
+              },
+            });
+
+            // Синхронизируем роль в app_metadata
+            try {
+              await supabase.auth.admin.updateUserById(userId, {
+                app_metadata: {
+                  role: targetRole,
+                },
+              });
+              console.log(
+                `✅ Role updated to ${targetRole} for user ${userId}`,
+              );
+            } catch (error) {
+              console.error('⚠️ Failed to sync role to app_metadata:', error);
+            }
+
+            return {
+              user: {
+                id: updatedUser.id,
+                email: updatedUser.email,
+                name: updatedUser.name,
+                phone: updatedUser.phone,
+                role: updatedUser.role,
+              },
+              emailConfirmed: true,
+            };
+          }
+
+          // Пользователь уже имеет нужную роль - но все равно синхронизируем в app_metadata
+          console.log(
+            `ℹ️ User already has role ${existingUser.role}, syncing to app_metadata`,
+          );
+
+          // Синхронизируем роль в app_metadata даже если она уже правильная
+          // Это гарантирует, что роль будет в JWT токене
+          try {
+            await supabase.auth.admin.updateUserById(userId, {
+              app_metadata: {
+                role: targetRole,
+              },
+            });
+            console.log(
+              `✅ Role synced to app_metadata for user ${userId}: ${targetRole}`,
+            );
+          } catch (error) {
+            console.error('⚠️ Failed to sync role to app_metadata:', error);
+          }
+
+          return {
+            user: {
+              id: existingUser.id,
+              email: existingUser.email,
+              name: existingUser.name,
+              phone: existingUser.phone,
+              role: existingUser.role,
+            },
+            emailConfirmed: true,
+          };
         }
 
-        // Обычная регистрация - пробуем подтвердить существующего пользователя
-        emailConfirmed = await this.confirmExistingUser(userId);
+        // Для OAuth регистрации email уже подтвержден
+        // Проверяем статус подтверждения email в Supabase
+        try {
+          const { data: authUser } =
+            await supabase.auth.admin.getUserById(userId);
+          emailConfirmed = authUser?.user?.email_confirmed_at !== null;
+          console.log(
+            `📧 Email confirmed status for user ${userId}:`,
+            emailConfirmed,
+          );
+        } catch (error) {
+          console.error('⚠️ Failed to check email confirmation status:', error);
+          // Для OAuth предполагаем, что email подтвержден
+          emailConfirmed = true;
+        }
       } else {
         throw new Error('UserId is required for non-invite registrations');
       }
 
       // Проверяем что userId определен
       if (!userId) {
+        console.error('❌ userId is null or undefined');
         throw new Error('Failed to get user ID');
       }
 
-      // Создаем запись пользователя в нашей базе данных
-      const user = await this.prisma.user.create({
-        data: {
-          id: userId, // Используем обновленный userId
-          email: data.email,
-          name: data.name,
-          role: (data.role as 'OWNER' | 'CLIENT' | 'ADMIN') || 'OWNER',
-        },
-      });
+      console.log('✅ userId confirmed:', userId);
 
-      // Синхронизируем роль в app_metadata Supabase (если еще не установлена)
-      // Это гарантирует, что роль будет в JWT токене
+      // Используем upsert для избежания ошибок при race conditions
+      // (например, если getCurrentUser уже создал пользователя)
+      console.log('📝 Creating/updating user in database...');
       try {
-        const { data: existingUser } =
-          await supabase.auth.admin.getUserById(userId);
-        const currentRole =
-          existingUser?.user?.app_metadata?.role ||
-          existingUser?.user?.user_metadata?.role;
+        const user = await this.prisma.user.upsert({
+          where: { id: userId },
+          update: {
+            // Обновляем роль на OWNER если нужно (для бизнес-регистрации)
+            role: (data.role as 'OWNER' | 'CLIENT' | 'ADMIN') || 'OWNER',
+            email: data.email || undefined,
+            name: data.name || undefined,
+          },
+          create: {
+            id: userId,
+            email: data.email,
+            name: data.name,
+            role: (data.role as 'OWNER' | 'CLIENT' | 'ADMIN') || 'OWNER',
+          },
+        });
 
-        if (currentRole !== user.role) {
-          await supabase.auth.admin.updateUserById(userId, {
-            app_metadata: {
-              role: user.role,
-            },
-          });
-          console.log(`✅ Role synced to app_metadata for user ${userId}`);
-        }
-      } catch (error) {
-        console.error('⚠️ Failed to sync role to app_metadata:', error);
-        // Не блокируем регистрацию, если не удалось обновить метаданные
-      }
-
-      return {
-        user: {
+        console.log('✅ User created/updated in database:', {
           id: user.id,
           email: user.email,
-          name: user.name,
-          phone: user.phone,
           role: user.role,
+        });
+
+        // Синхронизируем роль в app_metadata Supabase (если еще не установлена)
+        // Это гарантирует, что роль будет в JWT токене
+        try {
+          const { data: existingUser } =
+            await supabase.auth.admin.getUserById(userId);
+          const currentRole =
+            existingUser?.user?.app_metadata?.role ||
+            existingUser?.user?.user_metadata?.role;
+
+          if (currentRole !== user.role) {
+            await supabase.auth.admin.updateUserById(userId, {
+              app_metadata: {
+                role: user.role,
+              },
+            });
+            console.log(
+              `✅ Role synced to app_metadata for user ${userId}: ${user.role}`,
+            );
+          } else {
+            console.log(
+              `ℹ️ Role already set in app_metadata for user ${userId}: ${user.role}`,
+            );
+          }
+        } catch (error) {
+          console.error('⚠️ Failed to sync role to app_metadata:', error);
+          // Не блокируем регистрацию, если не удалось обновить метаданные
+        }
+
+        return {
+          user: {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            phone: user.phone,
+            role: user.role,
+          },
+          emailConfirmed,
+        };
+      } catch (upsertError: any) {
+        console.error('❌ Error in user upsert:', {
+          message: upsertError.message,
+          code: upsertError.code,
+          meta: upsertError.meta,
+        });
+
+        // Если ошибка из-за уникальности, пытаемся получить пользователя
+        if (
+          upsertError.code === 'P2002' ||
+          upsertError.message?.includes('Unique constraint')
+        ) {
+          console.log(
+            '⚠️ Unique constraint error, trying to find existing user...',
+          );
+          const existingUser = await this.prisma.user.findUnique({
+            where: { id: userId },
+          });
+
+          if (existingUser) {
+            // Обновляем роль на OWNER
+            const updatedUser = await this.prisma.user.update({
+              where: { id: userId },
+              data: {
+                role: (data.role as 'OWNER' | 'CLIENT' | 'ADMIN') || 'OWNER',
+              },
+            });
+
+            // Синхронизируем роль в app_metadata
+            try {
+              await supabase.auth.admin.updateUserById(userId, {
+                app_metadata: {
+                  role: updatedUser.role,
+                },
+              });
+              console.log(`✅ Role updated and synced for user ${userId}`);
+            } catch (error) {
+              console.error('⚠️ Failed to sync role to app_metadata:', error);
+            }
+
+            return {
+              user: {
+                id: updatedUser.id,
+                email: updatedUser.email,
+                name: updatedUser.name,
+                phone: updatedUser.phone,
+                role: updatedUser.role,
+              },
+              emailConfirmed: true,
+            };
+          }
+        }
+
+        throw upsertError;
+      }
+    } catch (error: any) {
+      console.error('❌ registerOwner error:', {
+        message: error.message,
+        stack: error.stack,
+        code: error.code,
+        name: error.name,
+        data: {
+          userId: data.userId,
+          email: data.email,
+          hasPassword: !!data.password,
         },
-        emailConfirmed,
-      };
-    } catch (error) {
-      throw new Error(`Owner registration failed: ${error.message}`);
+      });
+      throw new Error(
+        `Owner registration failed: ${error.message || 'Unknown error'}`,
+      );
     }
   }
 
@@ -461,14 +648,27 @@ export class AuthService {
       if (!dbUser) {
         console.log('⚠️ User not found in database, creating automatically...');
         try {
+          // Проверяем роль в app_metadata Supabase (устанавливается при регистрации)
+          const roleFromMetadata =
+            user.app_metadata?.role || user.user_metadata?.role;
+
           // Проверяем, есть ли у пользователя салоны (для восстановления роли OWNER)
           const existingSalons = await this.prisma.salon.findMany({
             where: { ownerId: user.id },
           });
 
-          // Если у пользователя есть салоны, создаем его с ролью OWNER
-          // Иначе создаем с ролью CLIENT по умолчанию
-          const userRole = existingSalons.length > 0 ? 'OWNER' : 'CLIENT';
+          // Определяем роль: сначала из метаданных, потом из салонов, потом CLIENT по умолчанию
+          const userRole =
+            roleFromMetadata ||
+            (existingSalons.length > 0 ? 'OWNER' : 'CLIENT');
+
+          console.log('📝 Creating user with role:', {
+            roleFromMetadata,
+            hasSalons: existingSalons.length > 0,
+            finalRole: userRole,
+            userId: user.id,
+            email: user.email,
+          });
 
           // Проверяем, не существует ли пользователь с таким email (для Google OAuth случаев)
           const existingUserByEmail = user.email
@@ -516,16 +716,17 @@ export class AuthService {
             });
           } else {
             // Используем upsert вместо create для избежания ошибок при race conditions
+            // НЕ обновляем роль в update, только при создании - чтобы не перезаписать роль, установленную через registerOwner
             dbUser = await this.prisma.user.upsert({
               where: { id: user.id },
               update: {
-                // Обновляем только если данные изменились
-                email: user.email || '',
+                // Обновляем только данные, но НЕ роль - роль может быть уже установлена через registerOwner
+                email: user.email || undefined,
                 name:
                   user.user_metadata?.name ||
                   user.user_metadata?.full_name ||
-                  null,
-                phone: user.user_metadata?.phone || null,
+                  undefined,
+                phone: user.user_metadata?.phone || undefined,
               },
               create: {
                 id: user.id,
@@ -538,6 +739,23 @@ export class AuthService {
                 role: userRole as 'CLIENT' | 'OWNER' | 'ADMIN',
               },
             });
+
+            // Если пользователь уже существовал, проверяем и обновляем роль из app_metadata если нужно
+            if (
+              dbUser &&
+              roleFromMetadata &&
+              dbUser.role !== roleFromMetadata
+            ) {
+              console.log(
+                `🔄 Updating existing user role from ${dbUser.role} to ${roleFromMetadata} based on app_metadata`,
+              );
+              dbUser = await this.prisma.user.update({
+                where: { id: user.id },
+                data: {
+                  role: roleFromMetadata as 'CLIENT' | 'OWNER' | 'ADMIN',
+                },
+              });
+            }
           }
 
           if (dbUser) {

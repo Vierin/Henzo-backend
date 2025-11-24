@@ -50,6 +50,22 @@ export class ServicesController {
     return this.servicesService.getServiceCategories();
   }
 
+  @Get('subcategories')
+  async getSubcategories(@Query('categoryId') categoryId: string) {
+    if (!categoryId) {
+      throw new Error('Category ID is required');
+    }
+    return this.servicesService.getSubcategoriesByCategory(
+      parseInt(categoryId, 10),
+    );
+  }
+
+  @Get('tags')
+  async getTags(@Query('q') query?: string, @Query('limit') limit?: string) {
+    const limitNum = limit ? parseInt(limit, 10) : 50;
+    return this.servicesService.getTags(query, limitNum);
+  }
+
   @Get('search')
   async searchServices(@Query('q') query: string) {
     if (!query || query.trim().length < 3) {

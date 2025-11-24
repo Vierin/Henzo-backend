@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class ServicesService {
@@ -11,6 +12,8 @@ export class ServicesService {
       include: {
         Staff: true,
         service_categories: true,
+        ServiceSubcategory: true,
+        Tags: true,
         ServiceGroup: true,
       },
       orderBy: {
@@ -26,6 +29,8 @@ export class ServicesService {
         Staff: true,
         Salon: true,
         service_categories: true,
+        ServiceSubcategory: true,
+        Tags: true,
         ServiceGroup: true,
       },
     });
@@ -43,6 +48,8 @@ export class ServicesService {
           },
         },
         service_categories: true,
+        ServiceSubcategory: true,
+        Tags: true,
         ServiceGroup: true,
       },
       orderBy: {
@@ -64,13 +71,26 @@ export class ServicesService {
     price: number;
     salonId: string;
     serviceCategoryId?: number;
+    serviceSubcategoryId?: number;
     serviceGroupId?: string;
+    tagIds?: number[];
   }) {
+    const { tagIds, ...serviceData } = data;
     return this.prisma.service.create({
-      data,
+      data: {
+        ...serviceData,
+        Tags:
+          tagIds && tagIds.length > 0
+            ? {
+                connect: tagIds.map((id) => ({ id })),
+              }
+            : undefined,
+      },
       include: {
         Staff: true,
         service_categories: true,
+        ServiceSubcategory: true,
+        Tags: true,
       },
     });
   }
@@ -89,15 +109,28 @@ export class ServicesService {
       duration?: number;
       price?: number;
       serviceCategoryId?: number;
+      serviceSubcategoryId?: number | null;
       serviceGroupId?: string | null;
+      tagIds?: number[];
     },
   ) {
+    const { tagIds, ...serviceData } = data;
     return this.prisma.service.update({
       where: { id },
-      data,
+      data: {
+        ...serviceData,
+        Tags:
+          tagIds !== undefined
+            ? {
+                set: tagIds.map((tagId) => ({ id: tagId })),
+              }
+            : undefined,
+      },
       include: {
         Staff: true,
         service_categories: true,
+        ServiceSubcategory: true,
+        Tags: true,
       },
     });
   }
@@ -137,7 +170,63 @@ export class ServicesService {
                     mode: 'insensitive',
                   },
                 },
+                {
+                  name_ru: {
+                    contains: query,
+                    mode: 'insensitive',
+                  },
+                },
               ],
+            },
+          },
+          {
+            ServiceSubcategory: {
+              OR: [
+                {
+                  nameEn: {
+                    contains: query,
+                    mode: 'insensitive',
+                  },
+                },
+                {
+                  nameVi: {
+                    contains: query,
+                    mode: 'insensitive',
+                  },
+                },
+                {
+                  nameRu: {
+                    contains: query,
+                    mode: 'insensitive',
+                  },
+                },
+              ],
+            },
+          },
+          {
+            Tags: {
+              some: {
+                OR: [
+                  {
+                    nameEn: {
+                      contains: query,
+                      mode: 'insensitive',
+                    },
+                  },
+                  {
+                    nameVi: {
+                      contains: query,
+                      mode: 'insensitive',
+                    },
+                  },
+                  {
+                    nameRu: {
+                      contains: query,
+                      mode: 'insensitive',
+                    },
+                  },
+                ],
+              },
             },
           },
         ],
@@ -147,8 +236,11 @@ export class ServicesService {
           select: {
             name_en: true,
             name_vn: true,
+            name_ru: true,
           },
         },
+        ServiceSubcategory: true,
+        Tags: true,
         Salon: {
           select: {
             name: true,
@@ -222,17 +314,34 @@ export class ServicesService {
     });
   }
 
-  getServiceCategories() {
-    // Static categories for MVP
-    // In production, these would come from database
-    return [
-      { id: 1, nameEn: 'Hair Services', nameVn: 'Dịch vụ tóc' },
-      { id: 2, nameEn: 'Nail Care', nameVn: 'Chăm sóc móng' },
-      { id: 3, nameEn: 'Skincare', nameVn: 'Chăm sóc da' },
-      { id: 4, nameEn: 'Massage', nameVn: 'Massage' },
-      { id: 5, nameEn: 'Barber', nameVn: 'Cắt tóc nam' },
-      { id: 6, nameEn: 'Spa', nameVn: 'Spa' },
-    ];
+  async getServiceCategories() {
+    return this.prisma.service_categories.findMany({
+      orderBy: { name_en: 'asc' },
+    });
+  }
+
+  async getSubcategoriesByCategory(categoryId: number) {
+    return this.prisma.serviceSubcategory.findMany({
+      where: { categoryId },
+      orderBy: { nameEn: 'asc' },
+    });
+  }
+
+  async getTags(query?: string, limit: number = 50) {
+    const where = query
+      ? {
+          OR: [
+            { nameEn: { contains: query, mode: Prisma.QueryMode.insensitive } },
+            { nameVi: { contains: query, mode: Prisma.QueryMode.insensitive } },
+            { nameRu: { contains: query, mode: Prisma.QueryMode.insensitive } },
+          ],
+        }
+      : {};
+    return this.prisma.serviceTag.findMany({
+      where,
+      orderBy: { nameEn: 'asc' },
+      take: limit,
+    });
   }
 
   // --- Service groups ---

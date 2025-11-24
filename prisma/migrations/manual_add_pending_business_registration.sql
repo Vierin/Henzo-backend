@@ -22,3 +22,4 @@ CREATE INDEX IF NOT EXISTS "PendingBusinessRegistration_expiresAt_idx" ON "Pendi
 -- CreateIndex
 CREATE INDEX IF NOT EXISTS "PendingBusinessRegistration_token_idx" ON "PendingBusinessRegistration"("token");
 
+

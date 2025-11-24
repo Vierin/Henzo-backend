@@ -26,3 +26,4 @@ CREATE INDEX "PushToken_isActive_idx" ON "PushToken"("isActive");
 -- AddForeignKey
 ALTER TABLE "PushToken" ADD CONSTRAINT "PushToken_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
+

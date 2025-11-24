@@ -8,6 +8,7 @@ import {
   IsNumber,
   Min,
   Max,
+  MaxLength,
 } from 'class-validator';
 import { InputJsonValue } from '@prisma/client/runtime/library';
 
@@ -17,6 +18,7 @@ export class CreateSalonDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(250, { message: 'Description must be 250 characters or less' })
   description?: string;
 
   @IsOptional()

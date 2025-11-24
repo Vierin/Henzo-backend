@@ -11,3 +11,4 @@ export class SendMagicLinkDto {
   @Type(() => CreateBookingDto)
   bookingData: CreateBookingDto;
 }
+

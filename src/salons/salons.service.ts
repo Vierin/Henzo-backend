@@ -376,6 +376,7 @@ export class SalonsService {
             endDate: oneYearFromNow,
             nextPaymentDate: oneYearFromNow, // No payment needed for freemium
             amount: 0.0, // Free subscription
+            updatedAt: now,
           },
         });
 
@@ -383,14 +384,15 @@ export class SalonsService {
       });
 
       // Add derived categories from services
+      // Note: result.Service is an array from Prisma include (may be empty for new salon)
+      const services = (result as any).Service || [];
       const serviceCategoryIds = Array.from(
-        new Set(
-          (result as any).services
-            .map((s: any) => s.serviceCategoryId)
-            .filter(Boolean),
-        ),
+        new Set(services.map((s: any) => s?.serviceCategoryId).filter(Boolean)),
       );
       (result as any).categories = serviceCategoryIds;
+
+      // Transform Service array to services for consistency
+      (result as any).services = services;
 
       console.log(
         `✅ Created salon "${result.name}" with freemium subscription`,
@@ -489,7 +491,7 @@ export class SalonsService {
     // Add derived categories from services
     const serviceCategoryIds = Array.from(
       new Set(
-        (updatedSalon as any).services
+        ((updatedSalon as any).Service || [])
           .map((s: any) => s.serviceCategoryId)
           .filter(Boolean),
       ),

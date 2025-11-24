@@ -6,7 +6,7 @@ import { Prisma } from '@prisma/client';
 export class SearchService {
   constructor(private prisma: PrismaService) {}
 
-  // Unified core suggestion (categories + synonyms collapsed to categories)
+  // Unified core suggestion (categories + tags collapsed to categories)
   async suggestCoreCategories(query: string, language: string, limit: number) {
     const q = query.trim();
     const lang = language === 'vn' ? 'vn' : language === 'ru' ? 'ru' : 'en';
@@ -22,7 +22,9 @@ export class SearchService {
         : lang === 'ru'
           ? {
               OR: [
-                { nameRu: { contains: q, mode: Prisma.QueryMode.insensitive } },
+                {
+                  name_ru: { contains: q, mode: Prisma.QueryMode.insensitive },
+                },
                 {
                   name_en: { contains: q, mode: Prisma.QueryMode.insensitive },
                 },
@@ -42,67 +44,104 @@ export class SearchService {
               ],
             };
 
-    const [categories, synonymRows]: [any[], any[]] = await Promise.all([
+    // 2) Search tags and find their related categories through services
+    const tagWhere =
+      lang === 'vn'
+        ? {
+            OR: [
+              { nameVi: { contains: q, mode: Prisma.QueryMode.insensitive } },
+              { nameEn: { contains: q, mode: Prisma.QueryMode.insensitive } },
+            ],
+          }
+        : lang === 'ru'
+          ? {
+              OR: [
+                { nameRu: { contains: q, mode: Prisma.QueryMode.insensitive } },
+                { nameEn: { contains: q, mode: Prisma.QueryMode.insensitive } },
+              ],
+            }
+          : {
+              nameEn: { contains: q, mode: Prisma.QueryMode.insensitive },
+            };
+
+    const [categories, tags] = await Promise.all([
       this.prisma.service_categories.findMany({
         where: catWhere,
         select: { id: true, name_en: true, name_vn: true, name_ru: true },
         take: limit,
       }),
-      this.prisma.$queryRawUnsafe<any[]>(
-        `
-          SELECT s.category_id, s.weight,
-                 sc.name_en, sc.name_vn, sc.name_ru,
-                 CASE WHEN s.language = $1 THEN s.weight * 1.5 ELSE s.weight END AS adjusted_weight
-          FROM service_synonyms s
-          JOIN service_categories sc ON s.category_id = sc.id
-          WHERE s.keyword ILIKE $2
-          ORDER BY adjusted_weight DESC
-          LIMIT $3
-        `,
-        lang,
-        `%${q}%`,
-        Math.max(limit, 10),
-      ),
+      this.prisma.serviceTag.findMany({
+        where: tagWhere,
+        include: {
+          Services: {
+            select: {
+              serviceCategoryId: true,
+            },
+            distinct: ['serviceCategoryId'],
+          },
+        },
+        take: 20,
+      }),
     ]);
 
-    // Collapse synonyms to categories with score
-    const score = new Map<number, number>();
-    synonymRows?.forEach((row) => {
-      const id = Number(row.category_id);
-      const w = Number(row.adjusted_weight) || 0;
-      score.set(id, Math.max(score.get(id) || 0, w));
+    // Get unique category IDs from tags
+    const categoryIdsFromTags = new Set<number>();
+    tags.forEach((tag) => {
+      tag.Services.forEach((service) => {
+        if (service.serviceCategoryId) {
+          categoryIdsFromTags.add(service.serviceCategoryId);
+        }
+      });
     });
 
-    // Merge categories from name search + from synonyms
+    // Get categories from tags
+    const categoriesFromTags =
+      categoryIdsFromTags.size > 0
+        ? await this.prisma.service_categories.findMany({
+            where: {
+              id: { in: Array.from(categoryIdsFromTags) },
+            },
+            select: { id: true, name_en: true, name_vn: true, name_ru: true },
+          })
+        : [];
+
+    // Merge categories from name search + from tags
     const byId = new Map<
       number,
-      { id: number; nameEn: string; nameVn: string; nameRu: string; s: number }
+      {
+        id: number;
+        nameEn: string;
+        nameVn: string;
+        nameRu: string;
+        score: number;
+      }
     >();
+
     categories.forEach((c) =>
       byId.set(c.id, {
         id: c.id,
         nameEn: c.name_en,
         nameVn: c.name_vn,
         nameRu: c.name_ru,
-        s: score.get(c.id) || 0,
+        score: 10, // Higher score for direct category match
       }),
     );
-    synonymRows?.forEach((r) => {
-      const id = Number(r.category_id);
-      if (!byId.has(id)) {
-        byId.set(id, {
-          id,
-          nameEn: r.name_en,
-          nameVn: r.name_vn,
-          nameRu: r.name_ru,
-          s: score.get(id) || 0,
+
+    categoriesFromTags.forEach((c) => {
+      if (!byId.has(c.id)) {
+        byId.set(c.id, {
+          id: c.id,
+          nameEn: c.name_en,
+          nameVn: c.name_vn,
+          nameRu: c.name_ru,
+          score: 5, // Lower score for tag-based match
         });
       }
     });
 
-    // Rank: synonym score desc, then alphabetical
+    // Rank: score desc, then alphabetical
     const merged = Array.from(byId.values()).sort((a, b) => {
-      if (b.s !== a.s) return b.s - a.s;
+      if (b.score !== a.score) return b.score - a.score;
       const aName =
         lang === 'vn'
           ? a.nameVn || a.nameEn
@@ -118,7 +157,7 @@ export class SearchService {
       return (aName || '').localeCompare(bName || '');
     });
 
-    return merged.slice(0, limit).map(({ s, id, nameEn, nameVn, nameRu }) => ({
+    return merged.slice(0, limit).map(({ id, nameEn, nameVn, nameRu }) => ({
       id,
       name:
         lang === 'vn'
@@ -136,11 +175,8 @@ export class SearchService {
       // Определяем язык запроса
       const detectedLanguage = this.detectLanguage(query) || language;
 
-      // Этап 1: Поиск по синонимам (как у Booksy)
-      const synonymResults = await this.searchBySynonyms(
-        query,
-        detectedLanguage,
-      );
+      // Этап 1: Поиск по тегам
+      const tagResults = await this.searchByTags(query, detectedLanguage);
 
       // Этап 2: Поиск по категориям
       const categoryResults = await this.searchByCategories(
@@ -152,11 +188,7 @@ export class SearchService {
       const directResults = await this.searchServicesByName(query);
 
       // Объединяем результаты и убираем дубликаты
-      const allResults = [
-        ...synonymResults,
-        ...categoryResults,
-        ...directResults,
-      ];
+      const allResults = [...tagResults, ...categoryResults, ...directResults];
       const uniqueResults = this.removeDuplicateServices(allResults);
 
       // Ранжируем по релевантности (как у Booksy)
@@ -196,66 +228,88 @@ export class SearchService {
     return null; // Неопределенный язык
   }
 
-  // Новый метод: поиск по синонимам (как у Booksy)
-  async searchBySynonyms(query: string, language: string = 'en') {
+  // Новый метод: поиск по тегам
+  async searchByTags(query: string, language: string = 'en') {
     try {
-      // Ищем синонимы, которые содержат запрос, с приоритетом по языку
-      const synonyms = await this.prisma.$queryRaw`
-        SELECT DISTINCT s.category_id, s.weight, sc.name_en, sc.name_vn,
-               CASE 
-                 WHEN s.language = ${language} THEN s.weight * 1.5
-                 ELSE s.weight
-               END as adjusted_weight
-        FROM service_synonyms s
-        JOIN service_categories sc ON s.category_id = sc.id
-        WHERE s.keyword ILIKE ${`%${query}%`}
-        ORDER BY adjusted_weight DESC, s.weight DESC
-        LIMIT 50
-      `;
+      // Ищем теги, которые содержат запрос
+      const tagWhere =
+        language === 'vn'
+          ? {
+              OR: [
+                {
+                  nameVi: {
+                    contains: query,
+                    mode: Prisma.QueryMode.insensitive,
+                  },
+                },
+                {
+                  nameEn: {
+                    contains: query,
+                    mode: Prisma.QueryMode.insensitive,
+                  },
+                },
+              ],
+            }
+          : language === 'ru'
+            ? {
+                OR: [
+                  {
+                    nameRu: {
+                      contains: query,
+                      mode: Prisma.QueryMode.insensitive,
+                    },
+                  },
+                  {
+                    nameEn: {
+                      contains: query,
+                      mode: Prisma.QueryMode.insensitive,
+                    },
+                  },
+                ],
+              }
+            : {
+                nameEn: { contains: query, mode: Prisma.QueryMode.insensitive },
+              };
 
-      if (!synonyms || (synonyms as any[]).length === 0) {
-        return [];
-      }
-
-      const categoryIds = (synonyms as any[]).map((s) => s.category_id);
-
-      // Ищем услуги по найденным категориям
-      const services = await this.prisma.service.findMany({
-        where: {
-          OR: [
-            {
-              serviceCategoryId: {
-                in: categoryIds,
-              },
-            },
-            // Также ищем по названию услуги, содержащему ключевые слова
-            {
-              name: {
-                contains: query,
-                mode: Prisma.QueryMode.insensitive,
-              },
-            },
-          ],
-        },
-        select: {
-          id: true,
-          name: true,
-          description: true,
-          serviceCategoryId: true,
-          service_categories: {
+      const tags = await this.prisma.serviceTag.findMany({
+        where: tagWhere,
+        include: {
+          Services: {
             select: {
-              name_en: true,
-              name_vn: true,
+              id: true,
+              name: true,
+              description: true,
+              serviceCategoryId: true,
+              service_categories: {
+                select: {
+                  name_en: true,
+                  name_vn: true,
+                  name_ru: true,
+                },
+              },
             },
           },
         },
         take: 20,
       });
 
-      console.log(`📋 Found ${services.length} services via synonyms`);
-      return services;
+      if (!tags || tags.length === 0) {
+        return [];
+      }
+
+      // Собираем все услуги из найденных тегов
+      const services = tags.flatMap((tag) => tag.Services);
+
+      // Убираем дубликаты
+      const uniqueServices = services.filter(
+        (service, index, self) =>
+          index === self.findIndex((s) => s.id === service.id),
+      );
+
+      console.log(`📋 Found ${uniqueServices.length} services via tags`);
+      return uniqueServices;
     } catch (error) {
-      console.error('❌ Error searching by synonyms:', error);
+      console.error('❌ Error searching by tags:', error);
       return [];
     }
   }
@@ -286,7 +340,7 @@ export class SearchService {
             ? {
                 OR: [
                   {
-                    nameRu: {
+                    name_ru: {
                       contains: query,
                       mode: Prisma.QueryMode.insensitive,
                     },

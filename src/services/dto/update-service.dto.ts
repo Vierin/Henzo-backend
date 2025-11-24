@@ -4,6 +4,8 @@ import {
   IsNumber,
   IsPositive,
   IsInt,
+  IsArray,
+  ArrayMaxSize,
 } from 'class-validator';
 
 export class UpdateServiceDto {
@@ -53,4 +55,18 @@ export class UpdateServiceDto {
   @IsOptional()
   @IsInt()
   serviceCategoryId?: number;
+
+  @IsOptional()
+  @IsInt()
+  serviceSubcategoryId?: number | null;
+
+  @IsOptional()
+  @IsString()
+  serviceGroupId?: string | null;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(3)
+  @IsInt({ each: true })
+  tagIds?: number[];
 }
