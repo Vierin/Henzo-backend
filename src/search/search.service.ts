@@ -44,68 +44,14 @@ export class SearchService {
               ],
             };
 
-    // 2) Search tags and find their related categories through services
-    const tagWhere =
-      lang === 'vn'
-        ? {
-            OR: [
-              { nameVi: { contains: q, mode: Prisma.QueryMode.insensitive } },
-              { nameEn: { contains: q, mode: Prisma.QueryMode.insensitive } },
-            ],
-          }
-        : lang === 'ru'
-          ? {
-              OR: [
-                { nameRu: { contains: q, mode: Prisma.QueryMode.insensitive } },
-                { nameEn: { contains: q, mode: Prisma.QueryMode.insensitive } },
-              ],
-            }
-          : {
-              nameEn: { contains: q, mode: Prisma.QueryMode.insensitive },
-            };
-
-    const [categories, tags] = await Promise.all([
-      this.prisma.service_categories.findMany({
-        where: catWhere,
-        select: { id: true, name_en: true, name_vn: true, name_ru: true },
-        take: limit,
-      }),
-      this.prisma.serviceTag.findMany({
-        where: tagWhere,
-        include: {
-          Services: {
-            select: {
-              serviceCategoryId: true,
-            },
-            distinct: ['serviceCategoryId'],
-          },
-        },
-        take: 20,
-      }),
-    ]);
-
-    // Get unique category IDs from tags
-    const categoryIdsFromTags = new Set<number>();
-    tags.forEach((tag) => {
-      tag.Services.forEach((service) => {
-        if (service.serviceCategoryId) {
-          categoryIdsFromTags.add(service.serviceCategoryId);
-        }
-      });
+    // Search only categories (tags removed)
+    const categories = await this.prisma.service_categories.findMany({
+      where: catWhere,
+      select: { id: true, name_en: true, name_vn: true, name_ru: true },
+      take: limit,
     });
 
-    // Get categories from tags
-    const categoriesFromTags =
-      categoryIdsFromTags.size > 0
-        ? await this.prisma.service_categories.findMany({
-            where: {
-              id: { in: Array.from(categoryIdsFromTags) },
-            },
-            select: { id: true, name_en: true, name_vn: true, name_ru: true },
-          })
-        : [];
-
-    // Merge categories from name search + from tags
+    // Merge categories from name search
     const byId = new Map<
       number,
       {
@@ -126,18 +72,6 @@ export class SearchService {
         score: 10, // Higher score for direct category match
       }),
     );
-
-    categoriesFromTags.forEach((c) => {
-      if (!byId.has(c.id)) {
-        byId.set(c.id, {
-          id: c.id,
-          nameEn: c.name_en,
-          nameVn: c.name_vn,
-          nameRu: c.name_ru,
-          score: 5, // Lower score for tag-based match
-        });
-      }
-    });
 
     // Rank: score desc, then alphabetical
     const merged = Array.from(byId.values()).sort((a, b) => {
@@ -175,20 +109,17 @@ export class SearchService {
       // Определяем язык запроса
       const detectedLanguage = this.detectLanguage(query) || language;
 
-      // Этап 1: Поиск по тегам
-      const tagResults = await this.searchByTags(query, detectedLanguage);
-
-      // Этап 2: Поиск по категориям
+      // Этап 1: Поиск по категориям
       const categoryResults = await this.searchByCategories(
         query,
         detectedLanguage,
       );
 
-      // Этап 3: Прямой поиск по названию услуги
+      // Этап 2: Прямой поиск по названию услуги
       const directResults = await this.searchServicesByName(query);
 
       // Объединяем результаты и убираем дубликаты
-      const allResults = [...tagResults, ...categoryResults, ...directResults];
+      const allResults = [...categoryResults, ...directResults];
       const uniqueResults = this.removeDuplicateServices(allResults);
 
       // Ранжируем по релевантности (как у Booksy)
@@ -229,90 +160,7 @@ export class SearchService {
   }
 
   // Новый метод: поиск по тегам
-  async searchByTags(query: string, language: string = 'en') {
-    try {
-      // Ищем теги, которые содержат запрос
-      const tagWhere =
-        language === 'vn'
-          ? {
-              OR: [
-                {
-                  nameVi: {
-                    contains: query,
-                    mode: Prisma.QueryMode.insensitive,
-                  },
-                },
-                {
-                  nameEn: {
-                    contains: query,
-                    mode: Prisma.QueryMode.insensitive,
-                  },
-                },
-              ],
-            }
-          : language === 'ru'
-            ? {
-                OR: [
-                  {
-                    nameRu: {
-                      contains: query,
-                      mode: Prisma.QueryMode.insensitive,
-                    },
-                  },
-                  {
-                    nameEn: {
-                      contains: query,
-                      mode: Prisma.QueryMode.insensitive,
-                    },
-                  },
-                ],
-              }
-            : {
-                nameEn: { contains: query, mode: Prisma.QueryMode.insensitive },
-              };
-
-      const tags = await this.prisma.serviceTag.findMany({
-        where: tagWhere,
-        include: {
-          Services: {
-            select: {
-              id: true,
-              name: true,
-              description: true,
-              serviceCategoryId: true,
-              service_categories: {
-                select: {
-                  name_en: true,
-                  name_vn: true,
-                  name_ru: true,
-                },
-              },
-            },
-          },
-        },
-        take: 20,
-      });
-
-      if (!tags || tags.length === 0) {
-        return [];
-      }
-
-      // Собираем все услуги из найденных тегов
-      const services = tags.flatMap((tag) => tag.Services);
-
-      // Убираем дубликаты
-      const uniqueServices = services.filter(
-        (service, index, self) =>
-          index === self.findIndex((s) => s.id === service.id),
-      );
-
-      console.log(`📋 Found ${uniqueServices.length} services via tags`);
-      return uniqueServices;
-    } catch (error) {
-      console.error('❌ Error searching by tags:', error);
-      return [];
-    }
-  }
+  // searchByTags method removed - tags are no longer used
 
   // Новый метод: поиск по категориям
   async searchByCategories(query: string, language: string = 'en') {

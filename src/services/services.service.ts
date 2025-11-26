@@ -12,8 +12,6 @@ export class ServicesService {
       include: {
         Staff: true,
         service_categories: true,
-        ServiceSubcategory: true,
-        Tags: true,
         ServiceGroup: true,
       },
       orderBy: {
@@ -29,8 +27,6 @@ export class ServicesService {
         Staff: true,
         Salon: true,
         service_categories: true,
-        ServiceSubcategory: true,
-        Tags: true,
         ServiceGroup: true,
       },
     });
@@ -48,8 +44,6 @@ export class ServicesService {
           },
         },
         service_categories: true,
-        ServiceSubcategory: true,
-        Tags: true,
         ServiceGroup: true,
       },
       orderBy: {
@@ -71,26 +65,14 @@ export class ServicesService {
     price: number;
     salonId: string;
     serviceCategoryId?: number;
-    serviceSubcategoryId?: number;
     serviceGroupId?: string;
-    tagIds?: number[];
   }) {
-    const { tagIds, ...serviceData } = data;
     return this.prisma.service.create({
-      data: {
-        ...serviceData,
-        Tags:
-          tagIds && tagIds.length > 0
-            ? {
-                connect: tagIds.map((id) => ({ id })),
-              }
-            : undefined,
-      },
+      data,
       include: {
         Staff: true,
         service_categories: true,
-        ServiceSubcategory: true,
-        Tags: true,
+        ServiceGroup: true,
       },
     });
   }
@@ -109,28 +91,16 @@ export class ServicesService {
       duration?: number;
       price?: number;
       serviceCategoryId?: number;
-      serviceSubcategoryId?: number | null;
       serviceGroupId?: string | null;
-      tagIds?: number[];
     },
   ) {
-    const { tagIds, ...serviceData } = data;
     return this.prisma.service.update({
       where: { id },
-      data: {
-        ...serviceData,
-        Tags:
-          tagIds !== undefined
-            ? {
-                set: tagIds.map((tagId) => ({ id: tagId })),
-              }
-            : undefined,
-      },
+      data,
       include: {
         Staff: true,
         service_categories: true,
-        ServiceSubcategory: true,
-        Tags: true,
+        ServiceGroup: true,
       },
     });
   }
@@ -179,56 +149,6 @@ export class ServicesService {
               ],
             },
           },
-          {
-            ServiceSubcategory: {
-              OR: [
-                {
-                  nameEn: {
-                    contains: query,
-                    mode: 'insensitive',
-                  },
-                },
-                {
-                  nameVi: {
-                    contains: query,
-                    mode: 'insensitive',
-                  },
-                },
-                {
-                  nameRu: {
-                    contains: query,
-                    mode: 'insensitive',
-                  },
-                },
-              ],
-            },
-          },
-          {
-            Tags: {
-              some: {
-                OR: [
-                  {
-                    nameEn: {
-                      contains: query,
-                      mode: 'insensitive',
-                    },
-                  },
-                  {
-                    nameVi: {
-                      contains: query,
-                      mode: 'insensitive',
-                    },
-                  },
-                  {
-                    nameRu: {
-                      contains: query,
-                      mode: 'insensitive',
-                    },
-                  },
-                ],
-              },
-            },
-          },
         ],
       },
       include: {
@@ -239,8 +159,6 @@ export class ServicesService {
             name_ru: true,
           },
         },
-        ServiceSubcategory: true,
-        Tags: true,
         Salon: {
           select: {
             name: true,
@@ -320,29 +238,6 @@ export class ServicesService {
     });
   }
 
-  async getSubcategoriesByCategory(categoryId: number) {
-    return this.prisma.serviceSubcategory.findMany({
-      where: { categoryId },
-      orderBy: { nameEn: 'asc' },
-    });
-  }
-
-  async getTags(query?: string, limit: number = 50) {
-    const where = query
-      ? {
-          OR: [
-            { nameEn: { contains: query, mode: Prisma.QueryMode.insensitive } },
-            { nameVi: { contains: query, mode: Prisma.QueryMode.insensitive } },
-            { nameRu: { contains: query, mode: Prisma.QueryMode.insensitive } },
-          ],
-        }
-      : {};
-    return this.prisma.serviceTag.findMany({
-      where,
-      orderBy: { nameEn: 'asc' },
-      take: limit,
-    });
-  }
 
   // --- Service groups ---
   async findGroupsBySalon(salonId: string) {

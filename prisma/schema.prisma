@@ -109,7 +109,6 @@ model Service {
   salonId            String
   categoryId         String?
   serviceCategoryId  Int?
-  serviceSubcategoryId Int?
   nameEn             String?
   nameVi             String?
   nameRu             String?
@@ -120,10 +119,8 @@ model Service {
   Booking            Booking[]
   Salon              Salon               @relation(fields: [salonId], references: [id])
   service_categories service_categories? @relation(fields: [serviceCategoryId], references: [id])
-  ServiceSubcategory ServiceSubcategory? @relation(fields: [serviceSubcategoryId], references: [id])
   ServiceGroup       ServiceGroup?       @relation(fields: [serviceGroupId], references: [id])
   Staff              Staff[]             @relation("StaffServices")
-  Tags               ServiceTag[]        @relation("ServiceTags")
 
   @@unique([name, salonId])
 }
@@ -239,33 +236,12 @@ model PushToken {
   @@index([isActive])
 }
 
-model ServiceSubcategory {
-  id         Int       @id @default(autoincrement())
-  nameEn     String
-  nameRu     String?
-  nameVi     String?
-  categoryId Int
-  Services   Service[]
-  Category   service_categories @relation(fields: [categoryId], references: [id])
-
-  @@index([categoryId])
-}
-
-model ServiceTag {
-  id       Int        @id @default(autoincrement())
-  nameEn   String    @unique
-  nameRu   String?
-  nameVi   String?
-  Services Service[]  @relation("ServiceTags")
-}
-
 model service_categories {
   id            Int                  @id @default(autoincrement())
   name_en       String               @unique
   name_vn       String               @unique
   name_ru       String               @unique
   Service       Service[]
-  Subcategories ServiceSubcategory[]
 }
 
 enum BookingStatus {

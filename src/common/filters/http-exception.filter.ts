@@ -40,11 +40,19 @@ export class AllExceptionsFilter implements ExceptionFilter {
       path: request.url,
       method: request.method,
       timestamp: new Date().toISOString(),
-      ...(exception instanceof Error && { stack: exception.stack }),
+      ...(exception instanceof Error && { 
+        stack: exception.stack,
+        name: exception.name,
+        message: exception.message,
+      }),
     };
 
     if (status >= 500) {
-      this.logger.error('Internal server error', errorDetails);
+      this.logger.error('Internal server error', JSON.stringify(errorDetails, null, 2));
+      // Log full exception for debugging
+      if (exception instanceof Error) {
+        this.logger.error('Exception stack:', exception.stack);
+      }
     } else {
       this.logger.warn('Client error', errorDetails);
     }

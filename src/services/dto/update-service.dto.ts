@@ -57,16 +57,6 @@ export class UpdateServiceDto {
   serviceCategoryId?: number;
 
   @IsOptional()
-  @IsInt()
-  serviceSubcategoryId?: number | null;
-
-  @IsOptional()
   @IsString()
   serviceGroupId?: string | null;
-
-  @IsOptional()
-  @IsArray()
-  @ArrayMaxSize(3)
-  @IsInt({ each: true })
-  tagIds?: number[];
 }

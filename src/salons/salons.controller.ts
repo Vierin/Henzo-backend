@@ -29,7 +29,15 @@ export class SalonsController {
 
   @Get('with-services')
   async getSalonsWithServices() {
-    return this.salonsService.findSalonsWithServices();
+    try {
+      return await this.salonsService.findSalonsWithServices();
+    } catch (error) {
+      console.error('❌ Error getting salons with services:', error);
+      throw new HttpException(
+        error.message || 'Failed to get salons with services',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   @Get('search')
@@ -465,7 +473,21 @@ export class SalonsController {
 
   @Get(':id')
   async getSalonById(@Param('id') id: string) {
-    const result = await this.salonsService.findById(id);
-    return result;
+    try {
+      const result = await this.salonsService.findById(id);
+      if (!result) {
+        throw new HttpException('Salon not found', HttpStatus.NOT_FOUND);
+      }
+      return result;
+    } catch (error) {
+      console.error('❌ Error getting salon by id:', error);
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException(
+        error.message || 'Failed to get salon',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 }

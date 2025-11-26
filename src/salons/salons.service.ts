@@ -37,37 +37,95 @@ export class SalonsService {
   }
 
   async findSalonsWithServices() {
-    return this.prisma.salon.findMany({
-      include: {
-        Service: {
-          include: {
-            service_categories: true,
-            ServiceGroup: true,
-          },
-        },
-        Review: {
-          include: {
-            User: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
+    try {
+      const salons = await this.prisma.salon.findMany({
+        include: {
+          Service: {
+            include: {
+              service_categories: {
+                select: {
+                  id: true,
+                  name_en: true,
+                  name_vn: true,
+                  name_ru: true,
+                },
+              },
+              ServiceGroup: {
+                select: {
+                  id: true,
+                  name: true,
+                  description: true,
+                  position: true,
+                },
               },
             },
           },
-        },
-        User: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
+          Review: {
+            take: 10, // Limit reviews to avoid huge payload
+            include: {
+              User: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                },
+              },
+            },
+            orderBy: {
+              createdAt: 'desc',
+            },
+          },
+          User: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
           },
         },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
+        orderBy: {
+          createdAt: 'desc',
+        },
+        take: 100, // Limit to first 100 salons to avoid timeout
+      });
+
+      // Transform to match expected format
+      return salons.map((salon: any) => ({
+        ...salon,
+        services: (salon.Service || []).map((service: any) => ({
+          ...service,
+          serviceCategory: service.service_categories
+            ? {
+                id: service.service_categories.id,
+                nameEn: service.service_categories.name_en,
+                nameVn: service.service_categories.name_vn,
+                nameRu: service.service_categories.name_ru,
+              }
+            : null,
+          serviceGroup: service.ServiceGroup || null,
+        })),
+        Service: undefined, // Remove Prisma field
+        reviews: salon.Review || [],
+        Review: undefined, // Remove Prisma field
+        owner: salon.User || null,
+        User: undefined, // Remove Prisma field
+        // Add derived categories from services
+        categories: Array.from(
+          new Set(
+            (salon.Service || [])
+              .map((s: any) => s.serviceCategoryId)
+              .filter(Boolean),
+          ),
+        ),
+      }));
+    } catch (error) {
+      console.error('❌ Error in findSalonsWithServices:', error);
+      console.error('Error details:', {
+        errorMessage: error.message,
+        errorStack: error.stack,
+      });
+      throw new Error(`Failed to fetch salons with services: ${error.message}`);
+    }
   }
 
   // New optimized search method with pagination and filters
@@ -97,20 +155,33 @@ export class SalonsService {
     // Build where clause
     const where: any = {};
 
-    // Text search (full-text search would be better, but this is a start)
+    // Text search - prioritize service name search
     if (search.trim()) {
-      const searchTerm = search.toLowerCase();
+      const searchTerm = search.trim();
       where.OR = [
-        { name: { contains: searchTerm, mode: 'insensitive' } },
-        { description: { contains: searchTerm, mode: 'insensitive' } },
-        { address: { contains: searchTerm, mode: 'insensitive' } },
+        // Priority 1: Search by service name (most important)
         {
           Service: {
             some: {
               OR: [
                 { name: { contains: searchTerm, mode: 'insensitive' } },
-                { description: { contains: searchTerm, mode: 'insensitive' } },
+                { nameEn: { contains: searchTerm, mode: 'insensitive' } },
+                { nameVi: { contains: searchTerm, mode: 'insensitive' } },
+                { nameRu: { contains: searchTerm, mode: 'insensitive' } },
               ],
+            },
+          },
+        },
+        // Priority 2: Search by salon name
+        { name: { contains: searchTerm, mode: 'insensitive' } },
+        // Priority 3: Search by salon description and address
+        { description: { contains: searchTerm, mode: 'insensitive' } },
+        { address: { contains: searchTerm, mode: 'insensitive' } },
+        // Priority 4: Search by service description
+        {
+          Service: {
+            some: {
+              description: { contains: searchTerm, mode: 'insensitive' },
             },
           },
         },
@@ -502,67 +573,78 @@ export class SalonsService {
   }
 
   async findById(id: string) {
-    console.log('SalonsService.findById called with id:', id);
+    try {
+      console.log('SalonsService.findById called with id:', id);
 
-    // First, let's check if salon exists at all
-    const salonExists = await this.prisma.salon.findUnique({
-      where: { id },
-      select: { id: true, name: true },
-    });
-    console.log('Salon exists check:', salonExists);
+      if (!id || id.trim() === '') {
+        throw new Error('Salon ID is required');
+      }
 
-    // Check reviews separately
-    const reviewsCheck = await this.prisma.review.findMany({
-      where: { salonId: id },
-      include: {
-        User: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-      },
-    });
-    console.log('Reviews check for salon:', {
-      salonId: id,
-      reviewsCount: reviewsCheck.length,
-      Review: reviewsCheck.slice(0, 2),
-    });
+      // First, let's check if salon exists at all
+      const salonExists = await this.prisma.salon.findUnique({
+        where: { id },
+        select: { id: true, name: true },
+      });
+      console.log('Salon exists check:', salonExists);
 
-    const salon = await this.prisma.salon.findUnique({
-      where: { id },
-      include: {
-        Service: {
-          include: {
-            service_categories: true,
-            ServiceGroup: true,
-          },
-        },
-        Staff: true,
-        Review: {
-          include: {
-            User: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-              },
+      if (!salonExists) {
+        console.log('❌ Salon not found with id:', id);
+        return null;
+      }
+
+      // Check reviews separately
+      const reviewsCheck = await this.prisma.review.findMany({
+        where: { salonId: id },
+        include: {
+          User: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
             },
           },
-          orderBy: {
-            createdAt: 'desc',
+        },
+      });
+      console.log('Reviews check for salon:', {
+        salonId: id,
+        reviewsCount: reviewsCheck.length,
+        Review: reviewsCheck.slice(0, 2),
+      });
+
+      const salon = await this.prisma.salon.findUnique({
+        where: { id },
+        include: {
+          Service: {
+            include: {
+              service_categories: true,
+              ServiceGroup: true,
+            },
+          },
+          Staff: true,
+          Review: {
+            take: 50, // Limit reviews to avoid huge payload
+            include: {
+              User: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                },
+              },
+            },
+            orderBy: {
+              createdAt: 'desc',
+            },
+          },
+          User: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
           },
         },
-        User: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-      },
-    });
+      });
 
     // Load all service groups for this salon separately to ensure all groups are available
     const allGroups = await this.prisma.serviceGroup.findMany({
@@ -573,16 +655,16 @@ export class SalonsService {
     console.log('SalonsService.findById result:', {
       salonId: salon?.id,
       salonName: salon?.name,
-      servicesCount: salon?.Service?.length || 0,
+      servicesCount: ((salon as any)?.Service || []).length,
       servicesWithGroups:
-        salon?.Service?.filter((s: any) => s.ServiceGroup)?.length || 0,
+        ((salon as any)?.Service || []).filter((s: any) => s.ServiceGroup)?.length || 0,
       groupsCount: allGroups.length,
       groups: allGroups.map((g) => ({
         id: g.id,
         name: g.name,
         position: g.position,
       })),
-      reviewsCount: salon?.Review?.length || 0,
+      reviewsCount: ((salon as any)?.Review || []).length,
     });
 
     if (!salon) {
@@ -596,7 +678,7 @@ export class SalonsService {
     });
 
     // Also add groups from services if they're not already in the map
-    (salon.Service || []).forEach((service: any) => {
+    ((salon as any).Service || []).forEach((service: any) => {
       if (
         service.ServiceGroup &&
         service.serviceGroupId &&
@@ -609,7 +691,7 @@ export class SalonsService {
     // Transform Prisma response to frontend format
     const transformedSalon = {
       ...salon,
-      services: (salon.Service || []).map((service: any) => {
+      services: ((salon as any).Service || []).map((service: any) => {
         const transformedService: any = {
           id: service.id,
           name: service.name,
@@ -658,11 +740,11 @@ export class SalonsService {
 
         return transformedService;
       }),
-      staff: (salon.Staff || []).map((staff: any) => ({
+      staff: ((salon as any).Staff || []).map((staff: any) => ({
         ...staff,
         Staff: undefined,
       })),
-      reviews: (salon.Review || []).map((review: any) => ({
+      reviews: ((salon as any).Review || []).map((review: any) => ({
         ...review,
         user: review.User
           ? {
@@ -673,30 +755,45 @@ export class SalonsService {
           : undefined,
         User: undefined,
       })),
-      owner: salon.User
+      owner: (salon as any).User
         ? {
-            id: salon.User.id,
-            name: salon.User.name,
-            email: salon.User.email,
+            id: (salon as any).User.id,
+            name: (salon as any).User.name,
+            email: (salon as any).User.email,
           }
         : undefined,
       // Add derived categories from services
       categories: Array.from(
         new Set(
-          (salon.Service || [])
+          ((salon as any).Service || [])
             .map((s: any) => s.serviceCategoryId)
             .filter(Boolean),
         ),
       ),
     };
 
-    // Remove Prisma-specific fields
-    delete (transformedSalon as any).Service;
-    delete (transformedSalon as any).Staff;
-    delete (transformedSalon as any).Review;
-    delete (transformedSalon as any).User;
+      // Remove Prisma-specific fields
+      delete (transformedSalon as any).Service;
+      delete (transformedSalon as any).Staff;
+      delete (transformedSalon as any).Review;
+      delete (transformedSalon as any).User;
 
-    return transformedSalon as any;
+      return transformedSalon as any;
+    } catch (error) {
+      console.error('❌ Error in findById:', error);
+      console.error('Error details:', {
+        id,
+        errorMessage: error.message,
+        errorName: error.name,
+        errorStack: error.stack,
+      });
+      
+      // Re-throw with more context
+      const errorMessage = error.message || 'Unknown error';
+      const enhancedError = new Error(`Failed to fetch salon (${id}): ${errorMessage}`);
+      (enhancedError as any).originalError = error;
+      throw enhancedError;
+    }
   }
 
   // New optimized methods for better performance

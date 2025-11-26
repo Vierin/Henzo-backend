@@ -366,71 +366,7 @@ async function main() {
         `✅ ${categoryData.nameEn} / ${categoryData.nameVn} / ${categoryData.nameRu}`,
       );
 
-      // Create subcategories
-      for (const subcatData of categoryData.subcategories) {
-        try {
-          // Check if subcategory exists for this category
-          const existing = await prisma.serviceSubcategory.findFirst({
-            where: {
-              nameEn: subcatData.nameEn,
-              categoryId: category.id,
-            },
-          });
-
-          if (!existing) {
-            await prisma.serviceSubcategory.create({
-              data: {
-                nameEn: subcatData.nameEn,
-                nameRu: subcatData.nameRu,
-                nameVi: subcatData.nameVi,
-                categoryId: category.id,
-              },
-            });
-          } else {
-            await prisma.serviceSubcategory.update({
-              where: { id: existing.id },
-              data: {
-                nameRu: subcatData.nameRu,
-                nameVi: subcatData.nameVi,
-              },
-            });
-          }
-        } catch (error: any) {
-          console.error(
-            `  ⚠️ Error creating subcategory "${subcatData.nameEn}":`,
-            error.message,
-          );
-        }
-      }
-
-      console.log(
-        `   → Added ${categoryData.subcategories.length} subcategories`,
-      );
-
-      // Create tags
-      for (const tagData of categoryData.tags) {
-        try {
-          await prisma.serviceTag.upsert({
-            where: { nameEn: tagData.nameEn },
-            update: {
-              nameRu: tagData.nameRu,
-              nameVi: tagData.nameVi,
-            },
-            create: {
-              nameEn: tagData.nameEn,
-              nameRu: tagData.nameRu,
-              nameVi: tagData.nameVi,
-            },
-          });
-        } catch (error: any) {
-          console.error(
-            `  ⚠️ Error creating tag "${tagData.nameEn}":`,
-            error.message,
-          );
-        }
-      }
-
-      console.log(`   → Added ${categoryData.tags.length} tags\n`);
+      // Subcategories and tags removed - only main categories now
     } catch (error: any) {
       console.error(
         `❌ Error with category ${categoryData.nameEn}:`,
@@ -441,12 +377,10 @@ async function main() {
 
   // Summary
   const totalCategories = await prisma.service_categories.count();
-  const totalSubcategories = await prisma.serviceSubcategory.count();
-  const totalTags = await prisma.serviceTag.count();
 
   console.log('\n✅ Seeding completed!');
   console.log(
-    `📊 Total: ${totalCategories} categories, ${totalSubcategories} subcategories, ${totalTags} tags`,
+    `📊 Total: ${totalCategories} categories`,
   );
 }
 
