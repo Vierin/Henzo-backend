@@ -516,4 +516,166 @@ export class SearchService {
       return [];
     }
   }
+
+  // Search recommended services by text match (Booksy style)
+  async searchRecommendedServices(
+    query: string,
+    language: string = 'en',
+    limit: number = 10,
+  ) {
+    try {
+      const q = query.trim().toLowerCase();
+      const lang = language === 'vn' ? 'vn' : language === 'ru' ? 'ru' : 'en';
+
+      const whereCondition =
+        lang === 'vn'
+          ? {
+              OR: [
+                { nameVi: { contains: q, mode: Prisma.QueryMode.insensitive } },
+                { nameEn: { contains: q, mode: Prisma.QueryMode.insensitive } },
+                { nameRu: { contains: q, mode: Prisma.QueryMode.insensitive } },
+              ],
+            }
+          : lang === 'ru'
+            ? {
+                OR: [
+                  { nameRu: { contains: q, mode: Prisma.QueryMode.insensitive } },
+                  { nameEn: { contains: q, mode: Prisma.QueryMode.insensitive } },
+                  { nameVi: { contains: q, mode: Prisma.QueryMode.insensitive } },
+                ],
+              }
+            : {
+                OR: [
+                  { nameEn: { contains: q, mode: Prisma.QueryMode.insensitive } },
+                  { nameVi: { contains: q, mode: Prisma.QueryMode.insensitive } },
+                  { nameRu: { contains: q, mode: Prisma.QueryMode.insensitive } },
+                ],
+              };
+
+      const services = await this.prisma.recommendedService.findMany({
+        where: whereCondition,
+        orderBy: [{ priority: 'desc' }, { nameEn: 'asc' }],
+        take: limit,
+      });
+
+      return services.map((service) => ({
+        id: `recommended-${service.id}`,
+        name:
+          lang === 'vn'
+            ? service.nameVi || service.nameEn
+            : lang === 'ru'
+              ? service.nameRu || service.nameEn
+              : service.nameEn || service.nameVi,
+        type: 'recommended' as const,
+        priority: service.priority,
+      }));
+    } catch (error) {
+      console.error('❌ Error searching recommended services:', error);
+      return [];
+    }
+  }
+
+  // Get popular recommended services (for 0-2 chars input)
+  async getPopularRecommendedServices(
+    language: string = 'en',
+    limit: number = 10,
+  ) {
+    try {
+      const lang = language === 'vn' ? 'vn' : language === 'ru' ? 'ru' : 'en';
+
+      const services = await this.prisma.recommendedService.findMany({
+        orderBy: [{ priority: 'desc' }, { nameEn: 'asc' }],
+        take: limit,
+      });
+
+      return services.map((service) => ({
+        id: `recommended-${service.id}`,
+        name:
+          lang === 'vn'
+            ? service.nameVi || service.nameEn
+            : lang === 'ru'
+              ? service.nameRu || service.nameEn
+              : service.nameEn || service.nameVi,
+        type: 'recommended' as const,
+        priority: service.priority,
+      }));
+    } catch (error) {
+      console.error('❌ Error getting popular recommended services:', error);
+      return [];
+    }
+  }
+
+  // Unified suggest: RecommendedServices + Salon names (Booksy style)
+  async unifiedSuggest(
+    query: string,
+    language: string = 'en',
+    limit: number = 10,
+  ) {
+    try {
+      const q = query.trim();
+      const lang = language === 'vn' ? 'vn' : language === 'ru' ? 'ru' : 'en';
+
+      // If query is empty or too short, return popular recommended services only
+      if (q.length < 3) {
+        const popularServices = await this.getPopularRecommendedServices(
+          lang,
+          limit,
+        );
+        return {
+          recommendedServices: popularServices,
+          salons: [],
+        };
+      }
+
+      // Search recommended services and salons in parallel
+      const [recommendedServices, salons] = await Promise.all([
+        this.searchRecommendedServices(q, lang, Math.ceil(limit * 0.7)), // 70% for services
+        this.searchSalonNames(q, Math.ceil(limit * 0.3)), // 30% for salons
+      ]);
+
+      return {
+        recommendedServices,
+        salons,
+      };
+    } catch (error) {
+      console.error('❌ Error in unified suggest:', error);
+      return {
+        recommendedServices: [],
+        salons: [],
+      };
+    }
+  }
+
+  // Search salon names only
+  private async searchSalonNames(query: string, limit: number = 5) {
+    try {
+      const q = query.trim();
+      if (q.length < 3) {
+        return [];
+      }
+
+      const salons = await this.prisma.salon.findMany({
+        where: {
+          name: { contains: q, mode: Prisma.QueryMode.insensitive },
+        },
+        select: {
+          id: true,
+          name: true,
+          address: true,
+        },
+        orderBy: { name: 'asc' },
+        take: limit,
+      });
+
+      return salons.map((salon) => ({
+        id: salon.id,
+        name: salon.name,
+        type: 'salon' as const,
+        address: salon.address,
+      }));
+    } catch (error) {
+      console.error('❌ Error searching salon names:', error);
+      return [];
+    }
+  }
 }

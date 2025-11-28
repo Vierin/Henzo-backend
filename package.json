@@ -18,10 +18,12 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "seed": "ts-node prisma/seed.ts"
+    "seed": "npx tsx prisma/seed.ts",
+    "seed:fake-salons": "npx tsx prisma/seed-fake-salons.ts",
+    "seed:recommended-services": "npx tsx prisma/seed-recommended-services.ts"
   },
   "prisma": {
-    "seed": "ts-node prisma/seed.ts"
+    "seed": "npx tsx prisma/seed.ts"
   },
   "dependencies": {
     "@getbrevo/brevo": "^2.2.0",

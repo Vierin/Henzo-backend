@@ -244,6 +244,21 @@ model service_categories {
   Service       Service[]
 }
 
+model RecommendedService {
+  id            Int      @id @default(autoincrement())
+  nameEn        String
+  nameVi        String
+  nameRu        String
+  categoryId    Int?
+  priority      Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([nameEn, nameVi, nameRu])
+  @@index([priority])
+  @@index([categoryId])
+}
+
 enum BookingStatus {
   CONFIRMED
   CANCELED

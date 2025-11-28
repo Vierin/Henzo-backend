@@ -5,6 +5,7 @@ import {
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
+import { Public } from '../common/decorators/public.decorator';
 import { SearchService } from './search.service';
 
 @Controller('search')
@@ -85,6 +86,7 @@ export class SearchController {
     }
   }
 
+  @Public()
   @Get('core/suggest')
   async suggestCore(
     @Query('q') query: string,
@@ -109,6 +111,53 @@ export class SearchController {
       console.error('❌ Core suggest failed:', (error as any).message);
       throw new HttpException(
         (error as any).message || 'Core suggest failed',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Public()
+  @Get('popular/recommended')
+  async getPopularRecommended(
+    @Query('lang') language: string = 'en',
+    @Query('limit') limit?: string,
+  ) {
+    try {
+      const validLanguages = ['en', 'vn', 'ru'];
+      const lang = validLanguages.includes(language) ? language : 'en';
+      const take = limit ? Math.min(parseInt(limit, 10) || 10, 20) : 10;
+      const results = await this.searchService.getPopularRecommendedServices(
+        lang,
+        take,
+      );
+      return { success: true, data: results };
+    } catch (error) {
+      console.error('❌ Get popular recommended failed:', (error as any).message);
+      throw new HttpException(
+        (error as any).message || 'Failed to get popular recommended',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Public()
+  @Get('unified/suggest')
+  async unifiedSuggest(
+    @Query('q') query: string,
+    @Query('lang') language: string = 'en',
+    @Query('limit') limit?: string,
+  ) {
+    try {
+      const q = (query || '').trim();
+      const validLanguages = ['en', 'vn', 'ru'];
+      const lang = validLanguages.includes(language) ? language : 'en';
+      const take = limit ? Math.min(parseInt(limit, 10) || 10, 20) : 10;
+      const results = await this.searchService.unifiedSuggest(q, lang, take);
+      return { success: true, data: results };
+    } catch (error) {
+      console.error('❌ Unified suggest failed:', (error as any).message);
+      throw new HttpException(
+        (error as any).message || 'Unified suggest failed',
         HttpStatus.BAD_REQUEST,
       );
     }
