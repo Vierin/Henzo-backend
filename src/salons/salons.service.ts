@@ -41,6 +41,7 @@ export class SalonsService {
       const salons = await this.prisma.salon.findMany({
         include: {
           Service: {
+            take: 3, // Limit to 3 services per salon for card display
             include: {
               service_categories: {
                 select: {
@@ -246,6 +247,7 @@ export class SalonsService {
       where,
       include: {
         Service: {
+          take: 3, // Limit to 3 services per salon for card display
           include: {
             service_categories: true,
             ServiceGroup: true,
@@ -280,8 +282,32 @@ export class SalonsService {
     const hasNextPage = page < totalPages;
     const hasPreviousPage = page > 1;
 
+    // Transform to match expected format (Service -> services)
+    const transformedSalons = salons.map((salon: any) => ({
+      ...salon,
+      services: (salon.Service || []).map((service: any) => ({
+        ...service,
+        serviceCategory: service.service_categories
+          ? {
+              id: service.service_categories.id,
+              name_en: service.service_categories.name_en,
+              name_vn: service.service_categories.name_vn,
+              name_ru: service.service_categories.name_ru,
+            }
+          : null,
+        service_categories: undefined, // Remove Prisma field
+        serviceGroup: service.ServiceGroup || null,
+        ServiceGroup: undefined, // Remove Prisma field
+      })),
+      Service: undefined, // Remove Prisma field
+      reviews: salon.Review || [],
+      Review: undefined, // Remove Prisma field
+      owner: salon.User || null,
+      User: undefined, // Remove Prisma field
+    }));
+
     return {
-      data: salons,
+      data: transformedSalons,
       pagination: {
         page,
         limit,
