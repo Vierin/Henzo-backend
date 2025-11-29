@@ -139,7 +139,9 @@ export class ServicesController {
     body: {
       salonId: string;
       name: string;
-      description?: string;
+      nameEn?: string;
+      nameVi?: string;
+      nameRu?: string;
     },
   ) {
     return this.servicesService.createGroup(body);
@@ -151,7 +153,9 @@ export class ServicesController {
     @Body()
     body: {
       name?: string;
-      description?: string;
+      nameEn?: string;
+      nameVi?: string;
+      nameRu?: string;
       position?: number;
       isActive?: boolean;
     },

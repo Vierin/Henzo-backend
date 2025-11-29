@@ -250,7 +250,9 @@ export class ServicesService {
   async createGroup(data: {
     salonId: string;
     name: string;
-    description?: string;
+    nameEn?: string;
+    nameVi?: string;
+    nameRu?: string;
   }) {
     const count = await this.prisma.serviceGroup.count({
       where: { salonId: data.salonId },
@@ -259,7 +261,9 @@ export class ServicesService {
       data: {
         salonId: data.salonId,
         name: data.name,
-        description: data.description,
+        nameEn: data.nameEn,
+        nameVi: data.nameVi,
+        nameRu: data.nameRu,
         position: count * 10,
       },
     });
@@ -269,7 +273,9 @@ export class ServicesService {
     id: string,
     data: {
       name?: string;
-      description?: string;
+      nameEn?: string;
+      nameVi?: string;
+      nameRu?: string;
       position?: number;
       isActive?: boolean;
     },

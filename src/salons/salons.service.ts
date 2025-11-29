@@ -55,7 +55,9 @@ export class SalonsService {
                 select: {
                   id: true,
                   name: true,
-                  description: true,
+                  nameEn: true,
+                  nameVi: true,
+                  nameRu: true,
                   position: true,
                 },
               },
@@ -756,7 +758,9 @@ export class SalonsService {
             id: serviceGroup.id,
             salonId: serviceGroup.salonId,
             name: serviceGroup.name,
-            description: serviceGroup.description,
+            nameEn: serviceGroup.nameEn,
+            nameVi: serviceGroup.nameVi,
+            nameRu: serviceGroup.nameRu,
             position: serviceGroup.position,
             isActive: serviceGroup.isActive,
             createdAt:

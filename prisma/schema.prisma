@@ -3,9 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model Booking {
@@ -126,14 +125,16 @@ model Service {
 }
 
 model ServiceGroup {
-  id          String    @id @default(cuid())
-  salonId     String
-  name        String
-  description String?
-  position    Int       @default(0)
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  Service     Service[]
+  id        String    @id @default(cuid())
+  salonId   String
+  name      String
+  nameEn    String?
+  nameVi    String?
+  nameRu    String?
+  position  Int       @default(0)
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  Service   Service[]
 
   @@index([salonId, position])
 }
@@ -237,22 +238,22 @@ model PushToken {
 }
 
 model service_categories {
-  id            Int                  @id @default(autoincrement())
-  name_en       String               @unique
-  name_vn       String               @unique
-  name_ru       String               @unique
-  Service       Service[]
+  id      Int       @id @default(autoincrement())
+  name_en String    @unique
+  name_vn String    @unique
+  name_ru String    @unique
+  Service Service[]
 }
 
 model RecommendedService {
-  id            Int      @id @default(autoincrement())
-  nameEn        String
-  nameVi        String
-  nameRu        String
-  categoryId    Int?
-  priority      Int      @default(0)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id         Int      @id @default(autoincrement())
+  nameEn     String
+  nameVi     String
+  nameRu     String
+  categoryId Int?
+  priority   Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@index([nameEn, nameVi, nameRu])
   @@index([priority])
