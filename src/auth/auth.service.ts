@@ -1410,26 +1410,143 @@ export class AuthService {
 
   async sendBusinessMagicLink(email: string, name: string) {
     try {
-      // Проверяем, не существует ли уже пользователь с этим email
+      const normalizedEmail = email.toLowerCase().trim();
+      console.log('🔍 Checking for existing user with email:', normalizedEmail);
+
+      // Проверяем, не существует ли уже бизнес-аккаунт (OWNER) с этим email в нашей БД
       const existingUser = await this.prisma.user.findUnique({
-        where: { email: email.toLowerCase().trim() },
+        where: { email: normalizedEmail },
       });
 
       if (existingUser) {
+        console.log('❌ User found in database:', {
+          email: existingUser.email,
+          role: existingUser.role,
+          id: existingUser.id,
+        });
+        
+        // Если пользователь существует и это OWNER, не отправляем magic link
+        if (existingUser.role === 'OWNER') {
+          throw new BadRequestException(
+            'A business account with this email already exists. Please login instead.',
+          );
+        }
+        // Если пользователь существует, но это CLIENT, тоже не отправляем
+        // (чтобы избежать конфликтов и путаницы)
         throw new BadRequestException(
-          'User with this email already exists. Please login instead.',
+          'An account with this email already exists. Please login instead.',
         );
       }
 
-      // Удаляем старые pending registrations для этого email
-      await this.prisma.pendingBusinessRegistration.deleteMany({
+      // Также проверяем в Supabase Auth (пользователь может существовать там, но не в нашей БД)
+      console.log('🔍 Checking Supabase Auth for user with email:', normalizedEmail);
+      
+      let existingSupabaseUser: any = null;
+      let page = 1;
+      const perPage = 1000;
+      let hasMore = true;
+      let foundError = false;
+
+      // Используем пагинацию для поиска пользователя в Supabase
+      while (hasMore && !foundError) {
+        const { data: { users }, error: listError } = await supabase.auth.admin.listUsers({
+          page,
+          perPage,
+        });
+        
+        if (listError) {
+          console.error('⚠️ Error listing users from Supabase (page ' + page + '):', listError.message);
+          foundError = true;
+          // Не прерываем выполнение, но логируем ошибку
+          // Продолжаем, чтобы проверить хотя бы первую страницу
+          break;
+        }
+
+        if (!users || users.length === 0) {
+          hasMore = false;
+          break;
+        }
+
+        // Ищем пользователя с нужным email на текущей странице
+        const foundUser = users.find(
+          (user: any) => user.email?.toLowerCase().trim() === normalizedEmail
+        );
+
+        if (foundUser) {
+          existingSupabaseUser = foundUser;
+          hasMore = false; // Нашли, можно прекращать поиск
+          break;
+        }
+
+        // Если получили меньше пользователей, чем запросили, значит это последняя страница
+        if (users.length < perPage) {
+          hasMore = false;
+        } else {
+          page++;
+        }
+      }
+
+      if (existingSupabaseUser) {
+        console.log('❌ User found in Supabase Auth:', {
+          email: existingSupabaseUser.email,
+          id: existingSupabaseUser.id,
+          role: existingSupabaseUser.user_metadata?.role || existingSupabaseUser.app_metadata?.role,
+          emailConfirmed: !!existingSupabaseUser.email_confirmed_at,
+        });
+
+        // Проверяем роль в метаданных Supabase
+        const userRole = 
+          existingSupabaseUser.user_metadata?.role || 
+          existingSupabaseUser.app_metadata?.role;
+        
+        // Если это OWNER или ADMIN, не отправляем
+        if (userRole === 'OWNER' || userRole === 'ADMIN') {
+          throw new BadRequestException(
+            'A business account with this email already exists. Please login instead.',
+          );
+        }
+
+        // Если пользователь существует в Supabase, но не в нашей БД,
+        // это может быть незавершенная регистрация - тоже не отправляем
+        throw new BadRequestException(
+          'An account with this email already exists. Please login instead.',
+        );
+      }
+
+      console.log('✅ No existing user found, proceeding with magic link');
+
+      // Проверяем, нет ли активных pending registrations для этого email
+      const activePendingReg = await this.prisma.pendingBusinessRegistration.findFirst({
         where: {
-          email: email.toLowerCase().trim(),
+          email: normalizedEmail,
+          expiresAt: {
+            gt: new Date(), // Только не истекшие
+          },
+        },
+      });
+
+      if (activePendingReg) {
+        console.log('⚠️ Active pending registration found for email:', normalizedEmail);
+        // Можно либо удалить старую и создать новую, либо вернуть ошибку
+        // Возвращаем ошибку, чтобы не спамить email
+        throw new BadRequestException(
+          'A registration link has already been sent to this email. Please check your inbox or wait before requesting again.',
+        );
+      }
+
+      // Удаляем только истекшие pending registrations для этого email
+      const deletedCount = await this.prisma.pendingBusinessRegistration.deleteMany({
+        where: {
+          email: normalizedEmail,
           expiresAt: {
             lt: new Date(),
           },
         },
       });
+
+      if (deletedCount.count > 0) {
+        console.log(`🗑️ Deleted ${deletedCount.count} expired pending registration(s) for email:`, normalizedEmail);
+      }
 
       // Генерируем токен
       const token = nanoid(32);
@@ -1445,12 +1562,41 @@ export class AuthService {
         },
       });
 
+      // Финальная проверка перед отправкой email (на случай race condition)
+      const finalCheckUser = await this.prisma.user.findUnique({
+        where: { email: normalizedEmail },
+      });
+
+      if (finalCheckUser) {
+        console.log('❌ User found during final check before sending email:', {
+          email: finalCheckUser.email,
+          role: finalCheckUser.role,
+          id: finalCheckUser.id,
+        });
+        
+        // Удаляем только что созданную pending registration
+        await this.prisma.pendingBusinessRegistration.delete({
+          where: { id: pendingReg.id },
+        });
+
+        if (finalCheckUser.role === 'OWNER') {
+          throw new BadRequestException(
+            'A business account with this email already exists. Please login instead.',
+          );
+        }
+        throw new BadRequestException(
+          'An account with this email already exists. Please login instead.',
+        );
+      }
+
       // Генерируем URL для регистрации
       const frontendUrl =
         this.configService.get<string>('FRONTEND_URL') ||
         'http://localhost:3000';
       const registerUrl = `${frontendUrl}/business/register?email=${encodeURIComponent(email)}&token=${token}&name=${encodeURIComponent(name)}`;
 
+      console.log('📧 Sending business registration magic link email to:', normalizedEmail);
+      
       // Отправляем email
       await this.emailService.sendBusinessRegistrationMagicLink(
         email,

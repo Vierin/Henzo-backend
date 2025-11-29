@@ -1436,36 +1436,62 @@ export class EmailService {
         <html>
         <head>
           <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <title>Complete Your Business Registration - Henzo</title>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background-color: #ff5b5b; color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
-            .content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
-            .button { display: inline-block; background-color: #ff5b5b; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-            .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
+          <!--[if mso]>
+          <style type="text/css">
+            body, table, td { font-family: Arial, sans-serif !important; }
           </style>
+          <![endif]-->
         </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1>🚀 Complete Your Business Registration</h1>
-            </div>
-            <div class="content">
-              <p>Hi ${name},</p>
-              <p>Thank you for your interest in Henzo! Click the button below to complete your business account registration:</p>
-              <div style="text-align: center;">
-                <a href="${registerUrl}" class="button">Complete Registration</a>
-              </div>
-              <p>Or copy and paste this link into your browser:</p>
-              <p style="word-break: break-all; color: #666;">${registerUrl}</p>
-              <p><strong>This link will expire in 24 hours.</strong></p>
-              <p>If you didn't request this registration, please ignore this email.</p>
-            </div>
-            <div class="footer">
-              <p>This is an automated message from Henzo. Please do not reply to this email.</p>
-            </div>
-          </div>
+        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;">
+          <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f4f4f4;">
+            <tr>
+              <td style="padding: 20px 0;">
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="margin: 0 auto; background-color: #ffffff; max-width: 600px; width: 100%;">
+                  <!-- Header -->
+                  <tr>
+                    <td style="background-color: #ff5b5b; padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
+                      <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: bold; line-height: 1.4;">🚀 Complete Your Business Registration</h1>
+                    </td>
+                  </tr>
+                  <!-- Content -->
+                  <tr>
+                    <td style="background-color: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px;">
+                      <p style="margin: 0 0 16px 0; color: #333333; font-size: 16px; line-height: 1.6;">Hi ${name},</p>
+                      <p style="margin: 0 0 24px 0; color: #333333; font-size: 16px; line-height: 1.6;">Thank you for your interest in Henzo! Click the button below to complete your business account registration:</p>
+                      
+                      <!-- Button -->
+                      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 20px 0;">
+                        <tr>
+                          <td style="text-align: center;">
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+                              <tr>
+                                <td style="background-color: #ff5b5b; border-radius: 5px; text-align: center;">
+                                  <a href="${registerUrl}" style="display: inline-block; padding: 15px 30px; color: #ffffff !important; text-decoration: none; font-size: 16px; font-weight: bold; border-radius: 5px; background-color: #ff5b5b; white-space: nowrap;">Complete Registration</a>
+                                </td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                      </table>
+                      
+                      <p style="margin: 24px 0 16px 0; color: #333333; font-size: 16px; line-height: 1.6;">Or copy and paste this link into your browser:</p>
+                      <p style="margin: 0 0 24px 0; word-break: break-all; color: #666666; font-size: 14px; line-height: 1.6; background-color: #ffffff; padding: 12px; border-radius: 4px; border: 1px solid #e0e0e0;">${registerUrl}</p>
+                      <p style="margin: 0 0 16px 0; color: #333333; font-size: 16px; line-height: 1.6;"><strong>This link will expire in 24 hours.</strong></p>
+                      <p style="margin: 0; color: #666666; font-size: 14px; line-height: 1.6;">If you didn't request this registration, please ignore this email.</p>
+                    </td>
+                  </tr>
+                  <!-- Footer -->
+                  <tr>
+                    <td style="padding: 30px 20px 20px 20px; text-align: center;">
+                      <p style="margin: 0; color: #666666; font-size: 14px; line-height: 1.6;">This is an automated message from Henzo. Please do not reply to this email.</p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
         </body>
         </html>
       `;
