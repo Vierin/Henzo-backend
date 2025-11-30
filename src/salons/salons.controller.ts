@@ -204,6 +204,7 @@ export class SalonsController {
   @Get('current/qr-pdf')
   async generateQRPDF(
     @Headers('authorization') authHeader: string,
+    @Query('locale') locale: string = 'en',
     @Res() res: Response,
   ) {
     try {
@@ -229,6 +230,35 @@ export class SalonsController {
 
       // Generate QR code URL (increased size to match PDF display)
       const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(salonUrl)}`;
+
+      // PDF translations based on locale
+      const pdfTranslations: Record<string, { title1: string; title2: string; description: string; footer1: string; footer2: string }> = {
+        en: {
+          title1: 'BOOK YOUR',
+          title2: 'APPOINTMENT',
+          description: 'Quick & easy in just a few steps!',
+          footer1: 'Scan QR code',
+          footer2: 'to book now!',
+        },
+        ru: {
+          title1: 'ЗАПИШИТЕСЬ',
+          title2: 'НА ПРИЕМ',
+          description: 'Быстро и легко всего за несколько шагов!',
+          footer1: 'Отсканируйте QR-код',
+          footer2: 'чтобы записаться прямо сейчас!',
+        },
+        vi: {
+          title1: 'ĐẶT LỊCH',
+          title2: 'HẸN CỦA BẠN',
+          description: 'Nhanh chóng & dễ dàng chỉ với vài thao tác!',
+          footer1: 'Quét mã QR',
+          footer2: 'để đặt lịch ngay!',
+        },
+      };
+
+      // Get translations for the requested locale (default to 'en')
+      const validLocale = locale && ['en', 'ru', 'vi'].includes(locale) ? locale : 'en';
+      const translations = pdfTranslations[validLocale] || pdfTranslations['en'];
 
       // Dynamic import for Puppeteer to avoid issues
       const puppeteer = await import('puppeteer');
@@ -375,9 +405,9 @@ export class SalonsController {
           <div class="top-section">
             
             <div class="title-section">
-              <h1 class="title-line">ĐẶT LỊCH</h1>
-              <h1 class="title-line">HẸN CỦA BẠN</h1>
-              <p class="title-description">Nhanh chóng & dễ dàng chỉ với vài thao tác!</p>
+              <h1 class="title-line">${translations.title1}</h1>
+              <h1 class="title-line">${translations.title2}</h1>
+              <p class="title-description">${translations.description}</p>
             </div>
             
             <div class="qr-section">
@@ -412,8 +442,8 @@ export class SalonsController {
           </div>
           
           <div class="bottom-section">
-            <p class="footer-text">Quét mã QR</p>
-            <p class="footer-text">để đặt lịch ngay!</p>
+            <p class="footer-text">${translations.footer1}</p>
+            <p class="footer-text">${translations.footer2}</p>
           </div>
         </body>
         </html>
