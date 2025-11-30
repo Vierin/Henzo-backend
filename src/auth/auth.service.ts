@@ -9,6 +9,10 @@ import * as crypto from 'crypto';
 
 @Injectable()
 export class AuthService {
+  // Cache for getCurrentUser to prevent duplicate calls
+  private getCurrentUserCache = new Map<string, { result: any; timestamp: number }>();
+  private readonly CACHE_TTL = 1000; // 1 second cache
+
   constructor(
     private prisma: PrismaService,
     private emailService: EmailService,
@@ -548,6 +552,17 @@ export class AuthService {
       }
 
       const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+      
+      // Check cache to prevent duplicate calls
+      const cacheKey = token.substring(0, 20); // Use first 20 chars as cache key
+      const cached = this.getCurrentUserCache.get(cacheKey);
+      const now = Date.now();
+      
+      if (cached && (now - cached.timestamp) < this.CACHE_TTL) {
+        console.log('✅ Using cached getCurrentUser result');
+        return cached.result;
+      }
+
       console.log('🔑 Token extracted, length:', token.length);
 
       // Verify the token with Supabase
@@ -815,7 +830,7 @@ export class AuthService {
 
       console.log('✅ User found in database:', dbUser.id, dbUser.email);
 
-      return {
+      const result = {
         user: {
           id: dbUser.id,
           email: dbUser.email,
@@ -824,6 +839,21 @@ export class AuthService {
           role: dbUser.role,
         },
       };
+
+      // Cache the result (use same cacheKey as defined earlier)
+      this.getCurrentUserCache.set(cacheKey, {
+        result,
+        timestamp: Date.now(),
+      });
+
+      // Clean up old cache entries
+      for (const [key, value] of this.getCurrentUserCache.entries()) {
+        if (Date.now() - value.timestamp > this.CACHE_TTL * 2) {
+          this.getCurrentUserCache.delete(key);
+        }
+      }
+
+      return result;
     } catch (error: any) {
       console.error('❌ Error in getCurrentUser:', {
         message: error.message,
