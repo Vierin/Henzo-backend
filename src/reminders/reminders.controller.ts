@@ -75,10 +75,11 @@ export class RemindersController {
     }
   }
 
-  // Cron job: Run every day at 9:00 AM to send reminders for tomorrow's bookings
-  @Cron(CronExpression.EVERY_DAY_AT_9AM)
+  // Cron job: Run every 30 minutes to check for bookings that need reminders
+  // This ensures reminders are sent exactly 24 hours before each appointment
+  @Cron('0,15,30,45 * * * *')
   async handleRemindersCron() {
-    console.log('📧 Running reminders cron job...');
+    console.log('📧 Running reminders cron job (every 30 minutes)...');
     try {
       const result = await this.remindersService.sendBookingReminders();
       console.log(`✅ Reminders cron completed: ${result.sent} reminders sent`);

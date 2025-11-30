@@ -39,28 +39,35 @@ export class RemindersService {
 
   async sendBookingReminders() {
     try {
-      console.log('🔔 Starting booking reminders check...');
+      console.log('🔔 Starting booking reminders check (24 hours before)...');
 
-      // Get current date and time
+      // Get current date and time in UTC
       const now = new Date();
-      const tomorrow = new Date(now);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      tomorrow.setHours(0, 0, 0, 0);
 
-      const tomorrowEnd = new Date(tomorrow);
-      tomorrowEnd.setHours(23, 59, 59, 999);
+      // Calculate 24 hours from now (in milliseconds)
+      const twentyFourHoursInMs = 24 * 60 * 60 * 1000;
+
+      // Window for sending reminders: 24 hours ± 15 minutes
+      // This ensures we don't miss reminders if cron runs slightly off schedule
+      // With cron running every 15 minutes, this window is optimal
+      const reminderWindowStart = new Date(
+        now.getTime() + twentyFourHoursInMs - 15 * 60 * 1000,
+      ); // 23.75 hours
+      const reminderWindowEnd = new Date(
+        now.getTime() + twentyFourHoursInMs + 15 * 60 * 1000,
+      ); // 24.25 hours
 
       console.log(
-        `📅 Looking for bookings between ${tomorrow.toISOString()} and ${tomorrowEnd.toISOString()}`,
+        `📅 Looking for bookings scheduled between ${reminderWindowStart.toISOString()} and ${reminderWindowEnd.toISOString()}`,
       );
 
-      // Find bookings that are scheduled for tomorrow
+      // Find CONFIRMED bookings that are scheduled in ~24 hours (within our window)
       const bookings: BookingWithRelations[] =
         await this.prisma.booking.findMany({
           where: {
             dateTime: {
-              gte: tomorrow,
-              lte: tomorrowEnd,
+              gte: reminderWindowStart,
+              lte: reminderWindowEnd,
             },
             status: {
               in: ['CONFIRMED'],
@@ -108,19 +115,21 @@ export class RemindersService {
       // Send reminders for each booking
       for (const booking of bookings) {
         try {
-          // Format date and time for display
+          // Format date and time for display - use UTC to avoid timezone conversion
           const bookingDate = new Date(booking.dateTime);
           const dateStr = bookingDate.toLocaleDateString('en-US', {
             weekday: 'long',
             year: 'numeric',
             month: 'long',
             day: 'numeric',
+            timeZone: 'UTC',
           });
-          const timeStr = bookingDate.toLocaleTimeString('en-US', {
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: true,
-          });
+          // Use UTC hours and minutes directly to avoid timezone conversion
+          const hours = bookingDate.getUTCHours();
+          const minutes = bookingDate.getUTCMinutes();
+          const ampm = hours >= 12 ? 'PM' : 'AM';
+          const displayHours = hours % 12 || 12;
+          const timeStr = `${displayHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')} ${ampm}`;
 
           // Prepare booking data for email
           const bookingData = {

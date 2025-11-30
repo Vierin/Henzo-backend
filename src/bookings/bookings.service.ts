@@ -363,6 +363,7 @@ export class BookingsService {
             select: {
               id: true,
               name: true,
+              description: true,
               duration: true,
               price: true,
             },
@@ -372,6 +373,7 @@ export class BookingsService {
               id: true,
               name: true,
               email: true,
+              accessLevel: true,
             },
           },
           User: {
@@ -473,6 +475,7 @@ export class BookingsService {
             select: {
               id: true,
               name: true,
+              description: true,
               duration: true,
               price: true,
             },
@@ -482,6 +485,7 @@ export class BookingsService {
               id: true,
               name: true,
               email: true,
+              accessLevel: true,
             },
           },
           User: {
@@ -537,6 +541,7 @@ export class BookingsService {
             select: {
               id: true,
               name: true,
+              description: true,
               duration: true,
               price: true,
             },
@@ -546,6 +551,7 @@ export class BookingsService {
               id: true,
               name: true,
               email: true,
+              accessLevel: true,
             },
           },
           User: {
@@ -944,6 +950,7 @@ export class BookingsService {
             select: {
               id: true,
               name: true,
+              description: true,
               duration: true,
               price: true,
             },
@@ -953,6 +960,7 @@ export class BookingsService {
               id: true,
               name: true,
               email: true,
+              accessLevel: true,
             },
           },
           User: {
@@ -975,18 +983,18 @@ export class BookingsService {
       // Send email notification if status changed
       if (statusChanged && updatedBooking.User?.email) {
         try {
-          // Format date and time for email
+          // Format date and time for email - use UTC to avoid timezone conversion
           const bookingDate = new Date(updatedBooking.dateTime);
           const formattedDate = bookingDate.toLocaleDateString('en-US', {
             month: 'long',
             day: 'numeric',
             year: 'numeric',
+            timeZone: 'UTC',
           });
-          const formattedTime = bookingDate.toLocaleTimeString('en-US', {
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false,
-          });
+          // Use UTC hours and minutes directly to avoid timezone conversion
+          const hours = bookingDate.getUTCHours().toString().padStart(2, '0');
+          const minutes = bookingDate.getUTCMinutes().toString().padStart(2, '0');
+          const formattedTime = `${hours}:${minutes}`;
 
           if (data.status === 'CONFIRMED') {
             // Send confirmation email to client
@@ -1244,34 +1252,26 @@ export class BookingsService {
         const [time, ms] = timePart.split('.');
         const [hours, minutes, seconds] = time.split(':').map(Number);
 
-        // Create a local date with the same time components (no timezone conversion)
-        const localDate = new Date(
-          year,
-          month - 1,
-          day,
-          hours,
-          minutes,
-          seconds || 0,
-          0,
-        );
-
-        const formattedDate = localDate.toLocaleDateString('en-US', {
-          weekday: 'long',
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric',
-        });
-
-        const formattedTime = localDate.toLocaleTimeString('en-US', {
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false,
-        });
+        // Format date and time using UTC components directly (no timezone conversion)
+        const monthNames = [
+          'January', 'February', 'March', 'April', 'May', 'June',
+          'July', 'August', 'September', 'October', 'November', 'December'
+        ];
+        const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        
+        // Create a UTC date object to get weekday
+        const utcDate = new Date(Date.UTC(year, month - 1, day));
+        const weekday = dayNames[utcDate.getUTCDay()];
+        
+        const formattedDate = `${weekday}, ${monthNames[month - 1]} ${day}, ${year}`;
+        
+        // Format time using UTC hours and minutes directly (HH:MM format, no timezone conversion)
+        const formattedTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
 
         return { formattedDate, formattedTime };
       }
 
-      // Fallback to regular parsing
+      // Fallback to regular parsing - use UTC to avoid timezone conversion
       const bookingDate = new Date(dateTimeString);
 
       const formattedDate = bookingDate.toLocaleDateString('en-US', {
@@ -1279,12 +1279,13 @@ export class BookingsService {
         year: 'numeric',
         month: 'long',
         day: 'numeric',
+        timeZone: 'UTC',
       });
-      const formattedTime = bookingDate.toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      });
+
+      // Use UTC hours and minutes directly to avoid timezone conversion
+      const hours = bookingDate.getUTCHours().toString().padStart(2, '0');
+      const minutes = bookingDate.getUTCMinutes().toString().padStart(2, '0');
+      const formattedTime = `${hours}:${minutes}`;
 
       return { formattedDate, formattedTime };
     } catch (error) {
@@ -1397,8 +1398,9 @@ export class BookingsService {
 
       this.logger.log('Magic link confirmed, booking created', {
         bookingId: booking.id,
+        email: pendingBooking.email,
       });
-      return { bookingId: booking.id, booking };
+      return { bookingId: booking.id, booking, email: pendingBooking.email };
     } catch (error) {
       this.logger.error('Error confirming magic link', error);
       throw error;

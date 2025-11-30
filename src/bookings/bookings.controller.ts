@@ -612,6 +612,7 @@ export class BookingsController {
       return {
         success: true,
         bookingId: result.bookingId,
+        email: result.email,
         message: 'Booking confirmed successfully',
       };
     } catch (error) {

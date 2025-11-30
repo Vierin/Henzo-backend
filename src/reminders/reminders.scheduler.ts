@@ -6,29 +6,20 @@ import { RemindersService } from './reminders.service';
 export class RemindersScheduler {
   constructor(private readonly remindersService: RemindersService) {}
 
-  // Run every day at 9:00 AM
-  @Cron(CronExpression.EVERY_DAY_AT_9AM)
-  async handleDailyReminders() {
-    console.log('🕘 Running daily booking reminders check...');
+  // Run every 15 minutes to check for bookings that need reminders
+  // This ensures we catch all bookings exactly 24 hours before their appointment time
+  // The window in sendBookingReminders is ±15 minutes, so running every 15 min is optimal
+  @Cron('0,15,30,45 * * * *')
+  async handleRemindersCheck() {
+    console.log('🕐 Running booking reminders check (every 15 minutes)...');
 
     try {
       const result = await this.remindersService.sendBookingReminders();
-      console.log('✅ Daily reminders completed:', result);
+      console.log(
+        `✅ Reminders check completed: ${result.sent} sent, ${result.errors} errors`,
+      );
     } catch (error) {
-      console.error('❌ Error in daily reminders:', error);
-    }
-  }
-
-  // Run every 6 hours for more frequent checks
-  @Cron('0 */6 * * *')
-  async handleFrequentReminders() {
-    console.log('🕐 Running frequent booking reminders check...');
-
-    try {
-      const result = await this.remindersService.sendBookingReminders();
-      console.log('✅ Frequent reminders completed:', result);
-    } catch (error) {
-      console.error('❌ Error in frequent reminders:', error);
+      console.error('❌ Error in reminders check:', error);
     }
   }
 }
