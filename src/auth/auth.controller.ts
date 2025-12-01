@@ -359,7 +359,16 @@ export class AuthController {
         );
       }
 
-      // Извлекаем bot_id из токена (первые цифры до двоеточия)
+      // Telegram Login Widget может использовать как bot_id (число), так и username (строка)
+      // Проверяем, есть ли username в переменных окружения
+      const botUsername = process.env.TELEGRAM_BOT_USERNAME;
+
+      if (botUsername) {
+        // Используем username, если он указан (рекомендуется)
+        return { botId: botUsername };
+      }
+
+      // Иначе используем bot_id из токена (первые цифры до двоеточия)
       const botId = botToken.split(':')[0];
 
       return { botId };
