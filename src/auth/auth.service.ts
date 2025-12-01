@@ -10,7 +10,10 @@ import * as crypto from 'crypto';
 @Injectable()
 export class AuthService {
   // Cache for getCurrentUser to prevent duplicate calls
-  private getCurrentUserCache = new Map<string, { result: any; timestamp: number }>();
+  private getCurrentUserCache = new Map<
+    string,
+    { result: any; timestamp: number }
+  >();
   private readonly CACHE_TTL = 1000; // 1 second cache
 
   constructor(
@@ -423,7 +426,98 @@ export class AuthService {
       });
 
       if (existingUser) {
-        console.log('❌ User already exists:', data.email);
+        // Если пользователь уже есть и это не клиент — блокируем регистрацию
+        if (existingUser.role !== 'CLIENT') {
+          console.log(
+            '❌ User with this email exists but is not a client:',
+            data.email,
+          );
+          throw new Error('User with this email already exists');
+        }
+
+        // Вариант 3: "апгрейд" гостевого клиента до полноценного аккаунта
+        if (existingUser.isGuest) {
+          console.log(
+            '🔁 Upgrading guest client user to full account:',
+            data.email,
+          );
+
+          // Создаем пользователя в Supabase (если его ещё нет)
+          console.log(
+            '📧 Creating/upgrading user in Supabase for guest client...',
+          );
+          const { data: authData, error: authError } =
+            await supabase.auth.signUp({
+              email: data.email,
+              password: data.password,
+              options: {
+                emailRedirectTo: undefined,
+              },
+            });
+
+          if (authError) {
+            console.error(
+              '❌ Supabase auth error while upgrading guest client:',
+              authError.message,
+            );
+            throw new Error(authError.message);
+          }
+
+          if (!authData.user) {
+            console.error(
+              '❌ No user data returned from Supabase while upgrading guest client',
+            );
+            throw new Error('Failed to create user');
+          }
+
+          console.log(
+            '✅ Guest client user created in Supabase:',
+            authData.user.id,
+          );
+
+          // Обновляем данные существующего пользователя в нашей БД
+          const user = await this.prisma.user.update({
+            where: { email: data.email },
+            data: {
+              name: data.name ?? existingUser.name,
+              phone: data.phone ?? existingUser.phone,
+              role: 'CLIENT',
+              isGuest: false,
+            },
+          });
+
+          // Синхронизируем роль в app_metadata Supabase
+          try {
+            await supabase.auth.admin.updateUserById(authData.user.id, {
+              app_metadata: {
+                role: 'CLIENT',
+              },
+            });
+            console.log(
+              `✅ Role synced to app_metadata for upgraded client ${authData.user.id}`,
+            );
+          } catch (error) {
+            console.error(
+              '⚠️ Failed to sync role to app_metadata for upgraded client:',
+              error,
+            );
+          }
+
+          return {
+            user: {
+              id: user.id,
+              email: user.email,
+              name: user.name,
+              phone: user.phone,
+              role: user.role,
+            },
+            session: authData.session,
+          };
+        }
+
+        // Если пользователь уже существует и не является гостем-клиентом —
+        // считаем, что аккаунт уже полностью зарегистрирован.
+        console.log('❌ User already exists as full client:', data.email);
         throw new Error('User with this email already exists');
       }
 
@@ -512,8 +606,9 @@ export class AuthService {
       }
 
       // Получаем информацию о пользователе из нашей базы данных
+      // Используем email как стабильный идентификатор между Supabase и нашей БД
       const user = await this.prisma.user.findUnique({
-        where: { id: authData.user.id },
+        where: { email: data.email.toLowerCase() },
       });
 
       if (!user) {
@@ -552,13 +647,13 @@ export class AuthService {
       }
 
       const token = authHeader.substring(7); // Remove 'Bearer ' prefix
-      
+
       // Check cache to prevent duplicate calls
       const cacheKey = token.substring(0, 20); // Use first 20 chars as cache key
       const cached = this.getCurrentUserCache.get(cacheKey);
       const now = Date.now();
-      
-      if (cached && (now - cached.timestamp) < this.CACHE_TTL) {
+
+      if (cached && now - cached.timestamp < this.CACHE_TTL) {
         console.log('✅ Using cached getCurrentUser result');
         return cached.result;
       }
@@ -585,9 +680,15 @@ export class AuthService {
       console.log('✅ User verified in Supabase:', user.id, user.email);
 
       // Get user data from our database
+      // IMPORTANT: we use email as the stable link between Supabase and our DB,
+      // because some users (e.g. guests created via bookings) may have been
+      // created before a Supabase account existed.
       console.log('🔍 Looking up user in database...');
+      if (!user.email) {
+        throw new Error('User email is missing');
+      }
       let dbUser = await this.prisma.user.findUnique({
-        where: { id: user.id },
+        where: { email: user.email.toLowerCase() },
       });
 
       // Синхронизируем роль в app_metadata если она есть в БД, но отсутствует в JWT
@@ -1454,7 +1555,7 @@ export class AuthService {
           role: existingUser.role,
           id: existingUser.id,
         });
-        
+
         // Если пользователь существует и это OWNER, не отправляем magic link
         if (existingUser.role === 'OWNER') {
           throw new BadRequestException(
@@ -1469,8 +1570,11 @@ export class AuthService {
       }
 
       // Также проверяем в Supabase Auth (пользователь может существовать там, но не в нашей БД)
-      console.log('🔍 Checking Supabase Auth for user with email:', normalizedEmail);
-      
+      console.log(
+        '🔍 Checking Supabase Auth for user with email:',
+        normalizedEmail,
+      );
+
       let existingSupabaseUser: any = null;
       let page = 1;
       const perPage = 1000;
@@ -1479,13 +1583,19 @@ export class AuthService {
 
       // Используем пагинацию для поиска пользователя в Supabase
       while (hasMore && !foundError) {
-        const { data: { users }, error: listError } = await supabase.auth.admin.listUsers({
+        const {
+          data: { users },
+          error: listError,
+        } = await supabase.auth.admin.listUsers({
           page,
           perPage,
         });
-        
+
         if (listError) {
-          console.error('⚠️ Error listing users from Supabase (page ' + page + '):', listError.message);
+          console.error(
+            '⚠️ Error listing users from Supabase (page ' + page + '):',
+            listError.message,
+          );
           foundError = true;
           // Не прерываем выполнение, но логируем ошибку
           // Продолжаем, чтобы проверить хотя бы первую страницу
@@ -1499,7 +1609,7 @@ export class AuthService {
 
         // Ищем пользователя с нужным email на текущей странице
         const foundUser = users.find(
-          (user: any) => user.email?.toLowerCase().trim() === normalizedEmail
+          (user: any) => user.email?.toLowerCase().trim() === normalizedEmail,
         );
 
         if (foundUser) {
@@ -1520,15 +1630,17 @@ export class AuthService {
         console.log('❌ User found in Supabase Auth:', {
           email: existingSupabaseUser.email,
           id: existingSupabaseUser.id,
-          role: existingSupabaseUser.user_metadata?.role || existingSupabaseUser.app_metadata?.role,
+          role:
+            existingSupabaseUser.user_metadata?.role ||
+            existingSupabaseUser.app_metadata?.role,
           emailConfirmed: !!existingSupabaseUser.email_confirmed_at,
         });
 
         // Проверяем роль в метаданных Supabase
-        const userRole = 
-          existingSupabaseUser.user_metadata?.role || 
+        const userRole =
+          existingSupabaseUser.user_metadata?.role ||
           existingSupabaseUser.app_metadata?.role;
-        
+
         // Если это OWNER или ADMIN, не отправляем
         if (userRole === 'OWNER' || userRole === 'ADMIN') {
           throw new BadRequestException(
@@ -1546,17 +1658,21 @@ export class AuthService {
       console.log('✅ No existing user found, proceeding with magic link');
 
       // Проверяем, нет ли активных pending registrations для этого email
-      const activePendingReg = await this.prisma.pendingBusinessRegistration.findFirst({
-        where: {
-          email: normalizedEmail,
-          expiresAt: {
-            gt: new Date(), // Только не истекшие
+      const activePendingReg =
+        await this.prisma.pendingBusinessRegistration.findFirst({
+          where: {
+            email: normalizedEmail,
+            expiresAt: {
+              gt: new Date(), // Только не истекшие
+            },
           },
-        },
-      });
+        });
 
       if (activePendingReg) {
-        console.log('⚠️ Active pending registration found for email:', normalizedEmail);
+        console.log(
+          '⚠️ Active pending registration found for email:',
+          normalizedEmail,
+        );
         // Можно либо удалить старую и создать новую, либо вернуть ошибку
         // Возвращаем ошибку, чтобы не спамить email
         throw new BadRequestException(
@@ -1565,17 +1681,21 @@ export class AuthService {
       }
 
       // Удаляем только истекшие pending registrations для этого email
-      const deletedCount = await this.prisma.pendingBusinessRegistration.deleteMany({
-        where: {
-          email: normalizedEmail,
-          expiresAt: {
-            lt: new Date(),
+      const deletedCount =
+        await this.prisma.pendingBusinessRegistration.deleteMany({
+          where: {
+            email: normalizedEmail,
+            expiresAt: {
+              lt: new Date(),
+            },
           },
-        },
-      });
+        });
 
       if (deletedCount.count > 0) {
-        console.log(`🗑️ Deleted ${deletedCount.count} expired pending registration(s) for email:`, normalizedEmail);
+        console.log(
+          `🗑️ Deleted ${deletedCount.count} expired pending registration(s) for email:`,
+          normalizedEmail,
+        );
       }
 
       // Генерируем токен
@@ -1603,7 +1723,7 @@ export class AuthService {
           role: finalCheckUser.role,
           id: finalCheckUser.id,
         });
-        
+
         // Удаляем только что созданную pending registration
         await this.prisma.pendingBusinessRegistration.delete({
           where: { id: pendingReg.id },
@@ -1625,8 +1745,11 @@ export class AuthService {
         'http://localhost:3000';
       const registerUrl = `${frontendUrl}/business/register?email=${encodeURIComponent(email)}&token=${token}&name=${encodeURIComponent(name)}`;
 
-      console.log('📧 Sending business registration magic link email to:', normalizedEmail);
-      
+      console.log(
+        '📧 Sending business registration magic link email to:',
+        normalizedEmail,
+      );
+
       // Отправляем email
       await this.emailService.sendBusinessRegistrationMagicLink(
         email,

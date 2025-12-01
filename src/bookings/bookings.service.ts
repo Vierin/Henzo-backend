@@ -62,6 +62,10 @@ export class BookingsService {
           name: name || emailNormalized.split('@')[0], // Use email prefix as default name
           phone: phone || null,
           role: 'CLIENT',
+          // Mark as guest so we can later "upgrade" this user to a full account
+          // during explicit registration flow without treating it as a conflict.
+          // @ts-ignore - isGuest field will be available after migration
+          isGuest: true,
           // Password will be set when user first logs in via password reset
         },
       });
