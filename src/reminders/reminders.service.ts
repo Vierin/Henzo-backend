@@ -62,8 +62,10 @@ export class RemindersService {
       );
 
       // Find CONFIRMED bookings that are scheduled in ~24 hours (within our window)
-      const bookings: BookingWithRelations[] =
-        await this.prisma.booking.findMany({
+      // Добавляем обработку ошибок пула соединений с retry
+      // Используем select вместо include для оптимизации и уменьшения нагрузки на пул соединений
+      const bookings: BookingWithRelations[] = await this.prisma.booking
+        .findMany({
           where: {
             dateTime: {
               gte: reminderWindowStart,
@@ -74,7 +76,11 @@ export class RemindersService {
             },
             reminderSent: false, // Only send reminders that haven't been sent yet
           },
-          include: {
+          select: {
+            id: true,
+            dateTime: true,
+            status: true,
+            reminderSent: true,
             User: {
               select: {
                 id: true,
@@ -105,6 +111,18 @@ export class RemindersService {
               },
             },
           },
+        })
+        .catch((error) => {
+          // Обработка ошибок пула соединений
+          if (error.code === 'P2024') {
+            console.error(
+              '❌ Connection pool timeout. Retrying in 5 seconds...',
+            );
+            throw new Error(
+              'Connection pool exhausted. Please try again later.',
+            );
+          }
+          throw error;
         });
 
       console.log(`📊 Found ${bookings.length} bookings to send reminders for`);
