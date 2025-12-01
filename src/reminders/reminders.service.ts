@@ -58,7 +58,7 @@ export class RemindersService {
       ); // 24.25 hours
 
       console.log(
-        `📅 Looking for bookings scheduled between ${reminderWindowStart.toISOString()} and ${reminderWindowEnd.toISOString()}`,
+        `Looking for bookings scheduled between ${reminderWindowStart.toISOString()} and ${reminderWindowEnd.toISOString()}`,
       );
 
       // Find CONFIRMED bookings that are scheduled in ~24 hours (within our window)
@@ -192,10 +192,6 @@ export class RemindersService {
       // Get current date and time
       const now = new Date();
       const threeHoursAgo = new Date(now.getTime() - 3 * 60 * 60 * 1000);
-
-      console.log(
-        `⏰ Looking for PENDING bookings created before ${threeHoursAgo.toISOString()}`,
-      );
 
       // Find pending bookings older than 3 hours
       const pendingBookings = await this.prisma.booking.findMany({

@@ -1169,6 +1169,7 @@ export class BookingsService {
           salonAddress: updatedBooking.Salon?.address ?? undefined,
           salonPhone: updatedBooking.Salon?.phone ?? undefined,
           staffName: updatedBooking.Staff?.name,
+          dateTime: updatedBooking.dateTime, // Pass dateTime for Google Calendar
         },
       );
 

@@ -103,6 +103,48 @@ export class EmailService {
     }
   }
 
+  private generateGoogleCalendarUrl(bookingData: {
+    serviceName: string;
+    dateTime: Date;
+    duration: number;
+    salonName: string;
+    salonAddress?: string;
+    staffName?: string;
+  }): string {
+    const startDate = new Date(bookingData.dateTime);
+    const endDate = new Date(
+      startDate.getTime() + bookingData.duration * 60 * 1000,
+    );
+
+    // Format dates as YYYYMMDDTHHMMSSZ (UTC)
+    const formatDate = (date: Date): string => {
+      const year = date.getUTCFullYear();
+      const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(date.getUTCDate()).padStart(2, '0');
+      const hours = String(date.getUTCHours()).padStart(2, '0');
+      const minutes = String(date.getUTCMinutes()).padStart(2, '0');
+      const seconds = String(date.getUTCSeconds()).padStart(2, '0');
+      return `${year}${month}${day}T${hours}${minutes}${seconds}Z`;
+    };
+
+    const start = formatDate(startDate);
+    const end = formatDate(endDate);
+
+    const title = encodeURIComponent(
+      `${bookingData.serviceName} at ${bookingData.salonName}`,
+    );
+    const details = encodeURIComponent(
+      `Service: ${bookingData.serviceName}\n${
+        bookingData.staffName ? `Staff: ${bookingData.staffName}\n` : ''
+      }Salon: ${bookingData.salonName}`,
+    );
+    const location = encodeURIComponent(
+      bookingData.salonAddress || bookingData.salonName,
+    );
+
+    return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${start}/${end}&details=${details}&location=${location}`;
+  }
+
   async sendBookingConfirmation(
     clientEmail: string,
     clientName: string,
@@ -116,6 +158,7 @@ export class EmailService {
       salonAddress?: string;
       salonPhone?: string;
       staffName?: string;
+      dateTime?: Date | string; // ISO string or Date object
     },
   ) {
     try {
@@ -143,7 +186,7 @@ export class EmailService {
         <body>
           <div class="container">
             <div class="header">
-              <h1>🎉 Booking Confirmed!</h1>
+              <h1>Booking Confirmed!</h1>
               <p>Your appointment at ${bookingData.salonName} has been confirmed</p>
             </div>
             
@@ -152,7 +195,7 @@ export class EmailService {
               <p>Thank you for booking with us. Here are your appointment details:</p>
               
               <div class="booking-details">
-                <h3>📅 Appointment Details</h3>
+                <h3>Appointment Details</h3>
                 <div class="detail-row">
                   <span class="detail-label">Service:</span>
                   <span class="detail-value">${bookingData.serviceName}</span>
@@ -215,6 +258,32 @@ export class EmailService {
 
               <p><strong>Important:</strong> Please arrive 5-10 minutes before your appointment time.</p>
               <p>If you need to reschedule or cancel, please contact the salon directly.</p>
+              
+              ${
+                bookingData.dateTime
+                  ? `
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${this.generateGoogleCalendarUrl({
+                  serviceName: bookingData.serviceName,
+                  dateTime:
+                    typeof bookingData.dateTime === 'string'
+                      ? new Date(bookingData.dateTime)
+                      : bookingData.dateTime,
+                  duration: bookingData.duration,
+                  salonName: bookingData.salonName,
+                  salonAddress: bookingData.salonAddress,
+                  staffName: bookingData.staffName,
+                })}" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  class="button"
+                  style="display: inline-block; background-color: #4285f4; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 20px 0; font-weight: bold;">
+                  Add to Google Calendar
+                </a>
+              </div>
+              `
+                  : ''
+              }
             </div>
             
             <div class="footer">
@@ -319,7 +388,7 @@ export class EmailService {
               </div>
 
               <div class="booking-details">
-                <h3>📅 Appointment Details</h3>
+                <h3>Appointment Details</h3>
                 <div class="detail-row">
                   <span class="detail-label">Service:</span>
                   <span class="detail-value">${bookingData.serviceName}</span>
@@ -430,7 +499,7 @@ export class EmailService {
         <body>
           <div class="container">
             <div class="header">
-              <h1>⏰ Appointment Reminder</h1>
+              <h1>Appointment Reminder</h1>
               <p>Your appointment at ${bookingData.salonName} is tomorrow!</p>
             </div>
             
@@ -443,7 +512,7 @@ export class EmailService {
               </div>
               
               <div class="booking-details">
-                <h3>📅 Appointment Details</h3>
+                <h3>Appointment Details</h3>
                 <div class="detail-row">
                   <span class="detail-label">Service:</span>
                   <span class="detail-value">${bookingData.serviceName}</span>
@@ -690,7 +759,7 @@ export class EmailService {
             
             <div class="content">
               <div class="urgent">
-                <h3>⏰ Please confirm or reject this booking</h3>
+                <h3>Please confirm or reject this booking</h3>
                 <p>A client is waiting for your response</p>
               </div>
               
@@ -717,7 +786,7 @@ export class EmailService {
               </div>
 
               <div class="booking-details">
-                <h3>📅 Appointment Details</h3>
+                <h3>Appointment Details</h3>
                 <div class="detail-row">
                   <span class="detail-label">Service:</span>
                   <span class="detail-value">${bookingData.serviceName}</span>
@@ -838,13 +907,13 @@ export class EmailService {
               <h2>Hello ${clientName}!</h2>
               
               <div class="pending-notice">
-                <h3>⏰ Awaiting Salon Confirmation</h3>
+                <h3>Awaiting Salon Confirmation</h3>
                 <p>Your booking request has been sent to <strong>${bookingData.salonName}</strong>.</p>
                 <p>Usually the salon confirms the booking within 2 hours. We'll notify you as soon as the salon confirms your appointment.</p>
               </div>
               
               <div class="booking-details">
-                <h3>📅 Requested Appointment Details</h3>
+                <h3>Requested Appointment Details</h3>
                 <div class="detail-row">
                   <span class="detail-label">Service:</span>
                   <span class="detail-value">${bookingData.serviceName}</span>
@@ -1001,7 +1070,7 @@ export class EmailService {
               </div>
               
               <div class="booking-details">
-                <h3>📅 Requested Appointment Details</h3>
+                <h3>Requested Appointment Details</h3>
                 <div class="detail-row">
                   <span class="detail-label">Service:</span>
                   <span class="detail-value">${bookingData.serviceName}</span>
@@ -1102,219 +1171,6 @@ export class EmailService {
     }
   }
 
-  async sendInviteCode(
-    ownerEmail: string,
-    inviteData: {
-      code: string;
-      registrationLink: string;
-    },
-  ) {
-    // Add email to registration link
-    const linkWithEmail = `${inviteData.registrationLink}&email=${encodeURIComponent(ownerEmail)}`;
-    inviteData.registrationLink = linkWithEmail;
-    try {
-      const htmlContent = `
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <style>
-              body {
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                line-height: 1.6;
-                color: #333;
-                background-color: #f4f4f4;
-                margin: 0;
-                padding: 0;
-              }
-              .container {
-                max-width: 600px;
-                margin: 20px auto;
-                background-color: #ffffff;
-                border-radius: 8px;
-                overflow: hidden;
-                box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
-              }
-              .header {
-                background: linear-gradient(135deg, #ff5b5b 0%, #ff7979 100%);
-                color: white;
-                padding: 30px;
-                text-align: center;
-              }
-              .header h1 {
-                margin: 0;
-                font-size: 28px;
-                font-weight: 600;
-              }
-              .content {
-                padding: 40px 30px;
-              }
-              .welcome-text {
-                font-size: 18px;
-                color: #2c3e50;
-                margin-bottom: 20px;
-              }
-              .invite-box {
-                background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-                border-left: 4px solid #ff5b5b;
-                padding: 25px;
-                margin: 25px 0;
-                border-radius: 8px;
-              }
-              .invite-code {
-                font-size: 32px;
-                font-weight: bold;
-                color: #ff5b5b;
-                letter-spacing: 3px;
-                text-align: center;
-                margin: 15px 0;
-                font-family: 'Courier New', monospace;
-              }
-              .button {
-                display: inline-block;
-                padding: 15px 40px;
-                background: linear-gradient(135deg, #ff5b5b 0%, #ff7979 100%);
-                color: white !important;
-                text-decoration: none;
-                border-radius: 25px;
-                font-weight: 600;
-                text-align: center;
-                margin: 20px 0;
-                transition: transform 0.2s;
-              }
-              .button:hover {
-                transform: translateY(-2px);
-              }
-              .button-container {
-                text-align: center;
-              }
-              .info-text {
-                background-color: #fff3cd;
-                border: 1px solid #ffc107;
-                border-radius: 8px;
-                padding: 15px;
-                margin: 20px 0;
-                color: #856404;
-              }
-              .features {
-                margin: 30px 0;
-              }
-              .feature-item {
-                display: flex;
-                align-items: start;
-                margin: 15px 0;
-              }
-              .feature-icon {
-                color: #ff5b5b;
-                margin-right: 10px;
-                font-size: 20px;
-              }
-              .footer {
-                background-color: #f8f9fa;
-                padding: 25px;
-                text-align: center;
-                color: #6c757d;
-                font-size: 14px;
-                border-top: 1px solid #dee2e6;
-              }
-              .footer a {
-                color: #ff5b5b;
-                text-decoration: none;
-              }
-            </style>
-          </head>
-          <body>
-            <div class="container">
-              <div class="header">
-                <h1>🎉 Welcome to Henzo!</h1>
-              </div>
-
-              <div class="content">
-                <p class="welcome-text">Hello,</p>
-                
-                <p>We're excited to invite you to join <strong>Henzo</strong> - the leading beauty salon management platform!</p>
-
-                <div class="invite-box">
-                  <p style="text-align: center; margin: 0; color: #6c757d; font-size: 14px;">Your Invitation Code</p>
-                  <div class="invite-code">${inviteData.code}</div>
-                  <p style="text-align: center; margin: 0; color: #6c757d; font-size: 12px;">This code is valid for one-time use only</p>
-                </div>
-
-                <div class="button-container">
-                  <a href="${inviteData.registrationLink}" class="button">
-                    Complete Registration →
-                  </a>
-                </div>
-
-                <div class="info-text">
-                  <strong>⏰ Next Steps:</strong><br>
-                  1. Click the button above to start registration<br>
-                  2. Complete your salon profile<br>
-                  3. Start accepting bookings!
-                </div>
-
-                <div class="features">
-                  <h3 style="color: #2c3e50;">What You'll Get:</h3>
-                  <div class="feature-item">
-                    <span class="feature-icon">✓</span>
-                    <span><strong>Online Booking System:</strong> Let clients book appointments 24/7</span>
-                  </div>
-                  <div class="feature-item">
-                    <span class="feature-icon">✓</span>
-                    <span><strong>Customer Management:</strong> Track client history and preferences</span>
-                  </div>
-                  <div class="feature-item">
-                    <span class="feature-icon">✓</span>
-                    <span><strong>Automated Notifications:</strong> Email reminders for clients</span>
-                  </div>
-                  <div class="feature-item">
-                    <span class="feature-icon">✓</span>
-                    <span><strong>Analytics Dashboard:</strong> Track your salon's performance</span>
-                  </div>
-                  <div class="feature-item">
-                    <span class="feature-icon">✓</span>
-                    <span><strong>Service Management:</strong> Easy setup for services and pricing</span>
-                  </div>
-                </div>
-
-                <p style="color: #6c757d; font-size: 14px; margin-top: 30px;">
-                  If you have any questions, feel free to contact our support team.
-                </p>
-              </div>
-
-              <div class="footer">
-                <p>
-                  This invitation was sent to <strong>${ownerEmail}</strong><br>
-                  If you didn't request this invitation, please ignore this email.
-                </p>
-                <p style="margin-top: 15px;">
-                  <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}">Visit Henzo</a> | 
-                  <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/contact">Contact Support</a>
-                </p>
-              </div>
-            </div>
-          </body>
-        </html>
-      `;
-
-      await this.sendEmailViaBrevo({
-        to: [{ email: ownerEmail, name: 'Salon Owner' }],
-        sender: {
-          email: 'noreply@henzo.app',
-          name: 'Henzo Team',
-        },
-        subject: `🎉 Your Invitation to Join Henzo - Code: ${inviteData.code}`,
-        htmlContent,
-      });
-
-      console.log(`✅ Invite code email sent to ${ownerEmail}`);
-    } catch (error) {
-      console.error('❌ Error sending invite code email:', error);
-      throw error;
-    }
-  }
-
   async sendMagicLinkConfirmation(
     clientEmail: string,
     data: {
@@ -1365,7 +1221,7 @@ export class EmailService {
               </div>
 
               <div class="booking-details">
-                <h3>📅 Booking Details</h3>
+                <h3>Booking Details</h3>
                 <div class="detail-row">
                   <span class="detail-label">Service:</span>
                   <span class="detail-value">${data.serviceName}</span>
@@ -1385,7 +1241,7 @@ export class EmailService {
               </div>
 
               <div class="notice">
-                <p><strong>⏰ Important:</strong> This confirmation link will expire in 1 hour.</p>
+                <p><strong>Important:</strong> This confirmation link will expire in 1 hour.</p>
                 <p>If you didn't request this booking, please ignore this email.</p>
               </div>
 
@@ -1509,10 +1365,15 @@ export class EmailService {
       };
 
       const result = await this.sendEmailViaBrevo(emailData);
-      console.log('✅ Business registration magic link sent successfully via Brevo');
+      console.log(
+        '✅ Business registration magic link sent successfully via Brevo',
+      );
       return result;
     } catch (error) {
-      console.error('❌ Error sending business registration magic link:', error);
+      console.error(
+        '❌ Error sending business registration magic link:',
+        error,
+      );
       throw error;
     }
   }

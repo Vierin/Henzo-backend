@@ -82,7 +82,6 @@ model Salon {
   ownerId       String
   createdAt     DateTime      @default(now())
   categoryIds   Int[]
-  inviteCodeId  String?
   latitude      Float?
   longitude     Float?
   descriptionEn String?
@@ -308,9 +307,3 @@ enum UserRole {
   CLIENT
 }
 
-enum InviteCodeStatus {
-  ACTIVE
-  EXPIRED
-  REVOKED
-  EXHAUSTED
-}

@@ -442,16 +442,22 @@ export class AuthService {
             data.email,
           );
 
-          // Создаем пользователя в Supabase (если его ещё нет)
+          // Email уже подтвержден при подтверждении бронирования через magic link
+          // Используем Admin API для создания пользователя с уже подтвержденным email
           console.log(
-            '📧 Creating/upgrading user in Supabase for guest client...',
+            '📧 Creating user in Supabase with confirmed email via Admin API (email already verified via booking confirmation)...',
           );
           const { data: authData, error: authError } =
-            await supabase.auth.signUp({
+            await supabase.auth.admin.createUser({
               email: data.email,
               password: data.password,
-              options: {
-                emailRedirectTo: undefined,
+              email_confirm: true, // Email уже подтвержден при подтверждении бронирования
+              user_metadata: {
+                name: data.name,
+                phone: data.phone,
+              },
+              app_metadata: {
+                role: 'CLIENT',
               },
             });
 
@@ -460,6 +466,70 @@ export class AuthService {
               '❌ Supabase auth error while upgrading guest client:',
               authError.message,
             );
+
+            // Если пользователь уже существует в Supabase, пытаемся войти
+            if (
+              authError.message?.includes('already been registered') ||
+              authError.message?.includes('already exists')
+            ) {
+              console.log(
+                '⚠️ User already exists in Supabase, attempting to sign in...',
+              );
+
+              const { data: signInData, error: signInError } =
+                await supabase.auth.signInWithPassword({
+                  email: data.email,
+                  password: data.password,
+                });
+
+              if (signInError) {
+                throw new Error(
+                  'User already exists. Please use login instead.',
+                );
+              }
+
+              // Обновляем данные существующего пользователя в нашей БД
+              const user = await this.prisma.user.update({
+                where: { email: data.email },
+                data: {
+                  name: data.name ?? existingUser.name,
+                  phone: data.phone ?? existingUser.phone,
+                  role: 'CLIENT',
+                  isGuest: false,
+                  id: signInData.user.id, // Обновляем ID если он изменился
+                },
+              });
+
+              // Синхронизируем роль в app_metadata Supabase
+              try {
+                await supabase.auth.admin.updateUserById(signInData.user.id, {
+                  app_metadata: {
+                    role: 'CLIENT',
+                  },
+                });
+                console.log(
+                  `✅ Role synced to app_metadata for upgraded client ${signInData.user.id}`,
+                );
+              } catch (error) {
+                console.error(
+                  '⚠️ Failed to sync role to app_metadata for upgraded client:',
+                  error,
+                );
+              }
+
+              return {
+                user: {
+                  id: user.id,
+                  email: user.email,
+                  name: user.name,
+                  phone: user.phone,
+                  role: user.role,
+                },
+                session: signInData.session,
+                emailConfirmed: true, // Email уже подтвержден при подтверждении бронирования
+              };
+            }
+
             throw new Error(authError.message);
           }
 
@@ -471,7 +541,7 @@ export class AuthService {
           }
 
           console.log(
-            '✅ Guest client user created in Supabase:',
+            '✅ Guest client user created in Supabase with confirmed email:',
             authData.user.id,
           );
 
@@ -503,6 +573,31 @@ export class AuthService {
             );
           }
 
+          // Admin API не возвращает session, нужно войти для получения сессии
+          const { data: signInData, error: signInError } =
+            await supabase.auth.signInWithPassword({
+              email: data.email,
+              password: data.password,
+            });
+
+          if (signInError || !signInData.session) {
+            console.warn(
+              '⚠️ Could not create session after user creation, but user was created successfully',
+            );
+            // Возвращаем без сессии - фронтенд может попросить пользователя войти
+            return {
+              user: {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                phone: user.phone,
+                role: user.role,
+              },
+              session: null,
+              emailConfirmed: true, // Email уже подтвержден при подтверждении бронирования
+            };
+          }
+
           return {
             user: {
               id: user.id,
@@ -511,7 +606,8 @@ export class AuthService {
               phone: user.phone,
               role: user.role,
             },
-            session: authData.session,
+            session: signInData.session,
+            emailConfirmed: true, // Email уже подтвержден при подтверждении бронирования
           };
         }
 
@@ -1143,7 +1239,7 @@ export class AuthService {
 
       // Удаляем все бронирования пользователя
       if (user.Booking.length > 0) {
-        console.log(`📅 Deleting ${user.Booking.length} bookings`);
+        console.log(`Deleting ${user.Booking.length} bookings`);
         await this.prisma.booking.deleteMany({
           where: { userId: userId },
         });
