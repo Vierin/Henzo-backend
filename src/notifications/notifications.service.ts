@@ -339,4 +339,68 @@ export class NotificationsService {
       // Don't throw - we don't want to fail booking creation if notification fails
     }
   }
+
+  async sendBookingCancellationNotification(
+    salonId: string,
+    bookingId: string,
+    clientName: string,
+    serviceName: string,
+    dateTime: Date,
+  ): Promise<void> {
+    try {
+      console.log(`📤 Preparing to send booking cancellation notification for salon: ${salonId}`);
+      const tokens = await this.getPushTokensBySalonOwner(salonId);
+
+      console.log(`📱 Found ${tokens.length} push token(s) for salon owner`);
+      if (tokens.length > 0) {
+        console.log(`📱 Tokens:`, tokens.map(t => t.token.substring(0, 30) + '...'));
+      }
+
+      if (tokens.length === 0) {
+        console.log('⚠️ No push tokens found for salon owner');
+        return;
+      }
+
+      // Group tokens by language
+      const tokensByLanguage = new Map<string, Array<{ token: string; language: string }>>();
+      tokens.forEach((tokenObj) => {
+        const lang = tokenObj.language || 'en';
+        if (!tokensByLanguage.has(lang)) {
+          tokensByLanguage.set(lang, []);
+        }
+        tokensByLanguage.get(lang)!.push(tokenObj);
+      });
+
+      // Send notification for each language group
+      for (const [language, languageTokens] of tokensByLanguage.entries()) {
+        const title = getNotificationText(language, 'bookingCancelled');
+        const cancelledByText = getNotificationText(language, 'cancelledBy');
+        const body = `${cancelledByText} ${clientName}. ${serviceName}`;
+
+        const formattedDate = new Date(dateTime).toLocaleString(language === 'ru' ? 'ru-RU' : language === 'vi' ? 'vi-VN' : 'en-US', {
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+
+        console.log(`📤 Sending booking cancellation notification (${language}):`, { title, body, bookingId, dateTime });
+
+        await this.sendPushNotification(languageTokens, title, body, {
+          type: 'BOOKING_CANCELLED',
+          bookingId,
+          salonId,
+          clientName,
+          serviceName,
+          dateTime: dateTime.toISOString(),
+          formattedDate,
+        });
+      }
+
+      console.log('✅ Booking cancellation notification sent successfully');
+    } catch (error) {
+      console.error('❌ Error sending booking cancellation notification:', error);
+      // Don't throw - we don't want to fail booking cancellation if notification fails
+    }
+  }
 }

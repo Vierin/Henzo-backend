@@ -4,18 +4,24 @@ export const notificationTranslations = {
     requested: 'Requested',
     confirm: 'Confirm',
     reject: 'Reject',
+    bookingCancelled: 'Booking Cancelled',
+    cancelledBy: 'Cancelled by',
   },
   ru: {
     newBookingRequest: 'Новая заявка на запись',
     requested: 'Запрошено',
     confirm: 'Подтвердить',
     reject: 'Отклонить',
+    bookingCancelled: 'Бронирование отменено',
+    cancelledBy: 'Отменено',
   },
   vi: {
     newBookingRequest: 'Yêu cầu đặt lịch mới',
     requested: 'Đã yêu cầu',
     confirm: 'Xác nhận',
     reject: 'Từ chối',
+    bookingCancelled: 'Đặt lịch đã bị hủy',
+    cancelledBy: 'Đã hủy bởi',
   },
 };
 

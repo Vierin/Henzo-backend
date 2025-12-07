@@ -853,6 +853,22 @@ export class BookingsService {
         },
       });
 
+      // Send push notification to salon owner if client cancelled the booking
+      if (isClient && booking.Salon?.id && updatedBooking.Service) {
+        try {
+          await this.notificationsService.sendBookingCancellationNotification(
+            booking.Salon.id,
+            bookingId,
+            booking.User?.name || booking.User?.email || 'Client',
+            updatedBooking.Service.name,
+            new Date(booking.dateTime),
+          );
+        } catch (error) {
+          this.logger.error('Failed to send cancellation notification', error);
+          // Don't throw - notification failure shouldn't fail the cancellation
+        }
+      }
+
       return updatedBooking;
     } catch (error) {
       throw error;
