@@ -18,7 +18,7 @@ export class NotificationsController {
 
   @Post('push-token')
   async savePushToken(
-    @Body() data: { token: string; platform: string },
+    @Body() data: { token: string; platform: string; language?: string },
     @Headers('authorization') authHeader: string,
   ) {
     try {
@@ -28,6 +28,7 @@ export class NotificationsController {
         currentUser.user.id,
         data.token,
         data.platform,
+        data.language || 'en',
       );
 
       return {

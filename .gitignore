@@ -13,6 +13,7 @@ lerna-debug.log*
 
 # OS
 .DS_Store
+config/firebase-service-account.json
 
 # Tests
 /coverage

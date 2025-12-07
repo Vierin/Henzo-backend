@@ -38,6 +38,7 @@
     "@supabase/supabase-js": "^2.45.4",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
+    "firebase-admin": "^12.0.0",
     "multer": "^2.0.2",
     "nanoid": "^5.0.0",
     "nodemailer": "^6.9.15",

@@ -230,6 +230,7 @@ model PushToken {
   userId    String
   token     String   @unique
   platform  String
+  language  String?  @default("en")
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
