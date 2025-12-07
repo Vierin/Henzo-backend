@@ -122,6 +122,8 @@ export class NotificationsService {
         body,
         data: data || {},
         badge: 1,
+        // Android-specific: use bookings channel for booking notifications
+        channelId: data?.type === 'NEW_BOOKING' ? 'bookings' : 'default',
       }));
 
       const response = await fetch('https://exp.host/--/api/v2/push/send', {
