@@ -896,9 +896,12 @@ export class SalonsService {
         photos: true,
         Service: {
           select: {
+            id: true,
             price: true,
+            serviceCategoryId: true,
             service_categories: {
               select: {
+                id: true,
                 name_en: true,
                 name_vn: true,
               },
@@ -970,6 +973,11 @@ export class SalonsService {
         avgRating: Math.round(avgRating * 10) / 10, // Round to 1 decimal
         categories,
         priceRange,
+        services: salon.Service.map((s: any) => ({
+          id: s.id,
+          serviceCategoryId: s.serviceCategoryId,
+          price: s.price,
+        })),
         _count: {
           Service: salon._count?.Service || salon.Service?.length || 0,
           Review: salon._count?.Review || salon.Review?.length || 0,
