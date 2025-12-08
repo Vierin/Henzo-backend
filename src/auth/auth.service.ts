@@ -1599,6 +1599,9 @@ export class AuthService {
   private validateTelegramAuth(data: {
     id: number;
     first_name: string;
+    last_name?: string;
+    username?: string;
+    photo_url?: string;
     auth_date: number;
     hash: string;
   }): boolean {
@@ -1610,8 +1613,16 @@ export class AuthService {
 
     try {
       // Создаем строку для проверки
+      // Важно: исключаем hash и все undefined/null значения
+      // Telegram требует, чтобы в dataCheckString были только те поля, которые реально присутствуют
       const dataCheckString = Object.keys(data)
-        .filter((key) => key !== 'hash')
+        .filter((key) => {
+          // Исключаем hash
+          if (key === 'hash') return false;
+          // Исключаем undefined и null значения
+          const value = data[key as keyof typeof data];
+          return value !== undefined && value !== null && value !== '';
+        })
         .sort()
         .map((key) => `${key}=${data[key as keyof typeof data]}`)
         .join('\n');
