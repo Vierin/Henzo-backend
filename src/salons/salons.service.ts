@@ -435,10 +435,15 @@ export class SalonsService {
 
       // Create salon and subscription in a transaction
       const result = await this.prisma.$transaction(async (prisma) => {
+        // Set default reminder settings if not provided
+        const reminderSettings =
+          createSalonDto.reminderSettings || { intervals: [24] };
+
         // Create the salon
         const salon = await prisma.salon.create({
           data: {
             ...createSalonDto,
+            reminderSettings,
             ...descriptionTranslations,
             latitude,
             longitude,

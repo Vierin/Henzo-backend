@@ -64,5 +64,8 @@ export class UpdateSalonDto {
   @IsOptional()
   workingHours?: InputJsonValue;
 
+  @IsOptional()
+  reminderSettings?: InputJsonValue;
+
   // categoryIds removed: categories are derived from services
 }

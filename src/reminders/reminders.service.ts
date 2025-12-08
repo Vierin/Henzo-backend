@@ -1,12 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
+import { InputJsonValue } from '@prisma/client/runtime/library';
 
 type BookingWithRelations = {
   id: string;
   dateTime: Date;
   status: string;
   reminderSent: boolean;
+  remindersSentIntervals?: number[] | null;
+  salonId: string;
   User: {
     id: string;
     name: string | null;
@@ -23,6 +26,7 @@ type BookingWithRelations = {
     name: string;
     address: string | null;
     phone: string | null;
+    reminderSettings?: any;
   };
   Staff: {
     id: string;
@@ -39,80 +43,85 @@ export class RemindersService {
 
   async sendBookingReminders() {
     try {
-      console.log('🔔 Starting booking reminders check (24 hours before)...');
+      console.log('🔔 Starting booking reminders check for all intervals...');
 
       // Get current date and time in UTC
       const now = new Date();
 
-      // Calculate 24 hours from now (in milliseconds)
-      const twentyFourHoursInMs = 24 * 60 * 60 * 1000;
+      // Define all possible reminder intervals in hours
+      const possibleIntervals = [3, 24, 168]; // 3 hours, 1 day, 1 week
+      const windowMinutes = 15; // ±15 minutes window
 
-      // Window for sending reminders: 24 hours ± 15 minutes
-      // This ensures we don't miss reminders if cron runs slightly off schedule
-      // With cron running every 15 minutes, this window is optimal
-      const reminderWindowStart = new Date(
-        now.getTime() + twentyFourHoursInMs - 15 * 60 * 1000,
-      ); // 23.75 hours
-      const reminderWindowEnd = new Date(
-        now.getTime() + twentyFourHoursInMs + 15 * 60 * 1000,
-      ); // 24.25 hours
+      let totalSent = 0;
+      let totalErrors = 0;
 
-      console.log(
-        `Looking for bookings scheduled between ${reminderWindowStart.toISOString()} and ${reminderWindowEnd.toISOString()}`,
-      );
+      // Process each interval
+      for (const intervalHours of possibleIntervals) {
+        const intervalMs = intervalHours * 60 * 60 * 1000;
+        const reminderWindowStart = new Date(
+          now.getTime() + intervalMs - windowMinutes * 60 * 1000,
+        );
+        const reminderWindowEnd = new Date(
+          now.getTime() + intervalMs + windowMinutes * 60 * 1000,
+        );
 
-      // Find CONFIRMED bookings that are scheduled in ~24 hours (within our window)
-      // Добавляем обработку ошибок пула соединений с retry
-      // Используем select вместо include для оптимизации и уменьшения нагрузки на пул соединений
-      const bookings: BookingWithRelations[] = await this.prisma.booking
-        .findMany({
-          where: {
-            dateTime: {
-              gte: reminderWindowStart,
-              lte: reminderWindowEnd,
-            },
-            status: {
-              in: ['CONFIRMED'],
-            },
-            reminderSent: false, // Only send reminders that haven't been sent yet
-          },
-          select: {
-            id: true,
-            dateTime: true,
-            status: true,
-            reminderSent: true,
-            User: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
+        console.log(
+          `Checking ${intervalHours}h interval: bookings between ${reminderWindowStart.toISOString()} and ${reminderWindowEnd.toISOString()}`,
+        );
+
+        // Find CONFIRMED bookings that are scheduled at this interval
+        let bookings: BookingWithRelations[];
+        try {
+          bookings = (await this.prisma.booking.findMany({
+            where: {
+              dateTime: {
+                gte: reminderWindowStart,
+                lte: reminderWindowEnd,
+              },
+              status: {
+                in: ['CONFIRMED'],
               },
             },
-            Service: {
-              select: {
-                id: true,
-                name: true,
-                duration: true,
-                price: true,
+            select: {
+              id: true,
+              dateTime: true,
+              status: true,
+              reminderSent: true,
+              remindersSentIntervals: true,
+              salonId: true,
+              User: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                },
+              },
+              Service: {
+                select: {
+                  id: true,
+                  name: true,
+                  duration: true,
+                  price: true,
+                },
+              },
+              Salon: {
+                select: {
+                  id: true,
+                  name: true,
+                  address: true,
+                  phone: true,
+                  reminderSettings: true,
+                },
+              },
+              Staff: {
+                select: {
+                  id: true,
+                  name: true,
+                },
               },
             },
-            Salon: {
-              select: {
-                id: true,
-                name: true,
-                address: true,
-                phone: true,
-              },
-            },
-            Staff: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-          },
-        })
-        .catch((error) => {
+          })) as BookingWithRelations[];
+        } catch (error: any) {
           // Обработка ошибок пула соединений
           if (error.code === 'P2024') {
             console.error(
@@ -123,79 +132,107 @@ export class RemindersService {
             );
           }
           throw error;
-        });
+        }
 
-      console.log(`📊 Found ${bookings.length} bookings to send reminders for`);
+        console.log(
+          `📊 Found ${bookings.length} bookings for ${intervalHours}h interval`,
+        );
 
-      let successCount = 0;
-      let errorCount = 0;
+        // Process each booking
+        for (const booking of bookings) {
+          try {
+            // Get salon reminder settings
+            const reminderSettings = (booking.Salon.reminderSettings as any) || {
+              intervals: [24],
+            };
+            const salonIntervals = reminderSettings.intervals || [24];
 
-      // Send reminders for each booking
-      for (const booking of bookings) {
-        try {
-          // Format date and time for display - use UTC to avoid timezone conversion
-          const bookingDate = new Date(booking.dateTime);
-          const dateStr = bookingDate.toLocaleDateString('en-US', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-            timeZone: 'UTC',
-          });
-          // Use UTC hours and minutes directly to avoid timezone conversion
-          const hours = bookingDate.getUTCHours();
-          const minutes = bookingDate.getUTCMinutes();
-          const ampm = hours >= 12 ? 'PM' : 'AM';
-          const displayHours = hours % 12 || 12;
-          const timeStr = `${displayHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+            // Check if this interval is enabled for this salon
+            if (!salonIntervals.includes(intervalHours)) {
+              console.log(
+                `⏭️ Skipping booking ${booking.id}: ${intervalHours}h interval not enabled for salon`,
+              );
+              continue;
+            }
 
-          // Prepare booking data for email
-          const bookingData = {
-            serviceName: booking.Service.name,
-            date: dateStr,
-            time: timeStr,
-            duration: booking.Service.duration,
-            price: booking.Service.price,
-            salonName: booking.Salon.name,
-            salonAddress: booking.Salon.address || undefined,
-            salonPhone: booking.Salon.phone || undefined,
-            staffName: booking.Staff?.name || undefined,
-          };
+            // Check if reminder for this interval was already sent
+            const sentIntervals =
+              (booking.remindersSentIntervals as number[]) || [];
+            if (sentIntervals.includes(intervalHours)) {
+              console.log(
+                `⏭️ Skipping booking ${booking.id}: ${intervalHours}h reminder already sent`,
+              );
+              continue;
+            }
 
-          // Send reminder email
-          await this.emailService.sendBookingReminder(
-            booking.User.email,
-            booking.User.name || 'Valued Customer',
-            bookingData,
-          );
+            // Format date and time for display - use UTC to avoid timezone conversion
+            const bookingDate = new Date(booking.dateTime);
+            const dateStr = bookingDate.toLocaleDateString('en-US', {
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+              timeZone: 'UTC',
+            });
+            // Use UTC hours and minutes directly to avoid timezone conversion
+            const hours = bookingDate.getUTCHours();
+            const minutes = bookingDate.getUTCMinutes();
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            const displayHours = hours % 12 || 12;
+            const timeStr = `${displayHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')} ${ampm}`;
 
-          // Mark reminder as sent
-          await this.prisma.booking.update({
-            where: { id: booking.id },
-            data: { reminderSent: true },
-          });
+            // Prepare booking data for email
+            const bookingData = {
+              serviceName: booking.Service.name,
+              date: dateStr,
+              time: timeStr,
+              duration: booking.Service.duration,
+              price: booking.Service.price,
+              salonName: booking.Salon.name,
+              salonAddress: booking.Salon.address || undefined,
+              salonPhone: booking.Salon.phone || undefined,
+              staffName: booking.Staff?.name || undefined,
+            };
 
-          console.log(
-            `✅ Reminder sent for booking ${booking.id} to ${booking.User.email}`,
-          );
-          successCount++;
-        } catch (error) {
-          console.error(
-            `❌ Error sending reminder for booking ${booking.id}:`,
-            error,
-          );
-          errorCount++;
+            // Send reminder email
+            await this.emailService.sendBookingReminder(
+              booking.User.email,
+              booking.User.name || 'Valued Customer',
+              bookingData,
+            );
+
+            // Mark this interval as sent
+            const updatedSentIntervals = [...sentIntervals, intervalHours];
+            await this.prisma.booking.update({
+              where: { id: booking.id },
+              data: {
+                reminderSent: true, // Keep for backward compatibility
+                remindersSentIntervals: updatedSentIntervals as InputJsonValue,
+              },
+            });
+
+            console.log(
+              `✅ ${intervalHours}h reminder sent for booking ${booking.id} to ${booking.User.email}`,
+            );
+            totalSent++;
+          } catch (error) {
+            console.error(
+              `❌ Error sending ${intervalHours}h reminder for booking ${booking.id}:`,
+              error,
+            );
+            totalErrors++;
+          }
         }
       }
 
       console.log(
-        `📧 Reminder process completed: ${successCount} sent, ${errorCount} errors`,
+        `📧 Reminder process completed: ${totalSent} sent, ${totalErrors} errors`,
       );
 
       return {
-        total: bookings.length,
-        sent: successCount,
-        errors: errorCount,
+        total: totalSent + totalErrors,
+        sent: totalSent,
+        errors: totalErrors,
       };
     } catch (error) {
       console.error('❌ Error in sendBookingReminders:', error);
