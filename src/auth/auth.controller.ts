@@ -351,12 +351,20 @@ export class AuthController {
   @Get('telegram/bot-id')
   async getTelegramBotId() {
     try {
-      const botToken = process.env.TELEGRAM_BOT_TOKEN;
+      let botToken = process.env.TELEGRAM_BOT_TOKEN;
       if (!botToken) {
-        throw new HttpException(
-          'Telegram bot token not configured',
-          HttpStatus.SERVICE_UNAVAILABLE,
-        );
+        console.warn('⚠️ TELEGRAM_BOT_TOKEN not configured');
+        return { botId: null };
+      }
+
+      // Очищаем токен от возможного лишнего текста (если скопировали весь ответ BotFather)
+      botToken = botToken.trim();
+      // Убираем префикс "You can use this token to access HTTP API:" если есть
+      if (botToken.includes('You can use this token')) {
+        const tokenMatch = botToken.match(/(\d+:[A-Za-z0-9_-]+)/);
+        if (tokenMatch) {
+          botToken = tokenMatch[1];
+        }
       }
 
       // Telegram Login Widget может использовать как bot_id (число), так и username (строка)
@@ -365,19 +373,26 @@ export class AuthController {
 
       if (botUsername) {
         // Используем username, если он указан (рекомендуется)
-        return { botId: botUsername };
+        // Убираем @ если пользователь случайно его добавил
+        let username = botUsername.trim();
+        if (username.startsWith('@')) {
+          username = username.substring(1);
+        }
+        return { botId: username };
       }
 
       // Иначе используем bot_id из токена (первые цифры до двоеточия)
       const botId = botToken.split(':')[0];
 
+      if (!botId || isNaN(Number(botId))) {
+        console.warn('⚠️ Could not extract valid bot ID from token');
+        return { botId: null };
+      }
+
       return { botId };
     } catch (error) {
       console.error('❌ Failed to get bot ID:', error.message);
-      throw new HttpException(
-        error.message || 'Failed to get Telegram bot ID',
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+      return { botId: null };
     }
   }
 
