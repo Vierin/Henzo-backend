@@ -910,7 +910,12 @@ export class SalonsService {
             rating: true,
           },
         },
-        _count: true,
+        _count: {
+          select: {
+            Service: true,
+            Review: true,
+          },
+        },
       },
       // Do not hard-filter by rating; we will sort by avg rating and reviews count
       orderBy: { createdAt: 'desc' },
@@ -965,7 +970,10 @@ export class SalonsService {
         avgRating: Math.round(avgRating * 10) / 10, // Round to 1 decimal
         categories,
         priceRange,
-        _count: salon._count,
+        _count: {
+          Service: salon._count?.Service || salon.Service?.length || 0,
+          Review: salon._count?.Review || salon.Review?.length || 0,
+        },
       };
     });
 
