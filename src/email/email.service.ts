@@ -112,8 +112,10 @@ export class EmailService {
     from?: string;
     fromName?: string;
   }): Promise<any> {
-    const emailFrom = this.configService.get<string>('EMAIL_FROM') || 'noreply@henzo.app';
-    const emailFromName = this.configService.get<string>('EMAIL_FROM_NAME') || 'Henzo';
+    const emailFrom =
+      this.configService.get<string>('EMAIL_FROM') || 'noreply@henzo.app';
+    const emailFromName =
+      this.configService.get<string>('EMAIL_FROM_NAME') || 'Henzo';
 
     return this.sendEmailViaBrevo({
       to: [{ email: data.to, name: data.to.split('@')[0] }],
@@ -128,30 +130,64 @@ export class EmailService {
 
   private generateGoogleCalendarUrl(bookingData: {
     serviceName: string;
-    dateTime: Date;
+    dateTime: Date | string;
     duration: number;
     salonName: string;
     salonAddress?: string;
     staffName?: string;
   }): string {
-    const startDate = new Date(bookingData.dateTime);
-    const endDate = new Date(
-      startDate.getTime() + bookingData.duration * 60 * 1000,
-    );
+    // dateTime is stored as UTC string but represents local time
+    // Example: "2025-12-12T10:00:00.000Z" means 10:00 local time, not UTC
+    // We need to extract the time components directly from the UTC string
+    let dateTimeStr: string;
+    if (bookingData.dateTime instanceof Date) {
+      dateTimeStr = bookingData.dateTime.toISOString();
+    } else {
+      dateTimeStr = bookingData.dateTime;
+    }
 
-    // Format dates as YYYYMMDDTHHMMSSZ (UTC)
-    const formatDate = (date: Date): string => {
-      const year = date.getUTCFullYear();
-      const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-      const day = String(date.getUTCDate()).padStart(2, '0');
-      const hours = String(date.getUTCHours()).padStart(2, '0');
-      const minutes = String(date.getUTCMinutes()).padStart(2, '0');
-      const seconds = String(date.getUTCSeconds()).padStart(2, '0');
-      return `${year}${month}${day}T${hours}${minutes}${seconds}Z`;
+    // Parse UTC string directly to get the time components
+    // Format: "2025-12-12T10:00:00.000Z"
+    const [datePart, timePart] = dateTimeStr.split('T');
+    const [year, month, day] = datePart.split('-').map(Number);
+    const [time] = timePart.split('.');
+    const [hours, minutes, seconds = '00'] = time.split(':').map(Number);
+
+    // Calculate end time
+    const startMinutes = hours * 60 + minutes;
+    const endMinutes = startMinutes + bookingData.duration;
+    const endHours = Math.floor(endMinutes / 60);
+    const endMins = endMinutes % 60;
+
+    // Format dates as YYYYMMDDTHHMMSS (local time, no timezone)
+    // Google Calendar will interpret this as local time
+    const formatDateTime = (
+      y: number,
+      m: number,
+      d: number,
+      h: number,
+      min: number,
+      sec: number,
+    ): string => {
+      return `${y}${String(m).padStart(2, '0')}${String(d).padStart(2, '0')}T${String(h).padStart(2, '0')}${String(min).padStart(2, '0')}${String(sec).padStart(2, '0')}`;
     };
 
-    const start = formatDate(startDate);
-    const end = formatDate(endDate);
+    const start = formatDateTime(
+      year,
+      month,
+      day,
+      hours,
+      minutes,
+      Number(seconds),
+    );
+    const end = formatDateTime(
+      year,
+      month,
+      day,
+      endHours,
+      endMins,
+      Number(seconds),
+    );
 
     const title = encodeURIComponent(
       `${bookingData.serviceName} at ${bookingData.salonName}`,
@@ -166,6 +202,11 @@ export class EmailService {
     );
 
     return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${start}/${end}&details=${details}&location=${location}`;
+  }
+
+  private generateGoogleMapsUrl(salonAddress: string): string {
+    const encodedAddress = encodeURIComponent(salonAddress);
+    return `https://www.google.com/maps/dir/?api=1&destination=${encodedAddress}`;
   }
 
   async sendBookingConfirmation(
@@ -288,10 +329,7 @@ export class EmailService {
               <div style="text-align: center; margin: 30px 0;">
                 <a href="${this.generateGoogleCalendarUrl({
                   serviceName: bookingData.serviceName,
-                  dateTime:
-                    typeof bookingData.dateTime === 'string'
-                      ? new Date(bookingData.dateTime)
-                      : bookingData.dateTime,
+                  dateTime: bookingData.dateTime,
                   duration: bookingData.duration,
                   salonName: bookingData.salonName,
                   salonAddress: bookingData.salonAddress,
@@ -300,9 +338,22 @@ export class EmailService {
                   target="_blank" 
                   rel="noopener noreferrer"
                   class="button"
-                  style="display: inline-block; background-color: #4285f4; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 20px 0; font-weight: bold;">
-                  Add to Google Calendar
+                  style="display: inline-block; background-color: #4285f4; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 10px; font-weight: bold;">
+                  📅 Add to Google Calendar
                 </a>
+                ${
+                  bookingData.salonAddress
+                    ? `
+                <a href="${this.generateGoogleMapsUrl(bookingData.salonAddress)}" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  class="button"
+                  style="display: inline-block; background-color: #ff5b5b; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 10px; font-weight: bold;">
+                  🗺️ Get Directions
+                </a>
+                `
+                    : ''
+                }
               </div>
               `
                   : ''
@@ -366,14 +417,14 @@ export class EmailService {
           <style>
             body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
             .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background-color: #28a745; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+            .header { background-color: #ff5b5b; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
             .content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
             .booking-details { background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
             .detail-row { display: flex; justify-content: space-between; margin: 10px 0; padding: 8px 0; border-bottom: 1px solid #eee; }
             .detail-label { font-weight: bold; color: #555; }
             .detail-value { color: #333; }
             .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
-            .urgent { background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 20px 0; }
+            .urgent { background-color: #ffe5e5; border: 1px solid #ff5b5b; padding: 15px; border-radius: 5px; margin: 20px 0; }
           </style>
         </head>
         <body>
@@ -515,7 +566,7 @@ export class EmailService {
             .detail-label { font-weight: bold; color: #555; }
             .detail-value { color: #333; }
             .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
-            .reminder { background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 20px 0; }
+            .reminder { background-color: #ffe5e5; border: 1px solid #ff5b5b; padding: 15px; border-radius: 5px; margin: 20px 0; }
             .button { display: inline-block; background-color: #ff5b5b; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
           </style>
         </head>
@@ -653,13 +704,13 @@ export class EmailService {
           <style>
             body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
             .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background-color: #ff6b35; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+            .header { background-color: #ff5b5b; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
             .content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
             .message-details { background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
             .detail-row { display: flex; justify-content: space-between; margin: 10px 0; padding: 8px 0; border-bottom: 1px solid #eee; }
             .detail-label { font-weight: bold; color: #555; }
             .detail-value { color: #333; }
-            .message-content { background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #ff6b35; }
+            .message-content { background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #ff5b5b; }
             .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
           </style>
         </head>
@@ -759,14 +810,14 @@ export class EmailService {
           <style>
             body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
             .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background-color: #ff9800; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+            .header { background-color: #ff5b5b; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
             .content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
             .booking-details { background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
             .detail-row { display: flex; justify-content: space-between; margin: 10px 0; padding: 8px 0; border-bottom: 1px solid #eee; }
             .detail-label { font-weight: bold; color: #555; }
             .detail-value { color: #333; }
             .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
-            .urgent { background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 20px 0; text-align: center; }
+            .urgent { background-color: #ffe5e5; border: 1px solid #ff5b5b; padding: 15px; border-radius: 5px; margin: 20px 0; text-align: center; }
             .button-container { text-align: center; margin: 30px 0; }
             .button { display: inline-block; padding: 15px 30px; text-decoration: none; border-radius: 5px; margin: 0 10px; font-weight: bold; font-size: 16px; }
             .button-confirm { background-color: #28a745; color: white; }
@@ -776,7 +827,7 @@ export class EmailService {
         <body>
           <div class="container">
             <div class="header">
-              <h1>🔔 New Booking Request!</h1>
+              <h1>New Booking Request!</h1>
               <p>Action Required - Booking Awaiting Confirmation</p>
             </div>
             
@@ -869,7 +920,7 @@ export class EmailService {
             'noreply@henzo.app',
           name: 'Henzo Booking System',
         },
-        subject: `🔔 New Booking Request - ${bookingData.clientName} at ${bookingData.time}`,
+        subject: `New Booking Request - ${bookingData.clientName} at ${bookingData.time}`,
         htmlContent: htmlContent,
       };
 
@@ -895,6 +946,7 @@ export class EmailService {
       salonAddress?: string;
       salonPhone?: string;
       staffName?: string;
+      dateTime?: Date | string;
     },
   ) {
     try {
@@ -909,20 +961,20 @@ export class EmailService {
           <style>
             body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
             .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background-color: #ff9800; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+            .header { background-color: #ff5b5b; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
             .content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
             .booking-details { background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
             .detail-row { display: flex; justify-content: space-between; margin: 10px 0; padding: 8px 0; border-bottom: 1px solid #eee; }
             .detail-label { font-weight: bold; color: #555; }
             .detail-value { color: #333; }
             .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
-            .pending-notice { background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 20px; border-radius: 5px; margin: 20px 0; text-align: center; }
+            .pending-notice { background-color: #ffe5e5; border: 1px solid #ff5b5b; padding: 20px; border-radius: 5px; margin: 20px 0; text-align: center; }
           </style>
         </head>
         <body>
           <div class="container">
             <div class="header">
-              <h1>⏳ Booking Request Received!</h1>
+              <h1>Booking Request Received!</h1>
               <p>We've received your booking request</p>
             </div>
             
@@ -1003,6 +1055,42 @@ export class EmailService {
                 <li>You'll receive a confirmation email once approved</li>
                 <li>If there are any issues, the salon will contact you directly</li>
               </ul>
+              
+              ${
+                bookingData.dateTime
+                  ? `
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${this.generateGoogleCalendarUrl({
+                  serviceName: bookingData.serviceName,
+                  dateTime: bookingData.dateTime,
+                  duration: bookingData.duration,
+                  salonName: bookingData.salonName,
+                  salonAddress: bookingData.salonAddress,
+                  staffName: bookingData.staffName,
+                })}" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  class="button"
+                  style="display: inline-block; background-color: #4285f4; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 10px; font-weight: bold;">
+                  📅 Add to Google Calendar
+                </a>
+                ${
+                  bookingData.salonAddress
+                    ? `
+                <a href="${this.generateGoogleMapsUrl(bookingData.salonAddress)}" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  class="button"
+                  style="display: inline-block; background-color: #ff5b5b; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 10px; font-weight: bold;">
+                  🗺️ Get Directions
+                </a>
+                `
+                    : ''
+                }
+              </div>
+              `
+                  : ''
+              }
             </div>
             
             <div class="footer">
@@ -1087,7 +1175,7 @@ export class EmailService {
               <h2>Hello ${clientName},</h2>
               
               <div class="rejection-notice">
-                <h3>❌ Booking Request Not Confirmed</h3>
+                <h3>Booking Request Not Confirmed</h3>
                 <p>Unfortunately, ${bookingData.salonName} was unable to confirm your booking request.</p>
                 ${bookingData.reason ? `<p><strong>Reason:</strong> ${bookingData.reason}</p>` : ''}
               </div>
@@ -1225,7 +1313,7 @@ export class EmailService {
             .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
             .button { display: inline-block; background-color: #ff5b5b; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; font-weight: bold; }
             .button-container { text-align: center; margin: 30px 0; }
-            .notice { background-color: #fff3cd; border: 1px solid #ffc107; padding: 15px; border-radius: 5px; margin: 20px 0; }
+            .notice { background-color: #ffe5e5; border: 1px solid #ff5b5b; padding: 15px; border-radius: 5px; margin: 20px 0; }
           </style>
         </head>
         <body>

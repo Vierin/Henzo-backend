@@ -705,10 +705,14 @@ export class BookingsService {
         salonEmail: booking.Salon?.email || booking.Salon?.owner?.email,
       });
 
-      // For PENDING bookings, only send notification to salon with confirmation links
+      // For PENDING bookings, send notification to salon and client
       if (booking.status === 'PENDING') {
-        const salonEmail = booking.Salon?.email || booking.Salon?.owner?.email;
-        if (salonEmail) {
+        // Send email to salon owner - prefer salon email, fallback to owner email
+        const salonEmail =
+          booking.Salon?.email && booking.Salon.email.trim()
+            ? booking.Salon.email
+            : booking.Salon?.User?.email;
+        if (salonEmail && salonEmail.trim()) {
           await this.emailService.sendSalonBookingRequest(
             salonEmail,
             booking.Salon?.name || '',
@@ -729,11 +733,36 @@ export class BookingsService {
         } else {
           this.logger.warn(
             'Salon email not found, skipping salon notification',
+            {
+              salonId: booking.salonId,
+              salonEmail: booking.Salon?.email,
+              ownerEmail: booking.Salon?.User?.email,
+            },
           );
         }
 
-        // Note: Client does NOT receive email at this stage to avoid spam.
-        // They only get notified after salon confirms or rejects the booking.
+        // Send email to client about pending booking
+        try {
+          await this.emailService.sendBookingPending(clientEmail, clientName, {
+            serviceName: booking.Service?.name || '',
+            date: formattedDate,
+            time: formattedTime,
+            duration: booking.Service?.duration || 0,
+            price: booking.Service?.price || 0,
+            salonName: booking.Salon?.name || '',
+            salonAddress: booking.Salon?.address || null,
+            salonPhone: booking.Salon?.phone || null,
+            staffName: booking.Staff?.name,
+            dateTime: booking.dateTime,
+          });
+          this.logger.log('Client pending booking email sent', { clientEmail });
+        } catch (clientEmailError) {
+          this.logger.error(
+            'Error sending client pending booking email',
+            clientEmailError,
+          );
+          // Don't fail the whole process if client email fails
+        }
       } else if (booking.status === 'CONFIRMED') {
         // Send confirmation to client
         this.logger.log('Sending confirmation email to client', {
@@ -743,22 +772,26 @@ export class BookingsService {
           clientEmail,
           clientName,
           {
-            serviceName: booking.service.name,
+            serviceName: booking.Service?.name || '',
             date: formattedDate,
             time: formattedTime,
-            duration: booking.service.duration,
-            price: booking.service.price,
+            duration: booking.Service?.duration || 0,
+            price: booking.Service?.price || 0,
             salonName: booking.Salon?.name || '',
             salonAddress: booking.Salon?.address || null,
             salonPhone: booking.Salon?.phone || null,
             staffName: booking.Staff?.name,
+            dateTime: booking.dateTime,
           },
         );
         this.logger.log('Client confirmation email sent', { clientEmail });
 
         // Send notification to salon
-        const salonEmail = booking.Salon?.email || booking.Salon?.owner?.email;
-        if (salonEmail) {
+        const salonEmail =
+          booking.Salon?.email && booking.Salon.email.trim()
+            ? booking.Salon.email
+            : booking.Salon?.User?.email;
+        if (salonEmail && salonEmail.trim()) {
           await this.emailService.sendSalonNotification(
             salonEmail,
             booking.Salon?.name || '',
@@ -1015,7 +1048,10 @@ export class BookingsService {
           });
           // Use UTC hours and minutes directly to avoid timezone conversion
           const hours = bookingDate.getUTCHours().toString().padStart(2, '0');
-          const minutes = bookingDate.getUTCMinutes().toString().padStart(2, '0');
+          const minutes = bookingDate
+            .getUTCMinutes()
+            .toString()
+            .padStart(2, '0');
           const formattedTime = `${hours}:${minutes}`;
 
           if (data.status === 'CONFIRMED') {
@@ -1277,17 +1313,35 @@ export class BookingsService {
 
         // Format date and time using UTC components directly (no timezone conversion)
         const monthNames = [
-          'January', 'February', 'March', 'April', 'May', 'June',
-          'July', 'August', 'September', 'October', 'November', 'December'
+          'January',
+          'February',
+          'March',
+          'April',
+          'May',
+          'June',
+          'July',
+          'August',
+          'September',
+          'October',
+          'November',
+          'December',
         ];
-        const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-        
+        const dayNames = [
+          'Sunday',
+          'Monday',
+          'Tuesday',
+          'Wednesday',
+          'Thursday',
+          'Friday',
+          'Saturday',
+        ];
+
         // Create a UTC date object to get weekday
         const utcDate = new Date(Date.UTC(year, month - 1, day));
         const weekday = dayNames[utcDate.getUTCDay()];
-        
+
         const formattedDate = `${weekday}, ${monthNames[month - 1]} ${day}, ${year}`;
-        
+
         // Format time using UTC hours and minutes directly (HH:MM format, no timezone conversion)
         const formattedTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
 
