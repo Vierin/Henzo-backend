@@ -10,6 +10,7 @@ import {
   Res,
   HttpException,
   HttpStatus,
+  Header,
 } from '@nestjs/common';
 import { Response } from 'express';
 import { SalonsService } from './salons.service';
@@ -28,6 +29,7 @@ export class SalonsController {
   ) {}
 
   @Get('with-services')
+  @Header('Cache-Control', 'public, max-age=600') // P1: Кэш на 10 минут
   async getSalonsWithServices() {
     try {
       return await this.salonsService.findSalonsWithServices();
@@ -41,6 +43,7 @@ export class SalonsController {
   }
 
   @Get('search')
+  @Header('Cache-Control', 'public, max-age=300') // P1: Кэш на 5 минут
   async searchSalons(
     @Query('page') page?: string,
     @Query('limit') limit?: string,
@@ -87,6 +90,7 @@ export class SalonsController {
   }
 
   @Get('featured')
+  @Header('Cache-Control', 'public, max-age=3600') // P1: Кэш на 1 час (featured редко меняется)
   async getFeaturedSalons(@Query('limit') limit?: string) {
     const limitNum = limit ? parseInt(limit, 10) : 6;
     return this.salonsService.findFeaturedSalons(limitNum);
@@ -502,6 +506,7 @@ export class SalonsController {
   }
 
   @Get(':id')
+  @Header('Cache-Control', 'public, max-age=600') // P1: Кэш на 10 минут
   async getSalonById(@Param('id') id: string) {
     try {
       const result = await this.salonsService.findById(id);

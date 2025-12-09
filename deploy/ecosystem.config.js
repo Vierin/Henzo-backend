@@ -4,7 +4,8 @@ module.exports = {
       name: 'henzo-backend',
       script: 'dist/main.js',
       cwd: '/var/www/henzo/apps/backend',
-      instances: 1,
+      instances: 'max', // Use all available CPU cores
+      exec_mode: 'cluster',
       autorestart: true,
       watch: false,
       max_memory_restart: '1G',

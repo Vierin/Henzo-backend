@@ -25,6 +25,11 @@ model Booking {
   Staff                  Staff?        @relation(fields: [staffId], references: [id])
   User                   User          @relation(fields: [userId], references: [id])
   Review                 Review[]
+
+  @@index([salonId, status, dateTime])
+  @@index([userId, dateTime])
+  @@index([dateTime])
+  @@index([salonId, createdAt])
 }
 
 model PendingBooking {
@@ -66,6 +71,8 @@ model Review {
   User      User     @relation(fields: [userId], references: [id])
 
   @@unique([userId, salonId, bookingId])
+  @@index([salonId, createdAt])
+  @@index([salonId, rating])
 }
 
 model Salon {
@@ -99,6 +106,8 @@ model Salon {
   TimeBlock        TimeBlock[]
 
   @@index([latitude, longitude])
+  @@index([ownerId, createdAt])
+  @@index([createdAt])
 }
 
 model Service {

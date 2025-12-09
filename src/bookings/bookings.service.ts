@@ -467,13 +467,15 @@ export class BookingsService {
 
       const salonIds = ownerSalons.map((salon) => salon.id);
 
-      // Получаем все бронирования для салонов владельца
+      // P0: Получаем бронирования с пагинацией (максимум 100)
+      // TODO: Добавить параметры page/limit в метод
       const bookings = await this.prisma.booking.findMany({
         where: {
           salonId: {
             in: salonIds,
           },
         },
+        take: 100, // P0: Лимит для предотвращения огромных payloads
         include: {
           Service: {
             select: {

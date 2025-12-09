@@ -6,5 +6,6 @@ import { ConfigModule } from '@nestjs/config';
   imports: [ConfigModule],
   providers: [EmailService],
   exports: [EmailService],
+  // EmailProcessor removed - email will be sent synchronously for MVP
 })
 export class EmailModule {}

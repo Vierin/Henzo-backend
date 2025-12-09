@@ -103,6 +103,29 @@ export class EmailService {
     }
   }
 
+  // Universal email sending method for queue
+  async sendEmail(data: {
+    to: string;
+    subject: string;
+    html: string;
+    text?: string;
+    from?: string;
+    fromName?: string;
+  }): Promise<any> {
+    const emailFrom = this.configService.get<string>('EMAIL_FROM') || 'noreply@henzo.app';
+    const emailFromName = this.configService.get<string>('EMAIL_FROM_NAME') || 'Henzo';
+
+    return this.sendEmailViaBrevo({
+      to: [{ email: data.to, name: data.to.split('@')[0] }],
+      sender: {
+        email: data.from || emailFrom,
+        name: data.fromName || emailFromName,
+      },
+      subject: data.subject,
+      htmlContent: data.html,
+    });
+  }
+
   private generateGoogleCalendarUrl(bookingData: {
     serviceName: string;
     dateTime: Date;

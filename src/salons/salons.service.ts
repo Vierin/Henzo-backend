@@ -1,9 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateSalonDto } from './dto/update-salon.dto';
 import { CreateSalonDto } from './dto/create-salon.dto';
 import { MapboxService } from '../mapbox/mapbox.service';
 import { TranslationService } from '../services/translation.service';
+import { CacheService } from '../cache/cache.service';
 
 @Injectable()
 export class SalonsService {
@@ -11,6 +12,7 @@ export class SalonsService {
     private prisma: PrismaService,
     private mapboxService: MapboxService,
     private translationService: TranslationService,
+    @Inject(CacheService) private cacheService: CacheService,
   ) {}
 
   async suggestSalons(params: { search: string; limit: number }) {
@@ -38,8 +40,23 @@ export class SalonsService {
 
   async findSalonsWithServices() {
     try {
+      // Try cache first
+      const cacheKey = 'salons:with-services:all';
+      const cached = await this.cacheService.get<any>(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
       const salons = await this.prisma.salon.findMany({
         include: {
+          _count: {
+            // P1: Используем _count вместо загрузки всех записей
+            select: {
+              Review: true,
+              Service: true,
+              Booking: true,
+            },
+          },
           Service: {
             take: 3, // Limit to 3 services per salon for card display
             include: {
@@ -89,11 +106,11 @@ export class SalonsService {
         orderBy: {
           createdAt: 'desc',
         },
-        take: 100, // Limit to first 100 salons to avoid timeout
+        take: 50, // P0: Максимальный лимит для предотвращения огромных payloads
       });
 
       // Transform to match expected format
-      return salons.map((salon: any) => ({
+      const transformedSalons = salons.map((salon: any) => ({
         ...salon,
         services: (salon.Service || []).map((service: any) => ({
           ...service,
@@ -121,6 +138,11 @@ export class SalonsService {
           ),
         ),
       }));
+
+      // Cache result for 15 minutes (900 seconds)
+      await this.cacheService.set(cacheKey, transformedSalons, 900);
+
+      return transformedSalons;
     } catch (error) {
       console.error('❌ Error in findSalonsWithServices:', error);
       console.error('Error details:', {
@@ -144,7 +166,7 @@ export class SalonsService {
   }) {
     const {
       page = 1,
-      limit = 20,
+      limit: requestedLimit = 20,
       search = '',
       location = '',
       category = '',
@@ -152,6 +174,18 @@ export class SalonsService {
       minRating = 0,
       isOpenNow = false,
     } = params;
+
+    // P0: Максимальный лимит для предотвращения огромных payloads
+    const limit = Math.min(requestedLimit, 50);
+
+    // Generate cache key
+    const cacheKey = `salons:search:${JSON.stringify(params)}`;
+    
+    // Try to get from cache
+    const cached = await this.cacheService.get<any>(cacheKey);
+    if (cached) {
+      return cached;
+    }
 
     const skip = (page - 1) * limit;
 
@@ -248,15 +282,54 @@ export class SalonsService {
     const salons = await this.prisma.salon.findMany({
       where,
       include: {
+        _count: {
+          // P1: Используем _count вместо загрузки всех записей
+          select: {
+            Review: true,
+            Service: true,
+            Booking: true,
+          },
+        },
         Service: {
-          take: 3, // Limit to 3 services per salon for card display
-          include: {
-            service_categories: true,
-            ServiceGroup: true,
+          take: 10, // P0: Увеличено до 10, но все еще ограничено
+          select: {
+            id: true,
+            name: true,
+            nameEn: true,
+            nameVi: true,
+            nameRu: true,
+            description: true,
+            duration: true,
+            price: true,
+            serviceCategoryId: true,
+            serviceGroupId: true,
+            service_categories: {
+              select: {
+                id: true,
+                name_en: true,
+                name_vn: true,
+                name_ru: true,
+              },
+            },
+            ServiceGroup: {
+              select: {
+                id: true,
+                name: true,
+                nameEn: true,
+                nameVi: true,
+                nameRu: true,
+                position: true,
+              },
+            },
           },
         },
         Review: {
-          include: {
+          take: 10, // P0: Лимит на reviews для предотвращения огромных payloads
+          select: {
+            id: true,
+            rating: true,
+            comment: true,
+            createdAt: true,
             User: {
               select: {
                 id: true,
@@ -264,6 +337,9 @@ export class SalonsService {
                 email: true,
               },
             },
+          },
+          orderBy: {
+            createdAt: 'desc',
           },
         },
         User: {
@@ -308,7 +384,7 @@ export class SalonsService {
       User: undefined, // Remove Prisma field
     }));
 
-    return {
+    const result = {
       data: transformedSalons,
       pagination: {
         page,
@@ -319,6 +395,11 @@ export class SalonsService {
         hasPreviousPage,
       },
     };
+
+    // Cache result for 10 minutes (600 seconds)
+    await this.cacheService.set(cacheKey, result, 600);
+
+    return result;
   }
 
   // Static categories - no need for database query
@@ -625,38 +706,80 @@ export class SalonsService {
         return null;
       }
 
-      // Check reviews separately
-      const reviewsCheck = await this.prisma.review.findMany({
+      // P1: Используем _count вместо загрузки всех reviews для проверки
+      const reviewsCount = await this.prisma.review.count({
         where: { salonId: id },
-        include: {
-          User: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
-          },
-        },
       });
-      console.log('Reviews check for salon:', {
+      console.log('Reviews count for salon:', {
         salonId: id,
-        reviewsCount: reviewsCheck.length,
-        Review: reviewsCheck.slice(0, 2),
+        reviewsCount,
       });
 
       const salon = await this.prisma.salon.findUnique({
         where: { id },
         include: {
-          Service: {
-            include: {
-              service_categories: true,
-              ServiceGroup: true,
+          _count: {
+            // P1: Используем _count вместо загрузки всех записей
+            select: {
+              Review: true,
+              Service: true,
+              Booking: true,
+              Staff: true,
             },
           },
-          Staff: true,
+          Service: {
+            // P0: Лимит на services (максимум 50)
+            take: 50,
+            select: {
+              id: true,
+              name: true,
+              nameEn: true,
+              nameVi: true,
+              nameRu: true,
+              description: true,
+              descriptionEn: true,
+              descriptionVi: true,
+              descriptionRu: true,
+              duration: true,
+              price: true,
+              serviceCategoryId: true,
+              serviceGroupId: true,
+              service_categories: {
+                select: {
+                  id: true,
+                  name_en: true,
+                  name_vn: true,
+                  name_ru: true,
+                },
+              },
+              ServiceGroup: {
+                select: {
+                  id: true,
+                  name: true,
+                  nameEn: true,
+                  nameVi: true,
+                  nameRu: true,
+                  position: true,
+                },
+              },
+            },
+          },
+          Staff: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true,
+              accessLevel: true,
+            },
+          },
           Review: {
-            take: 50, // Limit reviews to avoid huge payload
-            include: {
+            take: 20, // P0: Лимит на reviews (было 50, уменьшено)
+            select: {
+              id: true,
+              rating: true,
+              comment: true,
+              createdAt: true,
               User: {
                 select: {
                   id: true,

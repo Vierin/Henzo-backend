@@ -18,9 +18,21 @@ import { SearchModule } from './search/search.module';
 import { FeedbackModule } from './feedback/feedback.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { MapboxModule } from './mapbox/mapbox.module';
+import { CacheModule } from './cache/cache.module';
+import { AppThrottlerModule } from './throttler/throttler.module';
+import { QueueModule } from './queue/queue.module';
+import { MonitoringModule } from './monitoring/monitoring.module';
+import { ConfigModule } from '@nestjs/config';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
+    CacheModule,
+    AppThrottlerModule,
+    QueueModule,
+    MonitoringModule,
     PrismaModule,
     SalonsModule,
     StaffModule,

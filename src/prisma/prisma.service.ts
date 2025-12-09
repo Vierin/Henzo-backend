@@ -8,10 +8,11 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     const databaseUrl = process.env.DATABASE_URL;
     
     // Добавляем параметры пула соединений, если их нет в URL
+    // Увеличено для масштабирования на тысячи пользователей
     let connectionUrl = databaseUrl;
     if (databaseUrl && !databaseUrl.includes('connection_limit')) {
       const separator = databaseUrl.includes('?') ? '&' : '?';
-      connectionUrl = `${databaseUrl}${separator}connection_limit=20&pool_timeout=20`;
+      connectionUrl = `${databaseUrl}${separator}connection_limit=100&pool_timeout=30&connect_timeout=10`;
     }
 
     super({

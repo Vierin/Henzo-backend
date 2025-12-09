@@ -9,6 +9,7 @@ import {
   HttpException,
   HttpStatus,
   Query,
+  Header,
 } from '@nestjs/common';
 import { BookingsService } from './bookings.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
@@ -97,6 +98,7 @@ export class BookingsController {
   }
 
   @Get('user')
+  @Header('Cache-Control', 'public, max-age=60') // P1: Кэш на 1 минуту (данные могут часто меняться)
   async getUserBookings(@Headers('authorization') authHeader: string) {
     try {
       const currentUser = await this.authService.getCurrentUser(authHeader);

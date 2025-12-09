@@ -51,23 +51,48 @@ export class ReviewsService {
     }
   }
 
-  async getUserReviews(userId: string) {
+  async getUserReviews(userId: string, page: number = 1, limit: number = 20) {
     try {
+      // P0: Пагинация для предотвращения огромных payloads
+      const skip = (page - 1) * limit;
+      const maxLimit = Math.min(limit, 50); // Максимум 50
+
       const reviews = await this.prisma.review.findMany({
         where: {
           userId: userId,
         },
-        include: {
-          Salon: true,
+        select: {
+          // P0: Используем select вместо include для оптимизации
+          id: true,
+          rating: true,
+          comment: true,
+          createdAt: true,
+          salonId: true,
+          Salon: {
+            select: {
+              id: true,
+              name: true,
+              address: true,
+              logo: true,
+            },
+          },
           Booking: {
-            include: {
-              Service: true,
+            select: {
+              id: true,
+              Service: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
             },
           },
         },
         orderBy: {
           createdAt: 'desc',
         },
+        skip,
+        take: maxLimit,
       });
 
       return reviews;

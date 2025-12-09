@@ -2,6 +2,9 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter';
+import { MonitoringInterceptor } from './common/interceptors/monitoring.interceptor';
+import { MonitoringService } from './monitoring/monitoring.service';
+import * as compression from 'compression';
 
 async function bootstrap() {
   try {
@@ -13,9 +16,18 @@ async function bootstrap() {
 
     console.log('✅ App module created successfully');
 
+    // P1: Enable compression for responses
+    app.use(compression());
+    console.log('✅ Compression enabled');
+
     // Enable global exception filter
     app.useGlobalFilters(new AllExceptionsFilter());
     console.log('✅ Global exception filter enabled');
+
+    // Enable global monitoring interceptor
+    const monitoringService = app.get(MonitoringService);
+    app.useGlobalInterceptors(new MonitoringInterceptor(monitoringService));
+    console.log('✅ Global monitoring interceptor enabled');
 
     // Enable global validation
     app.useGlobalPipes(
@@ -87,6 +99,7 @@ async function bootstrap() {
     console.log(`🚀 Backend is running on: http://localhost:${port}`);
     console.log(`📝 Environment: ${process.env.NODE_ENV || 'development'}`);
     console.log(`🔗 Health check: http://localhost:${port}/health`);
+    console.log(`📊 Metrics: http://localhost:${port}/metrics`);
   } catch (error) {
     console.error('❌ Failed to start server:', error);
     process.exit(1);

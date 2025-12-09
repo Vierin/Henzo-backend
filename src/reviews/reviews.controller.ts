@@ -9,6 +9,8 @@ import {
   Headers,
   HttpException,
   HttpStatus,
+  Query,
+  Header,
 } from '@nestjs/common';
 import { ReviewsService } from './reviews.service';
 import { CreateReviewDto } from './dto/create-review.dto';
@@ -23,10 +25,17 @@ export class ReviewsController {
   ) {}
 
   @Get('user')
-  async getUserReviews(@Headers('authorization') authHeader: string) {
+  @Header('Cache-Control', 'public, max-age=60') // P1: Кэш на 1 минуту
+  async getUserReviews(
+    @Headers('authorization') authHeader: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
     try {
       console.log('📝 Fetching user reviews:', {
         hasAuthHeader: !!authHeader,
+        page,
+        limit,
       });
 
       const currentUser = await this.authService.getCurrentUser(authHeader);
@@ -35,8 +44,13 @@ export class ReviewsController {
         currentUser.user.email,
       );
 
+      const pageNum = page ? parseInt(page, 10) : 1;
+      const limitNum = limit ? parseInt(limit, 10) : 20;
+
       const reviews = await this.reviewsService.getUserReviews(
         currentUser.user.id,
+        pageNum,
+        limitNum,
       );
 
       console.log('✅ User reviews fetched successfully:', reviews.length);

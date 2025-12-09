@@ -1,58 +1,47 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { FeedbackDto } from './dto/feedback.dto';
+import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class FeedbackService {
   private readonly logger = new Logger(FeedbackService.name);
 
+  constructor(private readonly emailService: EmailService) {}
+
   async sendFeedback(feedbackDto: FeedbackDto) {
     const { message, userId, userEmail, userName } = feedbackDto;
 
     try {
-      // Get Telegram bot token and chat ID from environment
-      const botToken = process.env.TELEGRAM_BOT_TOKEN;
-      const chatId = process.env.TELEGRAM_FEEDBACK_CHAT_ID;
-
-      if (!botToken || !chatId) {
-        this.logger.warn(
-          'Telegram bot token or chat ID not configured. Feedback not sent.',
-        );
-        // Still return success to not break user experience
-        return {
-          success: true,
-          message: 'Feedback received. Thank you!',
-        };
-      }
-
-      // Format message for Telegram
-      const telegramMessage = this.formatTelegramMessage(
-        message,
-        userId,
-        userEmail,
-        userName,
-      );
-
-      // Send to Telegram
-      const telegramUrl = `https://api.telegram.org/bot${botToken}/sendMessage`;
-      const response = await fetch(telegramUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text: telegramMessage,
-          parse_mode: 'HTML',
-        }),
+      const timestamp = new Date().toLocaleString('en-US', {
+        timeZone: 'UTC',
+        dateStyle: 'medium',
+        timeStyle: 'short',
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        this.logger.error('Failed to send feedback to Telegram:', errorData);
-        throw new Error('Failed to send feedback to Telegram');
-      }
+      // Get feedback email from environment or use default
+      const feedbackEmail =
+        process.env.FEEDBACK_EMAIL || 'hello@henzo.app';
 
-      this.logger.log('Feedback sent to Telegram successfully');
+      // Send email via EmailService
+      await this.emailService.sendContactMessage({
+        to: feedbackEmail,
+        subject: `📝 New Feedback from ${userName || 'User'}`,
+        template: 'feedback',
+        context: {
+          name: userName || 'Anonymous User',
+          email: userEmail || 'No email provided',
+          message: this.formatFeedbackMessage(
+            message,
+            userId,
+            userEmail,
+            userName,
+            timestamp,
+          ),
+          timestamp,
+        },
+      });
+
+      this.logger.log('Feedback sent via email successfully');
 
       return {
         success: true,
@@ -64,32 +53,31 @@ export class FeedbackService {
     }
   }
 
-  private formatTelegramMessage(
+  private formatFeedbackMessage(
     message: string,
     userId?: string,
     userEmail?: string,
     userName?: string,
+    timestamp?: string,
   ): string {
-    const timestamp = new Date().toLocaleString('en-US', {
-      timeZone: 'UTC',
-      dateStyle: 'medium',
-      timeStyle: 'short',
-    });
+    let formattedMessage = message;
 
-    let formattedMessage = `<b>📝 New Feedback</b>\n\n`;
-    formattedMessage += `<b>Message:</b>\n${message}\n\n`;
-
-    if (userName) {
-      formattedMessage += `<b>User:</b> ${userName}\n`;
+    if (userName || userEmail || userId) {
+      formattedMessage += '\n\n---\n';
+      formattedMessage += 'User Information:\n';
+      if (userName) {
+        formattedMessage += `Name: ${userName}\n`;
+      }
+      if (userEmail) {
+        formattedMessage += `Email: ${userEmail}\n`;
+      }
+      if (userId) {
+        formattedMessage += `User ID: ${userId}\n`;
+      }
+      if (timestamp) {
+        formattedMessage += `Time: ${timestamp}\n`;
+      }
     }
-    if (userEmail) {
-      formattedMessage += `<b>Email:</b> ${userEmail}\n`;
-    }
-    if (userId) {
-      formattedMessage += `<b>User ID:</b> ${userId}\n`;
-    }
-
-    formattedMessage += `\n<b>Time:</b> ${timestamp}`;
 
     return formattedMessage;
   }
