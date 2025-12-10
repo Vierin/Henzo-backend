@@ -224,7 +224,27 @@ export class AdminService {
   async getAllSalons() {
     try {
       const salons = await this.prisma.salon.findMany({
-        include: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          address: true,
+          phone: true,
+          email: true,
+          website: true,
+          instagram: true,
+          logo: true,
+          photos: true,
+          workingHours: true,
+          reminderSettings: true,
+          ownerId: true,
+          createdAt: true,
+          categoryIds: true,
+          latitude: true,
+          longitude: true,
+          descriptionEn: true,
+          descriptionVi: true,
+          descriptionRu: true,
           User: {
             select: {
               id: true,

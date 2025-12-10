@@ -48,9 +48,28 @@ export class SalonsService {
       }
 
       const salons = await this.prisma.salon.findMany({
-        include: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          address: true,
+          phone: true,
+          email: true,
+          website: true,
+          instagram: true,
+          logo: true,
+          photos: true,
+          workingHours: true,
+          reminderSettings: true,
+          ownerId: true,
+          createdAt: true,
+          categoryIds: true,
+          latitude: true,
+          longitude: true,
+          descriptionEn: true,
+          descriptionVi: true,
+          descriptionRu: true,
           _count: {
-            // P1: Используем _count вместо загрузки всех записей
             select: {
               Review: true,
               Service: true,
@@ -59,7 +78,22 @@ export class SalonsService {
           },
           Service: {
             take: 3, // Limit to 3 services per salon for card display
-            include: {
+            select: {
+              id: true,
+              name: true,
+              description: true,
+              duration: true,
+              price: true,
+              salonId: true,
+              categoryId: true,
+              serviceCategoryId: true,
+              nameEn: true,
+              nameVi: true,
+              nameRu: true,
+              descriptionEn: true,
+              descriptionVi: true,
+              descriptionRu: true,
+              serviceGroupId: true,
               service_categories: {
                 select: {
                   id: true,
@@ -82,7 +116,14 @@ export class SalonsService {
           },
           Review: {
             take: 10, // Limit reviews to avoid huge payload
-            include: {
+            select: {
+              id: true,
+              salonId: true,
+              userId: true,
+              bookingId: true,
+              rating: true,
+              comment: true,
+              createdAt: true,
               User: {
                 select: {
                   id: true,
@@ -184,7 +225,7 @@ export class SalonsService {
 
     // Generate cache key
     const cacheKey = `salons:search:${JSON.stringify(params)}`;
-    
+
     // Try to get from cache
     const cached = await this.cacheService.get<any>(cacheKey);
     if (cached) {
@@ -269,10 +310,14 @@ export class SalonsService {
         orderBy = { name: 'desc' };
         break;
       case 'rating':
-        orderBy = { Review: { _count: 'desc' } };
+        // Cannot sort by _count directly, use createdAt as fallback
+        // Rating sorting will be done in memory after fetching
+        orderBy = { createdAt: 'desc' };
         break;
       case 'services':
-        orderBy = { Service: { _count: 'desc' } };
+        // Cannot sort by _count directly, use createdAt as fallback
+        // Service count sorting will be done in memory after fetching
+        orderBy = { createdAt: 'desc' };
         break;
       case 'created':
         orderBy = { createdAt: 'desc' };
@@ -285,9 +330,28 @@ export class SalonsService {
     // Get paginated results
     const salons = await this.prisma.salon.findMany({
       where,
-      include: {
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        address: true,
+        phone: true,
+        email: true,
+        website: true,
+        instagram: true,
+        logo: true,
+        photos: true,
+        workingHours: true,
+        reminderSettings: true,
+        ownerId: true,
+        createdAt: true,
+        categoryIds: true,
+        latitude: true,
+        longitude: true,
+        descriptionEn: true,
+        descriptionVi: true,
+        descriptionRu: true,
         _count: {
-          // P1: Используем _count вместо загрузки всех записей
           select: {
             Review: true,
             Service: true,
@@ -393,7 +457,11 @@ export class SalonsService {
       const selectedDate = new Date(date);
       const now = new Date();
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const selectedDay = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+      const selectedDay = new Date(
+        selectedDate.getFullYear(),
+        selectedDate.getMonth(),
+        selectedDate.getDate(),
+      );
       const isToday = today.getTime() === selectedDay.getTime();
 
       transformedSalons = transformedSalons.filter((salon: any) => {
@@ -403,7 +471,15 @@ export class SalonsService {
         }
 
         const dayOfWeek = selectedDate.getDay();
-        const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+        const dayNames = [
+          'sunday',
+          'monday',
+          'tuesday',
+          'wednesday',
+          'thursday',
+          'friday',
+          'saturday',
+        ];
         const dayName = dayNames[dayOfWeek];
         const dayHours = workingHours[dayName];
 
@@ -417,7 +493,9 @@ export class SalonsService {
           const currentMinute = now.getMinutes();
           const currentTimeInMinutes = currentHour * 60 + currentMinute;
 
-          const [closeHour, closeMinute] = (dayHours.close || '18:00').split(':').map(Number);
+          const [closeHour, closeMinute] = (dayHours.close || '18:00')
+            .split(':')
+            .map(Number);
           const closeTimeInMinutes = closeHour * 60 + closeMinute;
 
           // Salon is closed if current time is past closing time (with 15 min buffer)
@@ -428,11 +506,12 @@ export class SalonsService {
 
         // If time interval is specified, check if it overlaps with working hours
         if (time && time !== 'any') {
-          const timeRanges: { [key: string]: { start: string; end: string } } = {
-            morning: { start: '06:00', end: '12:00' },
-            afternoon: { start: '12:00', end: '18:00' },
-            evening: { start: '18:00', end: '22:00' },
-          };
+          const timeRanges: { [key: string]: { start: string; end: string } } =
+            {
+              morning: { start: '06:00', end: '12:00' },
+              afternoon: { start: '12:00', end: '18:00' },
+              evening: { start: '18:00', end: '22:00' },
+            };
 
           const requestedRange = timeRanges[time.toLowerCase()];
           if (requestedRange) {
@@ -447,7 +526,9 @@ export class SalonsService {
             const requestEndMinutes = parseTime(requestedRange.end);
 
             // Check if time ranges overlap
-            const overlaps = requestStartMinutes < closeMinutes && requestEndMinutes > openMinutes;
+            const overlaps =
+              requestStartMinutes < closeMinutes &&
+              requestEndMinutes > openMinutes;
 
             if (!overlaps) {
               return false;
@@ -455,7 +536,8 @@ export class SalonsService {
 
             // If today, also check if the requested time slot hasn't passed
             if (isToday) {
-              const currentTimeInMinutes = now.getHours() * 60 + now.getMinutes();
+              const currentTimeInMinutes =
+                now.getHours() * 60 + now.getMinutes();
               if (requestEndMinutes <= currentTimeInMinutes + 15) {
                 return false; // Requested time slot has already passed
               }
@@ -464,6 +546,31 @@ export class SalonsService {
         }
 
         return true;
+      });
+    }
+
+    // Sort in memory if needed (for rating and services count)
+    if (sortBy === 'rating') {
+      transformedSalons.sort((a: any, b: any) => {
+        const aReviews = a.reviews || [];
+        const bReviews = b.reviews || [];
+        const aAvgRating =
+          aReviews.length > 0
+            ? aReviews.reduce((sum: number, r: any) => sum + r.rating, 0) /
+              aReviews.length
+            : 0;
+        const bAvgRating =
+          bReviews.length > 0
+            ? bReviews.reduce((sum: number, r: any) => sum + r.rating, 0) /
+              bReviews.length
+            : 0;
+        return bAvgRating - aAvgRating; // Descending
+      });
+    } else if (sortBy === 'services') {
+      transformedSalons.sort((a: any, b: any) => {
+        const aCount = (a.services || []).length;
+        const bCount = (b.services || []).length;
+        return bCount - aCount; // Descending
       });
     }
 
@@ -507,7 +614,27 @@ export class SalonsService {
       where: {
         ownerId: userId,
       },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        address: true,
+        phone: true,
+        email: true,
+        website: true,
+        instagram: true,
+        logo: true,
+        photos: true,
+        workingHours: true,
+        reminderSettings: true,
+        ownerId: true,
+        createdAt: true,
+        categoryIds: true,
+        latitude: true,
+        longitude: true,
+        descriptionEn: true,
+        descriptionVi: true,
+        descriptionRu: true,
         Service: {
           include: {
             ServiceGroup: true,
@@ -604,8 +731,9 @@ export class SalonsService {
       // Create salon and subscription in a transaction
       const result = await this.prisma.$transaction(async (prisma) => {
         // Set default reminder settings if not provided
-        const reminderSettings =
-          createSalonDto.reminderSettings || { intervals: [24] };
+        const reminderSettings = createSalonDto.reminderSettings || {
+          intervals: [24],
+        };
 
         // Create the salon
         const salon = await prisma.salon.create({
@@ -617,7 +745,27 @@ export class SalonsService {
             longitude,
             ownerId: userId,
           } as any,
-          include: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            address: true,
+            phone: true,
+            email: true,
+            website: true,
+            instagram: true,
+            logo: true,
+            photos: true,
+            workingHours: true,
+            reminderSettings: true,
+            ownerId: true,
+            createdAt: true,
+            categoryIds: true,
+            latitude: true,
+            longitude: true,
+            descriptionEn: true,
+            descriptionVi: true,
+            descriptionRu: true,
             Service: {
               include: {
                 ServiceGroup: true,
@@ -804,9 +952,28 @@ export class SalonsService {
 
       const salon = await this.prisma.salon.findUnique({
         where: { id },
-        include: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          address: true,
+          phone: true,
+          email: true,
+          website: true,
+          instagram: true,
+          logo: true,
+          photos: true,
+          workingHours: true,
+          reminderSettings: true,
+          ownerId: true,
+          createdAt: true,
+          categoryIds: true,
+          latitude: true,
+          longitude: true,
+          descriptionEn: true,
+          descriptionVi: true,
+          descriptionRu: true,
           _count: {
-            // P1: Используем _count вместо загрузки всех записей
             select: {
               Review: true,
               Service: true,
@@ -815,7 +982,6 @@ export class SalonsService {
             },
           },
           Service: {
-            // P0: Лимит на services (максимум 50)
             take: 50,
             select: {
               id: true,
@@ -861,7 +1027,7 @@ export class SalonsService {
             },
           },
           Review: {
-            take: 20, // P0: Лимит на reviews (было 50, уменьшено)
+            take: 20,
             select: {
               id: true,
               rating: true,
@@ -889,133 +1055,135 @@ export class SalonsService {
         },
       });
 
-    // Load all service groups for this salon separately to ensure all groups are available
-    const allGroups = await this.prisma.serviceGroup.findMany({
-      where: { salonId: id, isActive: true },
-      orderBy: { position: 'asc' },
-    });
+      // Load all service groups for this salon separately to ensure all groups are available
+      const allGroups = await this.prisma.serviceGroup.findMany({
+        where: { salonId: id, isActive: true },
+        orderBy: { position: 'asc' },
+      });
 
-    console.log('SalonsService.findById result:', {
-      salonId: salon?.id,
-      salonName: salon?.name,
-      servicesCount: ((salon as any)?.Service || []).length,
-      servicesWithGroups:
-        ((salon as any)?.Service || []).filter((s: any) => s.ServiceGroup)?.length || 0,
-      groupsCount: allGroups.length,
-      groups: allGroups.map((g) => ({
-        id: g.id,
-        name: g.name,
-        position: g.position,
-      })),
-      reviewsCount: ((salon as any)?.Review || []).length,
-    });
+      console.log('SalonsService.findById result:', {
+        salonId: salon?.id,
+        salonName: salon?.name,
+        servicesCount: ((salon as any)?.Service || []).length,
+        servicesWithGroups:
+          ((salon as any)?.Service || []).filter((s: any) => s.ServiceGroup)
+            ?.length || 0,
+        groupsCount: allGroups.length,
+        groups: allGroups.map((g) => ({
+          id: g.id,
+          name: g.name,
+          position: g.position,
+        })),
+        reviewsCount: ((salon as any)?.Review || []).length,
+      });
 
-    if (!salon) {
-      return null;
-    }
-
-    // Create a map of service groups by ID for quick lookup
-    const groupsMap = new Map<string, any>();
-    allGroups.forEach((group) => {
-      groupsMap.set(group.id, group);
-    });
-
-    // Also add groups from services if they're not already in the map
-    ((salon as any).Service || []).forEach((service: any) => {
-      if (
-        service.ServiceGroup &&
-        service.serviceGroupId &&
-        !groupsMap.has(service.serviceGroupId)
-      ) {
-        groupsMap.set(service.serviceGroupId, service.ServiceGroup);
+      if (!salon) {
+        return null;
       }
-    });
 
-    // Transform Prisma response to frontend format
-    const transformedSalon = {
-      ...salon,
-      services: ((salon as any).Service || []).map((service: any) => {
-        const transformedService: any = {
-          id: service.id,
-          name: service.name,
-          description: service.description,
-          nameEn: service.nameEn,
-          nameVi: service.nameVi,
-          nameRu: service.nameRu,
-          descriptionEn: service.descriptionEn,
-          descriptionVi: service.descriptionVi,
-          descriptionRu: service.descriptionRu,
-          duration: service.duration,
-          price: service.price,
-          salonId: service.salonId,
-          categoryId: service.categoryId,
-          serviceCategoryId: service.serviceCategoryId,
-          serviceGroupId: service.serviceGroupId,
-        };
+      // Create a map of service groups by ID for quick lookup
+      const groupsMap = new Map<string, any>();
+      allGroups.forEach((group) => {
+        groupsMap.set(group.id, group);
+      });
 
-        if (service.service_categories) {
-          transformedService.serviceCategory = {
-            id: service.service_categories.id,
-            nameEn: service.service_categories.name_en,
-            nameVn: service.service_categories.name_vn,
-            nameRu: service.service_categories.name_ru,
-          };
+      // Also add groups from services if they're not already in the map
+      ((salon as any).Service || []).forEach((service: any) => {
+        if (
+          service.ServiceGroup &&
+          service.serviceGroupId &&
+          !groupsMap.has(service.serviceGroupId)
+        ) {
+          groupsMap.set(service.serviceGroupId, service.ServiceGroup);
         }
+      });
 
-        // Use ServiceGroup from service if available, otherwise lookup from map
-        const serviceGroup =
-          service.ServiceGroup ||
-          (service.serviceGroupId
-            ? groupsMap.get(service.serviceGroupId)
-            : null);
-        if (serviceGroup) {
-          transformedService.serviceGroup = {
-            id: serviceGroup.id,
-            salonId: serviceGroup.salonId,
-            name: serviceGroup.name,
-            nameEn: serviceGroup.nameEn,
-            nameVi: serviceGroup.nameVi,
-            nameRu: serviceGroup.nameRu,
-            position: serviceGroup.position,
-            isActive: serviceGroup.isActive,
-            createdAt:
-              serviceGroup.createdAt?.toISOString() || new Date().toISOString(),
+      // Transform Prisma response to frontend format
+      const transformedSalon = {
+        ...salon,
+        services: ((salon as any).Service || []).map((service: any) => {
+          const transformedService: any = {
+            id: service.id,
+            name: service.name,
+            description: service.description,
+            nameEn: service.nameEn,
+            nameVi: service.nameVi,
+            nameRu: service.nameRu,
+            descriptionEn: service.descriptionEn,
+            descriptionVi: service.descriptionVi,
+            descriptionRu: service.descriptionRu,
+            duration: service.duration,
+            price: service.price,
+            salonId: service.salonId,
+            categoryId: service.categoryId,
+            serviceCategoryId: service.serviceCategoryId,
+            serviceGroupId: service.serviceGroupId,
           };
-        }
 
-        return transformedService;
-      }),
-      staff: ((salon as any).Staff || []).map((staff: any) => ({
-        ...staff,
-        Staff: undefined,
-      })),
-      reviews: ((salon as any).Review || []).map((review: any) => ({
-        ...review,
-        user: review.User
+          if (service.service_categories) {
+            transformedService.serviceCategory = {
+              id: service.service_categories.id,
+              nameEn: service.service_categories.name_en,
+              nameVn: service.service_categories.name_vn,
+              nameRu: service.service_categories.name_ru,
+            };
+          }
+
+          // Use ServiceGroup from service if available, otherwise lookup from map
+          const serviceGroup =
+            service.ServiceGroup ||
+            (service.serviceGroupId
+              ? groupsMap.get(service.serviceGroupId)
+              : null);
+          if (serviceGroup) {
+            transformedService.serviceGroup = {
+              id: serviceGroup.id,
+              salonId: serviceGroup.salonId,
+              name: serviceGroup.name,
+              nameEn: serviceGroup.nameEn,
+              nameVi: serviceGroup.nameVi,
+              nameRu: serviceGroup.nameRu,
+              position: serviceGroup.position,
+              isActive: serviceGroup.isActive,
+              createdAt:
+                serviceGroup.createdAt?.toISOString() ||
+                new Date().toISOString(),
+            };
+          }
+
+          return transformedService;
+        }),
+        staff: ((salon as any).Staff || []).map((staff: any) => ({
+          ...staff,
+          Staff: undefined,
+        })),
+        reviews: ((salon as any).Review || []).map((review: any) => ({
+          ...review,
+          user: review.User
+            ? {
+                id: review.User.id,
+                name: review.User.name,
+                email: review.User.email,
+              }
+            : undefined,
+          User: undefined,
+        })),
+        owner: (salon as any).User
           ? {
-              id: review.User.id,
-              name: review.User.name,
-              email: review.User.email,
+              id: (salon as any).User.id,
+              name: (salon as any).User.name,
+              email: (salon as any).User.email,
             }
           : undefined,
-        User: undefined,
-      })),
-      owner: (salon as any).User
-        ? {
-            id: (salon as any).User.id,
-            name: (salon as any).User.name,
-            email: (salon as any).User.email,
-          }
-        : undefined,
-      // Add derived categories from services
-      categories: Array.from(
-        new Set(
-          ((salon as any).Service || [])
-            .map((s: any) => s.serviceCategoryId)
-            .filter(Boolean),
+        // Add derived categories from services
+        categories: Array.from(
+          new Set(
+            ((salon as any).Service || [])
+              .map((s: any) => s.serviceCategoryId)
+              .filter(Boolean),
+          ),
         ),
-      ),
-    };
+      };
 
       // Remove Prisma-specific fields
       delete (transformedSalon as any).Service;
@@ -1032,10 +1200,12 @@ export class SalonsService {
         errorName: error.name,
         errorStack: error.stack,
       });
-      
+
       // Re-throw with more context
       const errorMessage = error.message || 'Unknown error';
-      const enhancedError = new Error(`Failed to fetch salon (${id}): ${errorMessage}`);
+      const enhancedError = new Error(
+        `Failed to fetch salon (${id}): ${errorMessage}`,
+      );
       (enhancedError as any).originalError = error;
       throw enhancedError;
     }
