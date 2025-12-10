@@ -53,6 +53,8 @@ export class SalonsController {
     @Query('sortBy') sortBy?: string,
     @Query('minRating') minRating?: string,
     @Query('isOpenNow') isOpenNow?: string,
+    @Query('date') date?: string,
+    @Query('time') time?: string,
   ) {
     const params = {
       page: page ? parseInt(page, 10) : undefined,
@@ -63,6 +65,8 @@ export class SalonsController {
       sortBy,
       minRating: minRating ? parseInt(minRating, 10) : undefined,
       isOpenNow: isOpenNow === 'true',
+      date,
+      time,
     };
 
     const result = await this.salonsService.searchSalons(params);

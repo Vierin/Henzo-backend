@@ -163,6 +163,8 @@ export class SalonsService {
     sortBy?: string;
     minRating?: number;
     isOpenNow?: boolean;
+    date?: string;
+    time?: string;
   }) {
     const {
       page = 1,
@@ -173,6 +175,8 @@ export class SalonsService {
       sortBy = 'name',
       minRating = 0,
       isOpenNow = false,
+      date,
+      time,
     } = params;
 
     // P0: Максимальный лимит для предотвращения огромных payloads
@@ -361,7 +365,7 @@ export class SalonsService {
     const hasPreviousPage = page > 1;
 
     // Transform to match expected format (Service -> services)
-    const transformedSalons = salons.map((salon: any) => ({
+    let transformedSalons = salons.map((salon: any) => ({
       ...salon,
       services: (salon.Service || []).map((service: any) => ({
         ...service,
@@ -384,14 +388,97 @@ export class SalonsService {
       User: undefined, // Remove Prisma field
     }));
 
+    // Filter salons by date and time if provided
+    if (date) {
+      const selectedDate = new Date(date);
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const selectedDay = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+      const isToday = today.getTime() === selectedDay.getTime();
+
+      transformedSalons = transformedSalons.filter((salon: any) => {
+        const workingHours = salon.workingHours;
+        if (!workingHours || typeof workingHours !== 'object') {
+          return true; // If no working hours, assume available
+        }
+
+        const dayOfWeek = selectedDate.getDay();
+        const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+        const dayName = dayNames[dayOfWeek];
+        const dayHours = workingHours[dayName];
+
+        if (!dayHours || dayHours.closed) {
+          return false; // Salon is closed on this day
+        }
+
+        // If today, check if salon is still open
+        if (isToday) {
+          const currentHour = now.getHours();
+          const currentMinute = now.getMinutes();
+          const currentTimeInMinutes = currentHour * 60 + currentMinute;
+
+          const [closeHour, closeMinute] = (dayHours.close || '18:00').split(':').map(Number);
+          const closeTimeInMinutes = closeHour * 60 + closeMinute;
+
+          // Salon is closed if current time is past closing time (with 15 min buffer)
+          if (currentTimeInMinutes >= closeTimeInMinutes - 15) {
+            return false;
+          }
+        }
+
+        // If time interval is specified, check if it overlaps with working hours
+        if (time && time !== 'any') {
+          const timeRanges: { [key: string]: { start: string; end: string } } = {
+            morning: { start: '06:00', end: '12:00' },
+            afternoon: { start: '12:00', end: '18:00' },
+            evening: { start: '18:00', end: '22:00' },
+          };
+
+          const requestedRange = timeRanges[time.toLowerCase()];
+          if (requestedRange) {
+            const parseTime = (timeStr: string) => {
+              const [hours, minutes] = timeStr.split(':').map(Number);
+              return hours * 60 + minutes;
+            };
+
+            const openMinutes = parseTime(dayHours.open || '09:00');
+            const closeMinutes = parseTime(dayHours.close || '18:00');
+            const requestStartMinutes = parseTime(requestedRange.start);
+            const requestEndMinutes = parseTime(requestedRange.end);
+
+            // Check if time ranges overlap
+            const overlaps = requestStartMinutes < closeMinutes && requestEndMinutes > openMinutes;
+
+            if (!overlaps) {
+              return false;
+            }
+
+            // If today, also check if the requested time slot hasn't passed
+            if (isToday) {
+              const currentTimeInMinutes = now.getHours() * 60 + now.getMinutes();
+              if (requestEndMinutes <= currentTimeInMinutes + 15) {
+                return false; // Requested time slot has already passed
+              }
+            }
+          }
+        }
+
+        return true;
+      });
+    }
+
+    // Recalculate total after filtering
+    const filteredTotal = transformedSalons.length;
+    const filteredTotalPages = Math.ceil(filteredTotal / limit);
+
     const result = {
       data: transformedSalons,
       pagination: {
         page,
         limit,
-        total,
-        totalPages,
-        hasNextPage,
+        total: date ? filteredTotal : total,
+        totalPages: date ? filteredTotalPages : totalPages,
+        hasNextPage: date ? page < filteredTotalPages : hasNextPage,
         hasPreviousPage,
       },
     };
