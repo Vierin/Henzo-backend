@@ -21,9 +21,9 @@ RUN apk add --no-cache openssl
 # Обновляем npm до последней версии
 RUN npm install -g npm@latest
 
-COPY package*.json ./
-# Очищаем npm кэш и устанавливаем только production зависимости
-RUN npm cache clean --force && npm install --omit=dev
+COPY package.json ./
+# Удаляем package-lock.json если он поврежден и устанавливаем только production зависимости
+RUN rm -f package-lock.json && npm cache clean --force && npm install --omit=dev
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
