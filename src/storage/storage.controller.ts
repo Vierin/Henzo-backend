@@ -7,11 +7,13 @@ import {
   UploadedFile,
   HttpException,
   HttpStatus,
+  Headers,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { StorageService } from './storage.service';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
+import { AuthService } from '../auth/auth.service';
 
 interface MulterFile {
   fieldname: string;
@@ -27,7 +29,10 @@ interface MulterFile {
 
 @Controller('storage')
 export class StorageController {
-  constructor(private readonly storageService: StorageService) {}
+  constructor(
+    private readonly storageService: StorageService,
+    private readonly authService: AuthService,
+  ) {}
 
   @Post('upload')
   @UseInterceptors(
@@ -60,9 +65,30 @@ export class StorageController {
       },
     }),
   )
-  async uploadFile(@UploadedFile() file: MulterFile) {
+  async uploadFile(
+    @UploadedFile() file: MulterFile,
+    @Headers('authorization') authHeader?: string,
+  ) {
     if (!file) {
       throw new HttpException('No file uploaded', HttpStatus.BAD_REQUEST);
+    }
+
+    // Verify authentication
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      throw new HttpException(
+        'Authentication required',
+        HttpStatus.UNAUTHORIZED,
+      );
+    }
+
+    try {
+      // Verify user is authenticated
+      await this.authService.getCurrentUser(authHeader);
+    } catch (error) {
+      throw new HttpException(
+        'Invalid or expired token',
+        HttpStatus.UNAUTHORIZED,
+      );
     }
 
     try {
@@ -82,9 +108,30 @@ export class StorageController {
   }
 
   @Delete('delete')
-  async deleteFile(@Body('filePath') filePath: string) {
+  async deleteFile(
+    @Body('filePath') filePath: string,
+    @Headers('authorization') authHeader?: string,
+  ) {
     if (!filePath) {
       throw new HttpException('File path is required', HttpStatus.BAD_REQUEST);
+    }
+
+    // Verify authentication
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      throw new HttpException(
+        'Authentication required',
+        HttpStatus.UNAUTHORIZED,
+      );
+    }
+
+    try {
+      // Verify user is authenticated
+      await this.authService.getCurrentUser(authHeader);
+    } catch (error) {
+      throw new HttpException(
+        'Invalid or expired token',
+        HttpStatus.UNAUTHORIZED,
+      );
     }
 
     try {

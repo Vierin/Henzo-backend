@@ -23,6 +23,7 @@ import { AppThrottlerModule } from './throttler/throttler.module';
 import { QueueModule } from './queue/queue.module';
 import { MonitoringModule } from './monitoring/monitoring.module';
 import { ConfigModule } from '@nestjs/config';
+import { StorageModule } from './storage/storage.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { ConfigModule } from '@nestjs/config';
     FeedbackModule,
     NotificationsModule,
     MapboxModule,
+    StorageModule,
   ],
   controllers: [AppController],
   providers: [AppService],
