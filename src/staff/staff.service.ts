@@ -6,10 +6,25 @@ export class StaffService {
   constructor(private prisma: PrismaService) {}
 
   async findBySalonId(salonId: string) {
+    // Важно: Используем select вместо include для уменьшения payload
     return this.prisma.staff.findMany({
       where: { salonId },
-      include: {
-        Service: true,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        accessLevel: true,
+        salonId: true,
+        Service: {
+          select: {
+            id: true,
+            name: true,
+            duration: true,
+            price: true,
+            // Убираем description - не нужен для списка
+          },
+        },
       },
       orderBy: {
         name: 'asc',
@@ -18,11 +33,35 @@ export class StaffService {
   }
 
   async findById(id: string) {
+    // Важно: Используем select вместо include для уменьшения payload
     return this.prisma.staff.findUnique({
       where: { id },
-      include: {
-        Service: true,
-        Salon: true,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        accessLevel: true,
+        salonId: true,
+        Service: {
+          select: {
+            id: true,
+            name: true,
+            duration: true,
+            price: true,
+            description: true,
+            // Полные данные для деталей
+          },
+        },
+        Salon: {
+          select: {
+            id: true,
+            name: true,
+            address: true,
+            phone: true,
+            // Убираем другие поля - не нужны для деталей сотрудника
+          },
+        },
       },
     });
   }
@@ -34,10 +73,24 @@ export class StaffService {
     accessLevel: 'ADMIN' | 'EMPLOYEE';
     salonId: string;
   }) {
+    // Важно: Используем select вместо include для уменьшения payload
     return this.prisma.staff.create({
       data,
-      include: {
-        Service: true,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        accessLevel: true,
+        salonId: true,
+        Service: {
+          select: {
+            id: true,
+            name: true,
+            duration: true,
+            price: true,
+          },
+        },
       },
     });
   }
@@ -51,11 +104,25 @@ export class StaffService {
       accessLevel?: 'ADMIN' | 'EMPLOYEE';
     },
   ) {
+    // Важно: Используем select вместо include для уменьшения payload
     return this.prisma.staff.update({
       where: { id },
       data,
-      include: {
-        Service: true,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        accessLevel: true,
+        salonId: true,
+        Service: {
+          select: {
+            id: true,
+            name: true,
+            duration: true,
+            price: true,
+          },
+        },
       },
     });
   }

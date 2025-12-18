@@ -7,12 +7,51 @@ export class ServicesService {
   constructor(private prisma: PrismaService) {}
 
   async findBySalonId(salonId: string) {
+    // Важно: Используем select вместо include для уменьшения payload
     return this.prisma.service.findMany({
       where: { salonId },
-      include: {
-        Staff: true,
-        service_categories: true,
-        ServiceGroup: true,
+      select: {
+        id: true,
+        name: true,
+        nameEn: true,
+        nameVi: true,
+        nameRu: true,
+        description: true,
+        descriptionEn: true,
+        descriptionVi: true,
+        descriptionRu: true,
+        duration: true,
+        price: true,
+        salonId: true,
+        serviceCategoryId: true,
+        serviceGroupId: true,
+        Staff: {
+          select: {
+            id: true,
+            name: true,
+            // Убираем email, phone, accessLevel - не нужны для списка
+          },
+        },
+        service_categories: {
+          select: {
+            id: true,
+            name_en: true,
+            name_vn: true,
+            name_ru: true,
+            // Убираем другие поля - не нужны
+          },
+        },
+        ServiceGroup: {
+          select: {
+            id: true,
+            name: true,
+            nameEn: true,
+            nameVi: true,
+            nameRu: true,
+            position: true,
+            // Убираем другие поля - не нужны
+          },
+        },
       },
       orderBy: {
         name: 'asc',
@@ -21,13 +60,60 @@ export class ServicesService {
   }
 
   async findById(id: string) {
+    // Важно: Используем select вместо include для уменьшения payload
     return this.prisma.service.findUnique({
       where: { id },
-      include: {
-        Staff: true,
-        Salon: true,
-        service_categories: true,
-        ServiceGroup: true,
+      select: {
+        id: true,
+        name: true,
+        nameEn: true,
+        nameVi: true,
+        nameRu: true,
+        description: true,
+        descriptionEn: true,
+        descriptionVi: true,
+        descriptionRu: true,
+        duration: true,
+        price: true,
+        salonId: true,
+        serviceCategoryId: true,
+        serviceGroupId: true,
+        Staff: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            // accessLevel не нужен для деталей
+          },
+        },
+        Salon: {
+          select: {
+            id: true,
+            name: true,
+            address: true,
+            phone: true,
+            // Убираем другие поля - не нужны для деталей услуги
+          },
+        },
+        service_categories: {
+          select: {
+            id: true,
+            name_en: true,
+            name_vn: true,
+            name_ru: true,
+          },
+        },
+        ServiceGroup: {
+          select: {
+            id: true,
+            name: true,
+            nameEn: true,
+            nameVi: true,
+            nameRu: true,
+            position: true,
+          },
+        },
       },
     });
   }

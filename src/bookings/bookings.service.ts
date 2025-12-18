@@ -436,14 +436,46 @@ export class BookingsService {
 
   async getSalonBookings(salonId: string) {
     try {
+      // Критично: Используем select вместо include для уменьшения payload
       const bookings = await this.prisma.booking.findMany({
         where: {
           salonId: salonId,
         },
-        include: {
-          Service: true,
-          Staff: true,
-          User: true,
+        select: {
+          id: true,
+          salonId: true,
+          serviceId: true,
+          staffId: true,
+          userId: true,
+          status: true,
+          notes: true,
+          createdAt: true,
+          dateTime: true,
+          Service: {
+            select: {
+              id: true,
+              name: true,
+              duration: true,
+              price: true,
+              // Убираем description - не нужен для списка
+            },
+          },
+          Staff: {
+            select: {
+              id: true,
+              name: true,
+              // Убираем email, accessLevel - не нужны для списка
+            },
+          },
+          User: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              // Убираем phone - не нужен для списка
+            },
+          },
+          // Salon не нужен - уже знаем salonId
         },
         orderBy: {
           dateTime: 'desc',

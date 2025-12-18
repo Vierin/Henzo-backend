@@ -1306,26 +1306,39 @@ export class AuthService {
         throw new Error('User not found');
       }
 
-      // Get full salon data for favorite salon IDs
+      // Критично: Используем select вместо include для уменьшения payload
       const salons = await this.prisma.salon.findMany({
         where: {
           id: {
             in: user.favoriteSalons,
           },
         },
-        include: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          address: true,
+          phone: true,
+          email: true,
+          website: true,
+          instagram: true,
+          logo: true,
+          photos: true,
+          // Убираем workingHours, reminderSettings, ownerId, createdAt, categoryIds, latitude, longitude - не нужны для списка
           Service: {
             select: {
               id: true,
               name: true,
               price: true,
               duration: true,
+              // Убираем description, serviceCategoryId, serviceGroupId - не нужны для списка
             },
           },
           Review: {
             select: {
               id: true,
               rating: true,
+              // Убираем comment, createdAt - не нужны для расчета рейтинга
             },
           },
         },
