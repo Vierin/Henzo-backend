@@ -240,10 +240,20 @@ export class BookingsController {
   }
 
   @Get('owner')
-  async getOwnerBookings(@Headers('authorization') authHeader: string) {
+  async getOwnerBookings(
+    @Headers('authorization') authHeader: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('status') status?: string,
+    @Query('date') date?: string,
+  ) {
     try {
       console.log('📅 Fetching owner bookings:', {
         hasAuthHeader: !!authHeader,
+        page,
+        limit,
+        status,
+        date,
       });
 
       const currentUser = await this.authService.getCurrentUser(authHeader);
@@ -260,8 +270,17 @@ export class BookingsController {
         );
       }
 
+      const pageNum = page ? parseInt(page, 10) : 1;
+      const limitNum = limit ? parseInt(limit, 10) : 50; // Default 50 instead of 100
+
       const bookings = await this.bookingsService.getOwnerBookings(
         currentUser.user.id,
+        {
+          page: pageNum,
+          limit: limitNum,
+          status,
+          date,
+        },
       );
 
       console.log('✅ Owner bookings fetched successfully:', bookings.length);

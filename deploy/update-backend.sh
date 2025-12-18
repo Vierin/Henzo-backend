@@ -72,3 +72,4 @@ echo "   Логи:              docker-compose logs -f backend"
 echo "   Перезапуск:        docker-compose restart backend"
 echo "   Статус:            docker-compose ps"
 
+

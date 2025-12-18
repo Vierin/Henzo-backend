@@ -446,9 +446,27 @@ export class BookingsService {
     }
   }
 
-  async getOwnerBookings(ownerId: string) {
+  async getOwnerBookings(
+    ownerId: string,
+    options?: {
+      page?: number;
+      limit?: number;
+      status?: string;
+      date?: string;
+    },
+  ) {
     try {
-      this.logger.log('Fetching bookings for owner', { ownerId });
+      const page = options?.page || 1;
+      const limit = Math.min(options?.limit || 50, 100); // Max 100 per page
+      const skip = (page - 1) * limit;
+
+      this.logger.log('Fetching bookings for owner', {
+        ownerId,
+        page,
+        limit,
+        status: options?.status,
+        date: options?.date,
+      });
 
       // Сначала находим салоны, принадлежащие владельцу
       const ownerSalons = await this.prisma.salon.findMany({
@@ -467,97 +485,110 @@ export class BookingsService {
 
       const salonIds = ownerSalons.map((salon) => salon.id);
 
-      // P0: Получаем бронирования с пагинацией (максимум 100)
-      // TODO: Добавить параметры page/limit в метод
-      const bookings = await this.prisma.booking.findMany({
-        where: {
-          salonId: {
-            in: salonIds,
-          },
+      // Build where clause with filters
+      const where: any = {
+        salonId: {
+          in: salonIds,
         },
-        take: 100, // P0: Лимит для предотвращения огромных payloads
-        include: {
-          Service: {
-            select: {
-              id: true,
-              name: true,
-              description: true,
-              duration: true,
-              price: true,
-            },
-          },
-          Staff: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              accessLevel: true,
-            },
-          },
-          User: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              phone: true,
-            },
-          },
-          Salon: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
-        },
-        orderBy: {
-          dateTime: 'desc',
-        },
-      });
+      };
 
-      // OPTIMIZED: Update status to COMPLETED for past bookings in batch
+      // P2: По умолчанию загружаем только будущие бронирования или последние 30 дней
+      // Это значительно уменьшает количество данных
       const now = new Date();
-      const pastBookingIds = bookings
-        .filter(
-          (b) =>
-            (b.status === 'CONFIRMED' || b.status === 'PENDING') &&
-            b.dateTime < now,
-        )
-        .map((b) => b.id);
-
-      if (pastBookingIds.length > 0) {
-        await this.prisma.booking.updateMany({
-          where: {
-            id: { in: pastBookingIds },
-            salonId: { in: salonIds },
-          },
-          data: { status: 'COMPLETED' as any },
-        });
-        this.logger.log(
-          `Updated ${pastBookingIds.length} bookings to COMPLETED status`,
-        );
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      
+      if (options?.date) {
+        // Parse date filter (format: YYYY-MM-DD or 'today', 'this_week', etc.)
+        if (options.date === 'today') {
+          const startOfDay = new Date(now.setHours(0, 0, 0, 0));
+          const endOfDay = new Date(now.setHours(23, 59, 59, 999));
+          where.dateTime = {
+            gte: startOfDay,
+            lte: endOfDay,
+          };
+        } else if (options.date === 'this_week') {
+          const startOfWeek = new Date(now);
+          startOfWeek.setDate(now.getDate() - now.getDay());
+          startOfWeek.setHours(0, 0, 0, 0);
+          where.dateTime = {
+            gte: startOfWeek,
+          };
+        } else if (options.date === 'upcoming') {
+          where.dateTime = {
+            gte: now,
+          };
+        } else if (options.date === 'past') {
+          where.dateTime = {
+            lt: now,
+          };
+        } else {
+          // Try to parse as date string YYYY-MM-DD
+          const dateMatch = options.date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+          if (dateMatch) {
+            const [, year, month, day] = dateMatch;
+            const startOfDay = new Date(
+              parseInt(year),
+              parseInt(month) - 1,
+              parseInt(day),
+              0,
+              0,
+              0,
+            );
+            const endOfDay = new Date(
+              parseInt(year),
+              parseInt(month) - 1,
+              parseInt(day),
+              23,
+              59,
+              59,
+            );
+            where.dateTime = {
+              gte: startOfDay,
+              lte: endOfDay,
+            };
+          }
+        }
+      } else {
+        // P2: По умолчанию загружаем только будущие бронирования или последние 30 дней
+        where.dateTime = {
+          gte: thirtyDaysAgo,
+        };
       }
 
-      // Fetch updated bookings with all relations
-      const updatedBookings = await this.prisma.booking.findMany({
-        where: {
-          salonId: { in: salonIds },
-        },
-        include: {
+      if (options?.status) {
+        where.status = options.status;
+      }
+
+      // P1: Оптимизация - используем select вместо include для уменьшения payload
+      // Загружаем только необходимые поля
+      const bookings = await this.prisma.booking.findMany({
+        where,
+        skip,
+        take: limit,
+        select: {
+          id: true,
+          salonId: true,
+          serviceId: true,
+          staffId: true,
+          userId: true,
+          status: true,
+          notes: true,
+          createdAt: true,
+          dateTime: true,
           Service: {
             select: {
               id: true,
               name: true,
-              description: true,
               duration: true,
               price: true,
+              // Убираем description - не нужен для списка
             },
           },
           Staff: {
             select: {
               id: true,
               name: true,
-              email: true,
-              accessLevel: true,
+              // Убираем email и accessLevel - не нужны для списка
             },
           },
           User: {
@@ -580,11 +611,25 @@ export class BookingsService {
         },
       });
 
-      // Map dateTime to time for frontend compatibility
-      return updatedBookings.map((booking) => ({
-        ...booking,
-        time: booking.dateTime,
-      }));
+      // P2: Batch update теперь выполняется в фоновой задаче (BookingsScheduler)
+      // Только локально обновляем статус для уже загруженных данных
+      // Используем уже объявленную переменную now
+      const updatedBookings = bookings.map((booking) => {
+        // Обновляем статус локально для прошедших бронирований
+        if (
+          (booking.status === 'CONFIRMED' || booking.status === 'PENDING') &&
+          booking.dateTime < now
+        ) {
+          return {
+            ...booking,
+            status: 'COMPLETED' as any,
+          };
+        }
+        return booking;
+      });
+
+      // Transform to DTO format
+      return updatedBookings.map((booking: any) => this.transformBookingToDto(booking));
     } catch (error) {
       this.logger.error('Error fetching owner bookings', error);
       throw error;

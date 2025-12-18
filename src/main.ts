@@ -16,9 +16,21 @@ async function bootstrap() {
 
     console.log('✅ App module created successfully');
 
-    // P1: Enable compression for responses
-    app.use(compression());
-    console.log('✅ Compression enabled');
+    // P2: Enable compression for responses with optimized settings
+    app.use(
+      compression({
+        level: 6, // Balanced compression level (1-9)
+        threshold: 1024, // Only compress responses > 1KB
+        filter: (req, res) => {
+          // Compress all JSON and text responses
+          if (req.headers['x-no-compression']) {
+            return false;
+          }
+          return compression.filter(req, res);
+        },
+      })
+    );
+    console.log('✅ Compression enabled with optimized settings');
 
     // Enable global exception filter
     app.useGlobalFilters(new AllExceptionsFilter());
