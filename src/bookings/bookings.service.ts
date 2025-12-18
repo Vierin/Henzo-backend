@@ -236,15 +236,46 @@ export class BookingsService {
 
   async getUserBookings(userId: string) {
     try {
+      // P0: Используем select вместо include для уменьшения payload
       const bookings = await this.prisma.booking.findMany({
         where: {
           userId: userId,
         },
-        include: {
-          Service: true,
-          Staff: true,
-          Salon: true,
-          User: true,
+        select: {
+          id: true,
+          salonId: true,
+          serviceId: true,
+          staffId: true,
+          status: true,
+          notes: true,
+          createdAt: true,
+          dateTime: true,
+          Service: {
+            select: {
+              id: true,
+              name: true,
+              duration: true,
+              price: true,
+              // Убираем description - не нужен для списка
+            },
+          },
+          Staff: {
+            select: {
+              id: true,
+              name: true,
+              // Убираем email, accessLevel - не нужны для списка
+            },
+          },
+          Salon: {
+            select: {
+              id: true,
+              name: true,
+              logo: true,
+              photos: true, // Только для первого фото
+              // Убираем address, phone, description - не нужны для списка
+            },
+          },
+          // User не нужен для клиентского дашборда
         },
         orderBy: {
           dateTime: 'desc',
@@ -260,9 +291,15 @@ export class BookingsService {
     }
   }
 
-  async getUpcomingBookings(userId: string) {
+  async getUpcomingBookings(
+    userId: string,
+    options?: { limit?: number },
+  ) {
     try {
       const now = new Date();
+      const limit = options?.limit || 50; // P0: Лимит на количество записей
+      
+      // P0: Используем select вместо include для уменьшения payload
       const bookings = await this.prisma.booking.findMany({
         where: {
           userId: userId,
@@ -273,14 +310,45 @@ export class BookingsService {
             in: ['PENDING', 'CONFIRMED'],
           },
         },
-        include: {
-          Service: true,
-          Staff: true,
-          Salon: true,
-          User: true,
+        take: limit, // P0: Лимит
+        select: {
+          id: true,
+          salonId: true,
+          serviceId: true,
+          staffId: true,
+          status: true,
+          notes: true,
+          createdAt: true,
+          dateTime: true,
+          Service: {
+            select: {
+              id: true,
+              name: true,
+              duration: true,
+              price: true,
+              // Убираем description - не нужен для списка
+            },
+          },
+          Staff: {
+            select: {
+              id: true,
+              name: true,
+              // Убираем email, accessLevel - не нужны для списка
+            },
+          },
+          Salon: {
+            select: {
+              id: true,
+              name: true,
+              logo: true,
+              photos: true, // Только для первого фото
+              // Убираем address, phone, description - не нужны для списка
+            },
+          },
+          // User не нужен для клиентского дашборда
         },
         orderBy: {
-          dateTime: 'asc',
+          dateTime: 'asc', // P1: Сортировка на бэкенде
         },
       });
 
@@ -293,9 +361,17 @@ export class BookingsService {
     }
   }
 
-  async getCompletedBookings(userId: string) {
+  async getCompletedBookings(
+    userId: string,
+    options?: { page?: number; limit?: number },
+  ) {
     try {
       const now = new Date();
+      const page = options?.page || 1;
+      const limit = options?.limit || 30; // P0: По умолчанию 30 записей
+      const skip = (page - 1) * limit; // P0: Пагинация
+      
+      // P0: Используем select вместо include для уменьшения payload
       const bookings = await this.prisma.booking.findMany({
         where: {
           userId: userId,
@@ -303,17 +379,49 @@ export class BookingsService {
             lt: now,
           },
           status: {
-            in: ['CONFIRMED', 'CANCELED'],
+            in: ['CONFIRMED', 'CANCELED', 'COMPLETED'],
           },
         },
-        include: {
-          Service: true,
-          Staff: true,
-          Salon: true,
-          User: true,
+        skip, // P0: Пагинация
+        take: limit, // P0: Лимит
+        select: {
+          id: true,
+          salonId: true,
+          serviceId: true,
+          staffId: true,
+          status: true,
+          notes: true,
+          createdAt: true,
+          dateTime: true,
+          Service: {
+            select: {
+              id: true,
+              name: true,
+              duration: true,
+              price: true,
+              // Убираем description - не нужен для списка
+            },
+          },
+          Staff: {
+            select: {
+              id: true,
+              name: true,
+              // Убираем email, accessLevel - не нужны для списка
+            },
+          },
+          Salon: {
+            select: {
+              id: true,
+              name: true,
+              logo: true,
+              photos: true, // Только для первого фото
+              // Убираем address, phone, description - не нужны для списка
+            },
+          },
+          // User не нужен для клиентского дашборда
         },
         orderBy: {
-          dateTime: 'desc',
+          dateTime: 'desc', // P1: Сортировка на бэкенде
         },
       });
 

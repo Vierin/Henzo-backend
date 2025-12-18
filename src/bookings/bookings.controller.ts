@@ -98,7 +98,7 @@ export class BookingsController {
   }
 
   @Get('user')
-  @Header('Cache-Control', 'public, max-age=60') // P1: Кэш на 1 минуту (данные могут часто меняться)
+  @Header('Cache-Control', 'public, max-age=300') // P3: Кэш на 5 минут
   async getUserBookings(@Headers('authorization') authHeader: string) {
     try {
       const currentUser = await this.authService.getCurrentUser(authHeader);
@@ -118,12 +118,19 @@ export class BookingsController {
   }
 
   @Get('user/upcoming')
-  async getUpcomingBookings(@Headers('authorization') authHeader: string) {
+  @Header('Cache-Control', 'public, max-age=300') // P3: Кэш на 5 минут
+  async getUpcomingBookings(
+    @Headers('authorization') authHeader: string,
+    @Query('limit') limit?: string,
+  ) {
     try {
       const currentUser = await this.authService.getCurrentUser(authHeader);
 
       const bookings = await this.bookingsService.getUpcomingBookings(
         currentUser.user.id,
+        {
+          limit: limit ? parseInt(limit, 10) : undefined,
+        },
       );
 
       return bookings;
@@ -137,12 +144,21 @@ export class BookingsController {
   }
 
   @Get('user/completed')
-  async getCompletedBookings(@Headers('authorization') authHeader: string) {
+  @Header('Cache-Control', 'public, max-age=600') // P3: Кэш на 10 минут (данные меняются редко)
+  async getCompletedBookings(
+    @Headers('authorization') authHeader: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
     try {
       const currentUser = await this.authService.getCurrentUser(authHeader);
 
       const bookings = await this.bookingsService.getCompletedBookings(
         currentUser.user.id,
+        {
+          page: page ? parseInt(page, 10) : undefined,
+          limit: limit ? parseInt(limit, 10) : undefined,
+        },
       );
 
       return bookings;

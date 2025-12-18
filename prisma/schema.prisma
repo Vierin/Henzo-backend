@@ -33,6 +33,7 @@ model Booking {
   @@index([salonId, createdAt])
   @@index([status, dateTime]) // P3: Для быстрого поиска по статусу и дате
   @@index([salonId, dateTime, status]) // P3: Составной индекс для фильтрации
+  @@index([userId, status, dateTime]) // P2: Для быстрого поиска клиентских бронирований по статусу
 }
 
 model PendingBooking {
