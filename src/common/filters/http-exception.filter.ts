@@ -66,6 +66,18 @@ export class AllExceptionsFilter implements ExceptionFilter {
         });
       }
     } else {
+      // Не логируем как WARN неподдерживаемые WebDAV методы - они не критичны
+      const unsupportedMethods = ['PROPFIND', 'PROPPATCH', 'MKCOL', 'COPY', 'MOVE', 'LOCK', 'UNLOCK'];
+      if (unsupportedMethods.includes(request.method)) {
+        // Игнорируем логирование для WebDAV методов - это обычно сканеры безопасности
+        return response.status(status).json({
+          code: status,
+          error_code: 'method_not_allowed',
+          msg: errorMessage,
+          timestamp: new Date().toISOString(),
+          path: request.url,
+        });
+      }
       this.logger.warn('Client error', errorDetails);
     }
 

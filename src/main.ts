@@ -21,6 +21,19 @@ async function bootstrap() {
       rawBody: false,
     });
 
+    // Filter unsupported HTTP methods (WebDAV, etc.) to reduce log noise
+    app.use((req, res, next) => {
+      const unsupportedMethods = ['PROPFIND', 'PROPPATCH', 'MKCOL', 'COPY', 'MOVE', 'LOCK', 'UNLOCK'];
+      if (unsupportedMethods.includes(req.method)) {
+        // Return 405 Method Not Allowed without logging
+        return res.status(405).json({
+          error: 'Method Not Allowed',
+          message: `${req.method} method is not supported`,
+        });
+      }
+      next();
+    });
+
     // Global body size limits (10MB for JSON/text, handled by multer for files)
     app.use((req, res, next) => {
       const contentLength = req.headers['content-length'];
