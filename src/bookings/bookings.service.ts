@@ -291,14 +291,11 @@ export class BookingsService {
     }
   }
 
-  async getUpcomingBookings(
-    userId: string,
-    options?: { limit?: number },
-  ) {
+  async getUpcomingBookings(userId: string, options?: { limit?: number }) {
     try {
       const now = new Date();
       const limit = options?.limit || 50; // P0: Лимит на количество записей
-      
+
       // P0: Используем select вместо include для уменьшения payload
       const bookings = await this.prisma.booking.findMany({
         where: {
@@ -370,7 +367,7 @@ export class BookingsService {
       const page = options?.page || 1;
       const limit = options?.limit || 30; // P0: По умолчанию 30 записей
       const skip = (page - 1) * limit; // P0: Пагинация
-      
+
       // P0: Используем select вместо include для уменьшения payload
       const bookings = await this.prisma.booking.findMany({
         where: {
@@ -636,7 +633,7 @@ export class BookingsService {
       // Это значительно уменьшает количество данных
       const now = new Date();
       const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      
+
       if (options?.date) {
         // Parse date filter (format: YYYY-MM-DD or 'today', 'this_week', etc.)
         if (options.date === 'today') {
@@ -769,7 +766,9 @@ export class BookingsService {
       });
 
       // Transform to DTO format
-      return updatedBookings.map((booking: any) => this.transformBookingToDto(booking));
+      return updatedBookings.map((booking: any) =>
+        this.transformBookingToDto(booking),
+      );
     } catch (error) {
       this.logger.error('Error fetching owner bookings', error);
       throw error;
@@ -1562,6 +1561,36 @@ export class BookingsService {
 
   async sendMagicLink(email: string, bookingData: CreateBookingDto) {
     try {
+      const normalizedEmail = email.toLowerCase().trim();
+
+      // Check if user already exists
+      const existingUser = await this.prisma.user.findUnique({
+        where: { email: normalizedEmail },
+      });
+
+      if (existingUser) {
+        // If user exists and is a CLIENT, don't send magic link
+        // User should login with password instead
+        if (existingUser.role === 'CLIENT') {
+          this.logger.log('User already exists, magic link not sent', {
+            email: normalizedEmail,
+            userId: existingUser.id,
+            role: existingUser.role,
+          });
+          throw new Error('USER_EXISTS');
+        }
+        // If user exists but is not CLIENT (e.g., OWNER), also don't send magic link
+        this.logger.log(
+          'User exists with different role, magic link not sent',
+          {
+            email: normalizedEmail,
+            userId: existingUser.id,
+            role: existingUser.role,
+          },
+        );
+        throw new Error('USER_EXISTS');
+      }
+
       // Generate secure token
       const token = nanoid(32);
       const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
@@ -1570,7 +1599,7 @@ export class BookingsService {
       const pendingBooking = await this.prisma.pendingBooking.create({
         data: {
           token,
-          email: email.toLowerCase().trim(),
+          email: normalizedEmail,
           bookingData: bookingData as any,
           expiresAt,
         },

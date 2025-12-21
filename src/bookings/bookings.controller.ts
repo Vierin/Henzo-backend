@@ -622,6 +622,18 @@ export class BookingsController {
       };
     } catch (error) {
       console.error('❌ Send magic link failed:', error.message);
+      
+      // If user already exists, return specific error code
+      if (error.message === 'USER_EXISTS') {
+        throw new HttpException(
+          {
+            code: 'USER_EXISTS',
+            message: 'An account with this email already exists. Please login with your password.',
+          },
+          HttpStatus.CONFLICT, // 409 Conflict
+        );
+      }
+      
       throw new HttpException(
         error.message || 'Failed to send magic link',
         HttpStatus.BAD_REQUEST,

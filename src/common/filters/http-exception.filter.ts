@@ -28,11 +28,20 @@ export class AllExceptionsFilter implements ExceptionFilter {
         ? exception.getResponse()
         : 'Internal server error';
 
-    // Extract error message
-    const errorMessage =
-      typeof message === 'string'
-        ? message
-        : (message as any)?.message || 'Internal server error';
+    // Extract error message and preserve original structure if it's an object
+    let errorMessage: string;
+    let errorCode: string | undefined;
+    
+    if (typeof message === 'string') {
+      errorMessage = message;
+    } else {
+      const messageObj = message as any;
+      errorMessage = messageObj?.message || 'Internal server error';
+      // Preserve code if it exists (e.g., USER_EXISTS)
+      if (messageObj?.code) {
+        errorCode = messageObj.code;
+      }
+    }
 
     // Log error details
     const errorDetails = {
@@ -113,12 +122,17 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     // Return formatted error response
     const errorResponse: any = {
-      code: status,
-      error_code: status >= 500 ? 'unexpected_failure' : 'client_error',
+      code: status, // HTTP status code (409, 400, etc.)
+      error_code: errorCode || (status >= 500 ? 'unexpected_failure' : 'client_error'),
       msg: errorMessage,
       timestamp: new Date().toISOString(),
       path: request.url,
     };
+
+    // Preserve original error code (e.g., USER_EXISTS) in error_code field
+    if (errorCode) {
+      errorResponse.error_code = errorCode;
+    }
 
     if (process.env.NODE_ENV === 'development' && exception instanceof Error) {
       errorResponse.stack = exception.stack;
