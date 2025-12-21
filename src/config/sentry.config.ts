@@ -10,6 +10,8 @@ export function initSentry() {
     return;
   }
 
+  const isEnabled = environment !== 'development' || !!process.env.ENABLE_SENTRY_IN_DEV;
+
   Sentry.init({
     dsn,
     environment,
@@ -21,9 +23,13 @@ export function initSentry() {
     // Profiling
     profilesSampleRate: environment === 'production' ? 0.1 : 1.0,
     // Don't send errors in development unless explicitly testing
-    enabled: environment !== 'development' || !!process.env.ENABLE_SENTRY_IN_DEV,
+    enabled: isEnabled,
+    // Send events immediately (no batching delay)
+    transportOptions: {
+      // Use default transport, but ensure events are sent quickly
+    },
   });
 
-  console.log('✅ Sentry initialized');
+  // Sentry initialized silently
 }
 

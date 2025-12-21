@@ -7,6 +7,42 @@ import { MonitoringService } from './monitoring/monitoring.service';
 import * as compression from 'compression';
 import helmet from 'helmet';
 import { initSentry } from './config/sentry.config';
+import { resolve } from 'path';
+
+// Load environment variables before initializing Sentry
+// This ensures ENABLE_SENTRY_IN_DEV and SENTRY_DSN are available
+// Use require to avoid TypeScript import issues with dotenv
+try {
+  const dotenv = require('dotenv');
+  const envPaths = [
+    resolve(process.cwd(), '.env'), // Root of backend app
+    resolve(__dirname, '../.env'), // One level up from dist
+    resolve(__dirname, '../../.env'), // Two levels up (if running from dist/src)
+  ];
+
+  // Load the first .env file that exists
+  for (const envPath of envPaths) {
+    try {
+      const result = dotenv.config({ path: envPath });
+      if (!result.error) {
+        break;
+      }
+    } catch (error) {
+      // Continue to next path
+    }
+  }
+} catch (error) {
+  // Silently fall back to system environment variables
+}
+
+// Normalize ENABLE_SENTRY_IN_DEV value if set
+const enableSentryInDev = process.env.ENABLE_SENTRY_IN_DEV;
+if (enableSentryInDev !== undefined) {
+  const normalized = enableSentryInDev.trim().toLowerCase();
+  if (normalized === 'true' || normalized === '1' || normalized === 'yes') {
+    process.env.ENABLE_SENTRY_IN_DEV = 'true';
+  }
+}
 
 // Initialize Sentry before anything else
 initSentry();
@@ -19,6 +55,19 @@ async function bootstrap() {
       logger: ['error', 'warn', 'log'],
       bodyParser: true,
       rawBody: false,
+    });
+
+    // Handle common browser requests (favicon, robots.txt, etc.) to reduce log noise
+    app.use((req, res, next) => {
+      const ignoredPaths = ['/favicon.ico', '/robots.txt', '/apple-touch-icon.png', '/favicon.png'];
+      if (ignoredPaths.some(path => req.url.includes(path))) {
+        // Return 404 without creating an exception
+        return res.status(404).json({
+          error: 'Not Found',
+          message: 'Resource not found',
+        });
+      }
+      next();
     });
 
     // Filter unsupported HTTP methods (WebDAV, etc.) to reduce log noise

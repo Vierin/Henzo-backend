@@ -67,6 +67,11 @@ export class AllExceptionsFilter implements ExceptionFilter {
           },
           extra: errorDetails,
         });
+        
+        // Flush events immediately for critical errors
+        Sentry.flush(2000).catch((err) => {
+          this.logger.warn('Failed to flush Sentry events:', err);
+        });
       }
     } else {
       // Не логируем как WARN неподдерживаемые WebDAV методы - они не критичны
@@ -89,6 +94,20 @@ export class AllExceptionsFilter implements ExceptionFilter {
           path: request.url,
         });
       }
+
+      // Не логируем как WARN несущественные 404 ошибки (favicon, robots.txt и т.д.)
+      const ignoredPaths = ['/favicon.ico', '/robots.txt', '/apple-touch-icon.png', '/favicon.png'];
+      if (status === 404 && ignoredPaths.some(path => request.url.includes(path))) {
+        // Просто возвращаем 404 без логирования - это нормальные запросы браузеров
+        return response.status(404).json({
+          code: 404,
+          error_code: 'not_found',
+          msg: errorMessage,
+          timestamp: new Date().toISOString(),
+          path: request.url,
+        });
+      }
+
       this.logger.warn('Client error', errorDetails);
     }
 
