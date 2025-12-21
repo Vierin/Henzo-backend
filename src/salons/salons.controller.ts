@@ -272,9 +272,17 @@ export class SalonsController {
       const puppeteer = await import('puppeteer');
 
       // Launch Puppeteer
+      // Use system Chromium if available (in Docker), otherwise use bundled browser
+      const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
       const browser = await puppeteer.launch({
         headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        executablePath: executablePath || undefined,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-gpu',
+        ],
       });
 
       const page = await browser.newPage();
