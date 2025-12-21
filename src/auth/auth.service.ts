@@ -1569,10 +1569,13 @@ export class AuthService {
       // Создаем новый клиент Supabase с anon key для входа
       const { createClient } = require('@supabase/supabase-js');
       const supabaseUrl = process.env.SUPABASE_URL;
-      const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+      // Support both SUPABASE_ANON_KEY and SUPABASE_KEY for compatibility
+      const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY;
 
       if (!supabaseUrl || !supabaseAnonKey) {
-        throw new BadRequestException('Supabase configuration missing');
+        throw new BadRequestException(
+          'Supabase anon key missing. Set SUPABASE_ANON_KEY or SUPABASE_KEY environment variable.',
+        );
       }
 
       const publicSupabase = createClient(supabaseUrl, supabaseAnonKey);

@@ -5,6 +5,11 @@ import { AllExceptionsFilter } from './common/filters/http-exception.filter';
 import { MonitoringInterceptor } from './common/interceptors/monitoring.interceptor';
 import { MonitoringService } from './monitoring/monitoring.service';
 import * as compression from 'compression';
+import helmet from 'helmet';
+import { initSentry } from './config/sentry.config';
+
+// Initialize Sentry before anything else
+initSentry();
 
 async function bootstrap() {
   try {
@@ -12,9 +17,43 @@ async function bootstrap() {
 
     const app = await NestFactory.create(AppModule, {
       logger: ['error', 'warn', 'log'],
+      bodyParser: true,
+      rawBody: false,
+    });
+
+    // Global body size limits (10MB for JSON/text, handled by multer for files)
+    app.use((req, res, next) => {
+      const contentLength = req.headers['content-length'];
+      if (contentLength) {
+        const size = parseInt(contentLength, 10);
+        // 10MB limit for JSON/text payloads (files handled separately by multer)
+        if (size > 10 * 1024 * 1024) {
+          return res.status(413).json({
+            error: 'Payload too large',
+            message: 'Request body size exceeds 10MB limit',
+          });
+        }
+      }
+      next();
     });
 
     console.log('✅ App module created successfully');
+
+    // Security headers with Helmet
+    app.use(
+      helmet({
+        contentSecurityPolicy: {
+          directives: {
+            defaultSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            scriptSrc: ["'self'"],
+            imgSrc: ["'self'", 'data:', 'https:'],
+          },
+        },
+        crossOriginEmbedderPolicy: false, // Allow embedding if needed
+      }),
+    );
+    console.log('✅ Security headers (Helmet) enabled');
 
     // P2: Enable compression for responses with optimized settings
     app.use(

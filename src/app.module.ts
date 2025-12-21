@@ -24,12 +24,17 @@ import { QueueModule } from './queue/queue.module';
 import { MonitoringModule } from './monitoring/monitoring.module';
 import { ConfigModule } from '@nestjs/config';
 import { StorageModule } from './storage/storage.module';
+import { validate } from './config/env.validation';
+import { LoggerModule } from './common/logger/logger.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      validate,
+      cache: true,
     }),
+    LoggerModule,
     CacheModule,
     AppThrottlerModule,
     QueueModule,
