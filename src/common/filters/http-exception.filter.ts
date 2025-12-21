@@ -41,7 +41,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       path: request.url,
       method: request.method,
       timestamp: new Date().toISOString(),
-      ...(exception instanceof Error && { 
+      ...(exception instanceof Error && {
         stack: exception.stack,
         name: exception.name,
         message: exception.message,
@@ -49,12 +49,15 @@ export class AllExceptionsFilter implements ExceptionFilter {
     };
 
     if (status >= 500) {
-      this.logger.error('Internal server error', JSON.stringify(errorDetails, null, 2));
+      this.logger.error(
+        'Internal server error',
+        JSON.stringify(errorDetails, null, 2),
+      );
       // Log full exception for debugging
       if (exception instanceof Error) {
         this.logger.error('Exception stack:', exception.stack);
       }
-      
+
       // Send to Sentry for server errors
       if (process.env.SENTRY_DSN && exception instanceof Error) {
         Sentry.captureException(exception, {
@@ -67,7 +70,15 @@ export class AllExceptionsFilter implements ExceptionFilter {
       }
     } else {
       // Не логируем как WARN неподдерживаемые WebDAV методы - они не критичны
-      const unsupportedMethods = ['PROPFIND', 'PROPPATCH', 'MKCOL', 'COPY', 'MOVE', 'LOCK', 'UNLOCK'];
+      const unsupportedMethods = [
+        'PROPFIND',
+        'PROPPATCH',
+        'MKCOL',
+        'COPY',
+        'MOVE',
+        'LOCK',
+        'UNLOCK',
+      ];
       if (unsupportedMethods.includes(request.method)) {
         // Игнорируем логирование для WebDAV методов - это обычно сканеры безопасности
         return response.status(status).json({
