@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import { InputJsonValue } from '@prisma/client/runtime/library';
+import { toZonedTime, formatInTimeZone } from 'date-fns-tz';
 
 type BookingWithRelations = {
   id: string;
@@ -27,6 +28,7 @@ type BookingWithRelations = {
     address: string | null;
     phone: string | null;
     reminderSettings?: any;
+    timezone?: string; // IANA timezone identifier (e.g., "Asia/Ho_Chi_Minh")
   };
   Staff: {
     id: string;
@@ -47,6 +49,8 @@ export class RemindersService {
 
       // Get current date and time in UTC
       const now = new Date();
+      console.log(`⏰ Current time (UTC): ${now.toISOString()}`);
+      console.log(`⏰ Current time (local): ${now.toString()}`);
 
       // Define all possible reminder intervals in hours
       const possibleIntervals = [3, 24, 168]; // 3 hours, 1 day, 1 week
@@ -79,7 +83,7 @@ export class RemindersService {
                 lte: reminderWindowEnd,
               },
               status: {
-                in: ['CONFIRMED'],
+                in: ['CONFIRMED'], // Only send reminders for confirmed bookings
               },
             },
             select: {
@@ -111,6 +115,7 @@ export class RemindersService {
                   address: true,
                   phone: true,
                   reminderSettings: true,
+                  timezone: true,
                 },
               },
               Staff: {
@@ -135,12 +140,19 @@ export class RemindersService {
         }
 
         console.log(
-          `📊 Found ${bookings.length} bookings for ${intervalHours}h interval`,
+          `📊 Found ${bookings.length} bookings for ${intervalHours}h interval (window: ${reminderWindowStart.toISOString()} - ${reminderWindowEnd.toISOString()})`,
         );
 
         // Process each booking
         for (const booking of bookings) {
           try {
+            // Log booking details for debugging
+            const timeUntilBooking = booking.dateTime.getTime() - now.getTime();
+            const hoursUntilBooking = timeUntilBooking / (1000 * 60 * 60);
+            console.log(
+              `🔍 Processing booking ${booking.id}: dateTime=${booking.dateTime.toISOString()}, hoursUntil=${hoursUntilBooking.toFixed(2)}, interval=${intervalHours}h`,
+            );
+
             // Get salon reminder settings
             const reminderSettings = (booking.Salon.reminderSettings as any) || {
               intervals: [24],
@@ -150,7 +162,7 @@ export class RemindersService {
             // Check if this interval is enabled for this salon
             if (!salonIntervals.includes(intervalHours)) {
               console.log(
-                `⏭️ Skipping booking ${booking.id}: ${intervalHours}h interval not enabled for salon`,
+                `⏭️ Skipping booking ${booking.id}: ${intervalHours}h interval not enabled for salon (enabled: ${salonIntervals.join(', ')})`,
               );
               continue;
             }
@@ -160,26 +172,22 @@ export class RemindersService {
               (booking.remindersSentIntervals as number[]) || [];
             if (sentIntervals.includes(intervalHours)) {
               console.log(
-                `⏭️ Skipping booking ${booking.id}: ${intervalHours}h reminder already sent`,
+                `⏭️ Skipping booking ${booking.id}: ${intervalHours}h reminder already sent (sent: ${sentIntervals.join(', ')})`,
               );
               continue;
             }
 
-            // Format date and time for display - use UTC to avoid timezone conversion
+            // Format date and time for display - convert from UTC to salon's timezone
+            // Use date-fns-tz for proper timezone conversion
+            const salonTimezone = booking.Salon?.timezone || 'Asia/Ho_Chi_Minh';
+            
             const bookingDate = new Date(booking.dateTime);
-            const dateStr = bookingDate.toLocaleDateString('en-US', {
-              weekday: 'long',
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric',
-              timeZone: 'UTC',
-            });
-            // Use UTC hours and minutes directly to avoid timezone conversion
-            const hours = bookingDate.getUTCHours();
-            const minutes = bookingDate.getUTCMinutes();
-            const ampm = hours >= 12 ? 'PM' : 'AM';
-            const displayHours = hours % 12 || 12;
-            const timeStr = `${displayHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+            const zonedDate = toZonedTime(bookingDate, salonTimezone);
+            
+            const dateStr = formatInTimeZone(bookingDate, salonTimezone, 'EEEE, MMMM d, yyyy');
+            
+            // Format time in salon's timezone
+            const timeStr = formatInTimeZone(bookingDate, salonTimezone, 'hh:mm a');
 
             // Prepare booking data for email
             const bookingData = {

@@ -100,6 +100,7 @@ model Salon {
   descriptionEn    String?
   descriptionVi    String?
   descriptionRu    String?
+  timezone         String         @default("Asia/Ho_Chi_Minh") // IANA timezone identifier
   Booking          Booking[]
   Review           Review[]
   User             User          @relation(fields: [ownerId], references: [id])

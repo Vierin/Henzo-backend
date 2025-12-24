@@ -73,3 +73,6 @@ echo "   Перезапуск:        docker-compose restart backend"
 echo "   Статус:            docker-compose ps"
 
 
+
+
+

@@ -1270,6 +1270,15 @@ export class SalonsService {
   }
 
   async findFeaturedSalons(limit: number) {
+    // Cache key includes limit to cache different limits separately
+    const cacheKey = `salons:featured:${limit}`;
+    
+    // Try to get from cache first (24 hours TTL)
+    const cached = await this.cacheService.get<any[]>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const salons = await this.prisma.salon.findMany({
       select: {
         id: true,
@@ -1378,7 +1387,12 @@ export class SalonsService {
       return 0;
     });
 
-    return enriched.slice(0, limit);
+    const result = enriched.slice(0, limit);
+    
+    // Cache the result for 24 hours (86400000 milliseconds)
+    await this.cacheService.set(cacheKey, result, 24 * 60 * 60 * 1000);
+    
+    return result;
   }
 
   /**

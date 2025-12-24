@@ -5,6 +5,7 @@ import { CreateBookingDto } from './dto/create-booking.dto';
 import { EmailService } from '../email/email.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { nanoid } from 'nanoid';
+import { toZonedTime, format } from 'date-fns-tz';
 
 @Injectable()
 export class BookingsService {
@@ -866,8 +867,10 @@ export class BookingsService {
         booking.dateTime?.toISOString?.() ||
         booking.dateTime?.toString() ||
         booking.dateTime;
-      const { formattedDate, formattedTime } =
-        this.formatBookingDateTime(dateTimeString);
+      const { formattedDate, formattedTime } = this.formatBookingDateTime(
+        dateTimeString,
+        booking.Salon?.timezone || 'Asia/Ho_Chi_Minh',
+      );
 
       // Get client email - ensure it exists
       const clientEmail = booking.User?.email;
@@ -938,6 +941,8 @@ export class BookingsService {
             salonPhone: booking.Salon?.phone || null,
             staffName: booking.Staff?.name,
             dateTime: booking.dateTime,
+            salonTimezone:
+              (booking.Salon as any)?.timezone || 'Asia/Ho_Chi_Minh',
           });
           this.logger.log('Client pending booking email sent', { clientEmail });
         } catch (clientEmailError) {
@@ -1250,6 +1255,8 @@ export class BookingsService {
                 duration: updatedBooking.Service?.duration || 0,
                 price: updatedBooking.Service?.price || 0,
                 salonName: updatedBooking.Salon?.name || '',
+                salonTimezone:
+                  (updatedBooking.Salon as any)?.timezone || 'Asia/Ho_Chi_Minh',
               },
             );
           } else if (data.status === 'CANCELED') {
@@ -1391,8 +1398,12 @@ export class BookingsService {
 
       // Send confirmation email to client
       const dateTimeString = updatedBooking.dateTime.toISOString();
-      const { formattedDate, formattedTime } =
-        this.formatBookingDateTime(dateTimeString);
+      const salonTimezone =
+        (updatedBooking.Salon as any)?.timezone || 'Asia/Ho_Chi_Minh';
+      const { formattedDate, formattedTime } = this.formatBookingDateTime(
+        dateTimeString,
+        salonTimezone,
+      );
 
       await this.emailService.sendBookingConfirmation(
         updatedBooking.User?.email || '',
@@ -1408,6 +1419,8 @@ export class BookingsService {
           salonPhone: updatedBooking.Salon?.phone ?? undefined,
           staffName: updatedBooking.Staff?.name,
           dateTime: updatedBooking.dateTime, // Pass dateTime for Google Calendar
+          salonTimezone:
+            (updatedBooking.Salon as any)?.timezone || 'Asia/Ho_Chi_Minh',
         },
       );
 
@@ -1453,8 +1466,12 @@ export class BookingsService {
 
       // Send rejection email to client
       const dateTimeString = updatedBooking.dateTime.toISOString();
-      const { formattedDate, formattedTime } =
-        this.formatBookingDateTime(dateTimeString);
+      const salonTimezone =
+        (updatedBooking.Salon as any)?.timezone || 'Asia/Ho_Chi_Minh';
+      const { formattedDate, formattedTime } = this.formatBookingDateTime(
+        dateTimeString,
+        salonTimezone,
+      );
 
       await this.emailService.sendBookingRejection(
         updatedBooking.User?.email || '',
@@ -1470,7 +1487,8 @@ export class BookingsService {
           salonPhone: updatedBooking.Salon?.phone ?? undefined,
           staffName: updatedBooking.Staff?.name,
           reason,
-        },
+          salonTimezone: salonTimezone,
+        } as any,
       );
 
       this.logger.log('Booking rejected successfully', { bookingId });
@@ -1482,71 +1500,47 @@ export class BookingsService {
   }
 
   /**
-   * Format booking datetime without timezone conversion
-   * This ensures that 11:00 UTC is displayed as 11:00 in emails
+   * Format booking datetime from UTC to salon's timezone
+   * Uses IANA timezone identifier (e.g., "Asia/Ho_Chi_Minh")
    */
-  private formatBookingDateTime(dateTimeString: string) {
+  private formatBookingDateTime(
+    dateTimeString: string,
+    salonTimezone: string = 'Asia/Ho_Chi_Minh',
+  ) {
     try {
-      // If it's a UTC string like "2024-01-15T11:00:00.000Z"
-      if (dateTimeString.includes('Z')) {
-        // Extract the date and time parts
-        const [datePart, timePart] = dateTimeString.split('T');
-        const [year, month, day] = datePart.split('-').map(Number);
-        const [time, ms] = timePart.split('.');
-        const [hours, minutes, seconds] = time.split(':').map(Number);
+      // Parse the UTC date string
+      const utcDate = new Date(dateTimeString);
 
-        // Format date and time using UTC components directly (no timezone conversion)
-        const monthNames = [
-          'January',
-          'February',
-          'March',
-          'April',
-          'May',
-          'June',
-          'July',
-          'August',
-          'September',
-          'October',
-          'November',
-          'December',
-        ];
-        const dayNames = [
-          'Sunday',
-          'Monday',
-          'Tuesday',
-          'Wednesday',
-          'Thursday',
-          'Friday',
-          'Saturday',
-        ];
-
-        // Create a UTC date object to get weekday
-        const utcDate = new Date(Date.UTC(year, month - 1, day));
-        const weekday = dayNames[utcDate.getUTCDay()];
-
-        const formattedDate = `${weekday}, ${monthNames[month - 1]} ${day}, ${year}`;
-
-        // Format time using UTC hours and minutes directly (HH:MM format, no timezone conversion)
-        const formattedTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-
-        return { formattedDate, formattedTime };
+      // Check if the date is valid
+      if (isNaN(utcDate.getTime())) {
+        throw new Error(`Invalid date string: ${dateTimeString}`);
       }
 
-      // Fallback to regular parsing - use UTC to avoid timezone conversion
-      const bookingDate = new Date(dateTimeString);
+      // IMPORTANT: The dateTime stored in DB is in UTC
+      // We need to convert it to salon's local timezone for display
+      // Example: 13:15 UTC in Asia/Ho_Chi_Minh = 20:15 local time
 
-      const formattedDate = bookingDate.toLocaleDateString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        timeZone: 'UTC',
+      // Convert from UTC to salon's timezone using date-fns-tz
+      const zonedDate = toZonedTime(utcDate, salonTimezone);
+
+      // Format date in salon's timezone
+      const formattedDate = format(zonedDate, 'EEEE, MMMM d, yyyy', {
+        timeZone: salonTimezone,
       });
 
-      // Use UTC hours and minutes directly to avoid timezone conversion
-      const hours = bookingDate.getUTCHours().toString().padStart(2, '0');
-      const minutes = bookingDate.getUTCMinutes().toString().padStart(2, '0');
-      const formattedTime = `${hours}:${minutes}`;
+      // Format time in salon's timezone
+      const formattedTime = format(zonedDate, 'HH:mm', {
+        timeZone: salonTimezone,
+      });
+
+      this.logger.log('Formatting booking datetime:', {
+        input: dateTimeString,
+        salonTimezone,
+        utcTime: utcDate.toISOString(),
+        zonedTime: zonedDate.toISOString(),
+        formattedDate,
+        formattedTime,
+      });
 
       return { formattedDate, formattedTime };
     } catch (error) {
@@ -1624,6 +1618,7 @@ export class BookingsService {
       const bookingDateTime = new Date(bookingData.time);
       const { formattedDate, formattedTime } = this.formatBookingDateTime(
         bookingDateTime.toISOString(),
+        (salon as any)?.timezone || 'Asia/Ho_Chi_Minh',
       );
 
       // Send magic link email

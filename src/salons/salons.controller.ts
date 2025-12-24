@@ -94,7 +94,7 @@ export class SalonsController {
   }
 
   @Get('featured')
-  @Header('Cache-Control', 'public, max-age=3600') // P1: Кэш на 1 час (featured редко меняется)
+  @Header('Cache-Control', 'public, max-age=86400') // Cache for 24 hours (featured salons rarely change)
   async getFeaturedSalons(@Query('limit') limit?: string) {
     const limitNum = limit ? parseInt(limit, 10) : 6;
     return this.salonsService.findFeaturedSalons(limitNum);

@@ -135,10 +135,13 @@ export class EmailService {
     salonName: string;
     salonAddress?: string;
     staffName?: string;
+    salonTimezone?: string;
   }): string {
-    // dateTime is stored as UTC string but represents local time
-    // Example: "2025-12-12T10:00:00.000Z" means 10:00 local time, not UTC
-    // We need to extract the time components directly from the UTC string
+    // IMPORTANT: Google Calendar requires UTC time in dates parameter + timezone in ctz parameter
+    // dateTime is stored as UTC in DB
+    // We pass it as-is to Google Calendar with the salon's timezone in ctz parameter
+    // Google Calendar will automatically convert and display it correctly to the user
+    
     let dateTimeStr: string;
     if (bookingData.dateTime instanceof Date) {
       dateTimeStr = bookingData.dateTime.toISOString();
@@ -146,21 +149,24 @@ export class EmailService {
       dateTimeStr = bookingData.dateTime;
     }
 
-    // Parse UTC string directly to get the time components
-    // Format: "2025-12-12T10:00:00.000Z"
-    const [datePart, timePart] = dateTimeStr.split('T');
-    const [year, month, day] = datePart.split('-').map(Number);
-    const [time] = timePart.split('.');
-    const [hours, minutes, seconds = '00'] = time.split(':').map(Number);
+    // Parse UTC date
+    const utcDate = new Date(dateTimeStr);
+    
+    // Extract UTC components for dates parameter (must be in UTC)
+    const year = utcDate.getUTCFullYear();
+    const month = utcDate.getUTCMonth() + 1; // getUTCMonth() returns 0-11
+    const day = utcDate.getUTCDate();
+    const hours = utcDate.getUTCHours();
+    const minutes = utcDate.getUTCMinutes();
+    const seconds = utcDate.getUTCSeconds();
 
-    // Calculate end time
+    // Calculate end time in UTC
     const startMinutes = hours * 60 + minutes;
     const endMinutes = startMinutes + bookingData.duration;
     const endHours = Math.floor(endMinutes / 60);
     const endMins = endMinutes % 60;
 
-    // Format dates as YYYYMMDDTHHMMSS (local time, no timezone)
-    // Google Calendar will interpret this as local time
+    // Format dates as YYYYMMDDTHHMMSSZ (UTC time with Z suffix)
     const formatDateTime = (
       y: number,
       m: number,
@@ -169,7 +175,7 @@ export class EmailService {
       min: number,
       sec: number,
     ): string => {
-      return `${y}${String(m).padStart(2, '0')}${String(d).padStart(2, '0')}T${String(h).padStart(2, '0')}${String(min).padStart(2, '0')}${String(sec).padStart(2, '0')}`;
+      return `${y}${String(m).padStart(2, '0')}${String(d).padStart(2, '0')}T${String(h).padStart(2, '0')}${String(min).padStart(2, '0')}${String(sec).padStart(2, '0')}Z`;
     };
 
     const start = formatDateTime(
@@ -178,7 +184,7 @@ export class EmailService {
       day,
       hours,
       minutes,
-      Number(seconds),
+      seconds,
     );
     const end = formatDateTime(
       year,
@@ -186,7 +192,7 @@ export class EmailService {
       day,
       endHours,
       endMins,
-      Number(seconds),
+      seconds,
     );
 
     const title = encodeURIComponent(
@@ -200,8 +206,16 @@ export class EmailService {
     const location = encodeURIComponent(
       bookingData.salonAddress || bookingData.salonName,
     );
+    
+    // Use salon timezone or default to Asia/Ho_Chi_Minh
+    const salonTimezone = bookingData.salonTimezone || 'Asia/Ho_Chi_Minh';
+    const ctz = encodeURIComponent(salonTimezone);
 
-    return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${start}/${end}&details=${details}&location=${location}`;
+    // Google Calendar URL with UTC dates and timezone parameter
+    // dates: UTC time with Z suffix
+    // ctz: Salon's timezone (IANA identifier)
+    // Google Calendar will display the time correctly in the user's timezone
+    return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${start}/${end}&ctz=${ctz}&details=${details}&location=${location}`;
   }
 
   private generateGoogleMapsUrl(salonAddress: string): string {
@@ -223,6 +237,7 @@ export class EmailService {
       salonPhone?: string;
       staffName?: string;
       dateTime?: Date | string; // ISO string or Date object
+      salonTimezone?: string; // IANA timezone identifier (e.g., "Asia/Ho_Chi_Minh")
     },
   ) {
     try {
@@ -334,6 +349,7 @@ export class EmailService {
                   salonName: bookingData.salonName,
                   salonAddress: bookingData.salonAddress,
                   staffName: bookingData.staffName,
+                  salonTimezone: bookingData.salonTimezone,
                 })}" 
                   target="_blank" 
                   rel="noopener noreferrer"
@@ -545,6 +561,7 @@ export class EmailService {
       salonAddress?: string;
       salonPhone?: string;
       staffName?: string;
+      salonTimezone?: string; // IANA timezone identifier (e.g., "Asia/Ho_Chi_Minh")
     },
   ) {
     try {
@@ -947,6 +964,7 @@ export class EmailService {
       salonPhone?: string;
       staffName?: string;
       dateTime?: Date | string;
+      salonTimezone?: string; // IANA timezone identifier (e.g., "Asia/Ho_Chi_Minh")
     },
   ) {
     try {
@@ -1067,6 +1085,7 @@ export class EmailService {
                   salonName: bookingData.salonName,
                   salonAddress: bookingData.salonAddress,
                   staffName: bookingData.staffName,
+                  salonTimezone: bookingData.salonTimezone,
                 })}" 
                   target="_blank" 
                   rel="noopener noreferrer"
