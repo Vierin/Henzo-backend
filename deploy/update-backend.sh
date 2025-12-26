@@ -76,3 +76,6 @@ echo "   Статус:            docker-compose ps"
 
 
 
+
+
+

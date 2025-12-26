@@ -132,6 +132,7 @@ export class SalonsController {
   }
 
   @Get('categories')
+  @Header('Cache-Control', 'public, max-age=86400') // Cache for 24 hours - categories rarely change
   async getSalonCategories() {
     return this.salonsService.getSalonCategories();
   }

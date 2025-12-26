@@ -54,6 +54,7 @@ model PendingBusinessRegistration {
   token     String   @unique
   email     String
   name      String
+  password  String   @default("") // Hashed password or userId (temporary)
   expiresAt DateTime
   createdAt DateTime @default(now())
 

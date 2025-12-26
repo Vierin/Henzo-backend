@@ -1662,7 +1662,7 @@ export class AuthService {
     }
   }
 
-  async sendBusinessMagicLink(email: string, name: string) {
+  async sendBusinessMagicLink(email: string, name: string, password: string) {
     try {
       const normalizedEmail = email.toLowerCase().trim();
       console.log('🔍 Checking for existing user with email:', normalizedEmail);
@@ -1821,69 +1821,219 @@ export class AuthService {
         );
       }
 
-      // Генерируем токен
+      // Создаем аккаунт сразу с неподтвержденным email
+      console.log('📝 Creating business account with unconfirmed email...');
+      const { data: authData, error: authError } =
+        await supabase.auth.admin.createUser({
+          email: normalizedEmail,
+          password: password,
+          email_confirm: false, // Email будет подтвержден при клике на magic link
+          user_metadata: {
+            name,
+          },
+          app_metadata: {
+            role: 'OWNER',
+          },
+        });
+
+      if (authError) {
+        console.error('❌ Failed to create user in Supabase:', authError);
+        throw new BadRequestException(
+          authError.message || 'Failed to create account',
+        );
+      }
+
+      if (!authData.user) {
+        throw new BadRequestException('Failed to create user account');
+      }
+
+      console.log('✅ User created in Supabase:', authData.user.id);
+
+      // Создаем запись пользователя в нашей БД
+      const user = await this.prisma.user.create({
+        data: {
+          id: authData.user.id,
+          email: normalizedEmail,
+          name,
+          role: 'OWNER',
+        },
+      });
+
+      console.log('✅ User created in database:', user.id);
+
+      // Генерируем токен для magic link
       const token = nanoid(32);
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
-      // Сохраняем pending registration
+      // Сохраняем pending registration (без пароля, так как аккаунт уже создан)
+      // Используем userId вместо пароля для связи
       const pendingReg = await this.prisma.pendingBusinessRegistration.create({
         data: {
           token,
-          email: email.toLowerCase().trim(),
+          email: normalizedEmail,
           name,
+          password: authData.user.id, // Сохраняем userId вместо пароля для связи
           expiresAt,
         },
       });
 
-      // Финальная проверка перед отправкой email (на случай race condition)
-      const finalCheckUser = await this.prisma.user.findUnique({
-        where: { email: normalizedEmail },
+      console.log('✅ Pending registration created:', {
+        id: pendingReg.id,
+        token: token.substring(0, 10) + '...',
+        email: normalizedEmail,
+        userId: authData.user.id,
+        expiresAt,
       });
 
-      if (finalCheckUser) {
-        console.log('❌ User found during final check before sending email:', {
-          email: finalCheckUser.email,
-          role: finalCheckUser.role,
-          id: finalCheckUser.id,
-        });
-
-        // Удаляем только что созданную pending registration
-        await this.prisma.pendingBusinessRegistration.delete({
-          where: { id: pendingReg.id },
-        });
-
-        if (finalCheckUser.role === 'OWNER') {
-          throw new BadRequestException(
-            'A business account with this email already exists. Please login instead.',
-          );
-        }
-        throw new BadRequestException(
-          'An account with this email already exists. Please login instead.',
-        );
-      }
-
-      // Генерируем URL для регистрации
+      // Генерируем URL для complete-setup (magic link ведет сразу на настройку салона)
       const frontendUrl =
         this.configService.get<string>('FRONTEND_URL') ||
         'http://localhost:3000';
-      const registerUrl = `${frontendUrl}/business/register?email=${encodeURIComponent(email)}&token=${token}&name=${encodeURIComponent(name)}`;
+      const completeSetupUrl = `${frontendUrl}/business/complete-setup?token=${token}`;
 
       console.log(
         '📧 Sending business registration magic link email to:',
         normalizedEmail,
       );
+      console.log('🔗 Magic link URL:', completeSetupUrl);
 
       // Отправляем email
       await this.emailService.sendBusinessRegistrationMagicLink(
         email,
         name,
-        registerUrl,
+        completeSetupUrl,
       );
 
       console.log('✅ Business magic link sent:', { email });
       return { success: true, token: pendingReg.id };
     } catch (error) {
       console.error('❌ Error sending business magic link:', error);
+      throw error;
+    }
+  }
+
+  async verifyBusinessMagicLink(token: string) {
+    try {
+      console.log('🔍 Verifying business magic link with token:', token);
+      
+      // Находим pending registration
+      const pendingReg =
+        await this.prisma.pendingBusinessRegistration.findFirst({
+          where: {
+            token,
+            expiresAt: {
+              gt: new Date(),
+            },
+          },
+        });
+
+      if (!pendingReg) {
+        console.log('❌ Pending registration not found for token:', token);
+        // Проверяем, может токен истек или уже использован
+        const expiredReg = await this.prisma.pendingBusinessRegistration.findFirst({
+          where: { token },
+        });
+        if (expiredReg) {
+          console.log('⚠️ Token found but expired or already used:', {
+            token,
+            expiresAt: expiredReg.expiresAt,
+            now: new Date(),
+            isExpired: expiredReg.expiresAt < new Date(),
+          });
+          throw new BadRequestException('Magic link has expired. Please request a new one.');
+        }
+        
+        // Проверяем все токены для отладки
+        const allPendingRegs = await this.prisma.pendingBusinessRegistration.findMany({
+          take: 5,
+          orderBy: { createdAt: 'desc' },
+        });
+        console.log('📋 Recent pending registrations:', allPendingRegs.map(r => ({
+          token: r.token.substring(0, 10) + '...',
+          email: r.email,
+          expiresAt: r.expiresAt,
+        })));
+        
+        throw new BadRequestException('Invalid or expired magic link');
+      }
+
+      console.log('✅ Pending registration found:', {
+        id: pendingReg.id,
+        email: pendingReg.email,
+        expiresAt: pendingReg.expiresAt,
+      });
+
+      // userId сохранен в поле password (временное решение)
+      const userId = pendingReg.password;
+
+      if (!userId) {
+        throw new BadRequestException('Invalid magic link data');
+      }
+
+      // Подтверждаем email в Supabase
+      const { error: updateError } = await supabase.auth.admin.updateUserById(
+        userId,
+        {
+          email_confirm: true,
+        },
+      );
+
+      if (updateError) {
+        console.error('❌ Failed to confirm email:', updateError);
+        throw new BadRequestException('Failed to confirm email');
+      }
+
+      console.log('✅ Email confirmed for user:', userId);
+
+      // Получаем пользователя из нашей БД
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+      });
+
+      if (!user) {
+        throw new BadRequestException('User not found');
+      }
+
+      // Генерируем magic link для автоматического логина
+      const { data: linkData, error: linkError } =
+        await supabase.auth.admin.generateLink({
+          type: 'magiclink',
+          email: user.email,
+        });
+
+      if (linkError) {
+        console.error('❌ Failed to generate login link:', linkError);
+        // Возвращаем данные пользователя, фронтенд залогинит через обычный login
+        return {
+          success: true,
+          user: {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+          },
+          emailConfirmed: true,
+        };
+      }
+
+      // Удаляем использованный токен только после успешной генерации login link
+      await this.prisma.pendingBusinessRegistration.delete({
+        where: { id: pendingReg.id },
+      });
+
+      return {
+        success: true,
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+        },
+        emailConfirmed: true,
+        loginUrl: linkData.properties?.action_link,
+      };
+    } catch (error) {
+      console.error('❌ Error verifying business magic link:', error);
       throw error;
     }
   }

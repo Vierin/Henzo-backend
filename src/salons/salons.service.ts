@@ -596,15 +596,39 @@ export class SalonsService {
     return result;
   }
 
-  // Static categories - no need for database query
+  // Single source of truth for salon categories
   getSalonCategories() {
     return [
-      { id: '1', name: 'Hair & Barber' },
-      { id: '2', name: 'Tattoo & Piercing' },
-      { id: '3', name: 'Massage & Spa' },
-      { id: '4', name: 'Manicure & Pedicure' },
-      { id: '5', name: 'Cosmetic Medicine' },
-      { id: '6', name: 'Other Services' },
+      {
+        id: 1,
+        name: 'Hair & Barber',
+        slug: 'hair-barber',
+      },
+      {
+        id: 2,
+        name: 'Tattoo & Piercing',
+        slug: 'tattoo-piercing',
+      },
+      {
+        id: 3,
+        name: 'Massage & Spa',
+        slug: 'massage-spa',
+      },
+      {
+        id: 4,
+        name: 'Manicure & Pedicure',
+        slug: 'manicure-pedicure',
+      },
+      {
+        id: 5,
+        name: 'Cosmetic Medicine',
+        slug: 'cosmetic-medicine',
+      },
+      {
+        id: 6,
+        name: 'Other Services',
+        slug: 'other-services',
+      },
     ];
   }
 
@@ -1271,8 +1295,9 @@ export class SalonsService {
 
   async findFeaturedSalons(limit: number) {
     // Cache key includes limit to cache different limits separately
-    const cacheKey = `salons:featured:${limit}`;
-    
+    // Version 2: includes categoryIds in response
+    const cacheKey = `salons:featured:v2:${limit}`;
+
     // Try to get from cache first (24 hours TTL)
     const cached = await this.cacheService.get<any[]>(cacheKey);
     if (cached) {
@@ -1288,6 +1313,7 @@ export class SalonsService {
         longitude: true,
         logo: true,
         photos: true,
+        categoryIds: true,
         Service: {
           select: {
             id: true,
@@ -1365,6 +1391,7 @@ export class SalonsService {
         logo: salon.logo,
         photos: salon.photos,
         avgRating: Math.round(avgRating * 10) / 10, // Round to 1 decimal
+        categoryIds: salon.categoryIds || [],
         categories,
         priceRange,
         services: salon.Service.map((s: any) => ({
@@ -1388,10 +1415,10 @@ export class SalonsService {
     });
 
     const result = enriched.slice(0, limit);
-    
+
     // Cache the result for 24 hours (86400000 milliseconds)
     await this.cacheService.set(cacheKey, result, 24 * 60 * 60 * 1000);
-    
+
     return result;
   }
 

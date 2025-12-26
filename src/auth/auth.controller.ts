@@ -7,6 +7,7 @@ import {
   Delete,
   Body,
   Headers,
+  Query,
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
@@ -20,15 +21,17 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('send-business-magic-link')
-  async sendBusinessMagicLink(@Body() data: { email: string; name: string }) {
+  async sendBusinessMagicLink(@Body() data: { email: string; name: string; password: string }) {
     try {
       console.log('📧 Send business magic link request:', {
         email: data.email,
         name: data.name,
+        hasPassword: !!data.password,
       });
       const result = await this.authService.sendBusinessMagicLink(
         data.email,
         data.name,
+        data.password,
       );
       console.log('✅ Business magic link sent successfully');
       return result;
@@ -405,6 +408,23 @@ export class AuthController {
       console.error('❌ Telegram auth failed:', error.message);
       throw new HttpException(
         error.message || 'Telegram authentication failed',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Get('verify-business-magic-link')
+  async verifyBusinessMagicLink(@Query('token') token: string) {
+    try {
+      if (!token) {
+        throw new HttpException('Token is required', HttpStatus.BAD_REQUEST);
+      }
+      const result = await this.authService.verifyBusinessMagicLink(token);
+      return result;
+    } catch (error) {
+      console.error('❌ Verify business magic link failed:', error.message);
+      throw new HttpException(
+        error.message || 'Failed to verify magic link',
         HttpStatus.BAD_REQUEST,
       );
     }
