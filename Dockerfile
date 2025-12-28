@@ -8,9 +8,14 @@ RUN npm install -g npm@latest
 ENV PUPPETEER_SKIP_DOWNLOAD=true
 
 COPY package*.json ./
-# Устанавливаем зависимости с npm ci (быстрее и надежнее)
+# Устанавливаем зависимости
+# Если есть package-lock.json - используем npm ci, иначе npm install
 # Очищаем кеш после установки для уменьшения размера образа
-RUN npm ci --prefer-offline --no-audit && \
+RUN if [ -f package-lock.json ]; then \
+      npm ci --prefer-offline --no-audit; \
+    else \
+      npm install --prefer-offline --no-audit; \
+    fi && \
     npm cache clean --force && \
     rm -rf /root/.npm
 
@@ -31,9 +36,14 @@ RUN npm install -g npm@latest
 ENV PUPPETEER_SKIP_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
-COPY package.json ./
-# Устанавливаем только production зависимости и очищаем кеш
-RUN npm ci --omit=dev --prefer-offline --no-audit && \
+COPY package*.json ./
+# Устанавливаем только production зависимости
+# Если есть package-lock.json - используем npm ci, иначе npm install
+RUN if [ -f package-lock.json ]; then \
+      npm ci --omit=dev --prefer-offline --no-audit; \
+    else \
+      npm install --omit=dev --prefer-offline --no-audit; \
+    fi && \
     npm cache clean --force && \
     rm -rf /root/.npm
 
