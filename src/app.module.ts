@@ -26,6 +26,7 @@ import { ConfigModule } from '@nestjs/config';
 import { StorageModule } from './storage/storage.module';
 import { validate } from './config/env.validation';
 import { LoggerModule } from './common/logger/logger.module';
+import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { LoggerModule } from './common/logger/logger.module';
     NotificationsModule,
     MapboxModule,
     StorageModule,
+    SubscriptionsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
