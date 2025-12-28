@@ -851,6 +851,12 @@ export class SalonsService {
   async updateCurrentUserSalon(updateSalonDto: UpdateSalonDto, userId: string) {
     const existingSalon = await this.prisma.salon.findFirst({
       where: { ownerId: userId },
+      select: {
+        id: true,
+        descriptionEn: true,
+        descriptionVi: true,
+        descriptionRu: true,
+      },
     });
 
     if (!existingSalon) {
@@ -879,7 +885,7 @@ export class SalonsService {
       }
     }
 
-    // Generate translations for description if provided and changed
+    // Generate translations for description only if it changed
     let descriptionTranslations: {
       descriptionEn?: string;
       descriptionVi?: string;
@@ -887,23 +893,35 @@ export class SalonsService {
     } = {};
 
     if (updateSalonDto.description && updateSalonDto.description.trim()) {
-      try {
-        console.log(
-          '🌐 Generating translations for updated salon description...',
-        );
-        const translations =
-          await this.translationService.generateDescriptionTranslations(
-            updateSalonDto.description.trim(),
+      const newDescription = updateSalonDto.description.trim();
+      
+      // Check if description actually changed by comparing with existing translations
+      const descriptionChanged =
+        newDescription !== existingSalon.descriptionEn?.trim() &&
+        newDescription !== existingSalon.descriptionVi?.trim() &&
+        newDescription !== existingSalon.descriptionRu?.trim();
+
+      if (descriptionChanged) {
+        try {
+          console.log(
+            '🌐 Generating translations for updated salon description...',
           );
-        descriptionTranslations = {
-          descriptionEn: translations.descriptionEn || undefined,
-          descriptionVi: translations.descriptionVi || undefined,
-          descriptionRu: translations.descriptionRu || undefined,
-        };
-        console.log('✅ Translations generated for update');
-      } catch (error) {
-        console.error('⚠️ Failed to generate description translations:', error);
-        // Continue without translations
+          const translations =
+            await this.translationService.generateDescriptionTranslations(
+              newDescription,
+            );
+          descriptionTranslations = {
+            descriptionEn: translations.descriptionEn || undefined,
+            descriptionVi: translations.descriptionVi || undefined,
+            descriptionRu: translations.descriptionRu || undefined,
+          };
+          console.log('✅ Translations generated for update');
+        } catch (error) {
+          console.error('⚠️ Failed to generate description translations:', error);
+          // Continue without translations
+        }
+      } else {
+        console.log('ℹ️ Description unchanged, skipping translation generation');
       }
     }
 
