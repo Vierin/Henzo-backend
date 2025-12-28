@@ -24,6 +24,3 @@ coverage/
 .gitignore
 .prettierrc
 .eslintrc
-tsconfig.json
-tsconfig.build.json
-nest-cli.json
