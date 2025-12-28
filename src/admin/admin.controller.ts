@@ -9,6 +9,7 @@ import {
 import { AdminService } from './admin.service';
 import { AuthService } from '../auth/auth.service';
 import { AnalyticsService } from './analytics.service';
+import { PlatformMetricsService } from './platform-metrics.service';
 
 @Controller('admin')
 export class AdminController {
@@ -16,6 +17,7 @@ export class AdminController {
     private readonly adminService: AdminService,
     private readonly authService: AuthService,
     private readonly analyticsService: AnalyticsService,
+    private readonly platformMetricsService: PlatformMetricsService,
   ) {}
 
   @Get('dashboard')
@@ -156,6 +158,25 @@ export class AdminController {
     } catch (error) {
       throw new HttpException(
         error.message || 'Failed to get analytics',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Get('platform-metrics')
+  async getPlatformMetrics(@Headers('authorization') authHeader: string) {
+    try {
+      const currentUser = await this.authService.getCurrentUser(authHeader);
+
+      if (currentUser.user.role !== 'ADMIN') {
+        throw new HttpException('Access denied', HttpStatus.FORBIDDEN);
+      }
+
+      const metrics = await this.platformMetricsService.getPlatformMetrics();
+      return metrics;
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Failed to get platform metrics',
         HttpStatus.BAD_REQUEST,
       );
     }

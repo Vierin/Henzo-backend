@@ -86,6 +86,71 @@ export class AnalyticsService {
     // Get top salons
     const topSalons = await this.getTopSalons(startDate);
 
+    // Calculate revenue metrics
+    const bookingsWithPrices = await this.prisma.booking.findMany({
+      where: {
+        createdAt: {
+          gte: startDate,
+        },
+        status: {
+          in: ['CONFIRMED', 'COMPLETED'],
+        },
+      },
+      include: {
+        Service: {
+          select: {
+            price: true,
+          },
+        },
+      },
+    });
+
+    const totalRevenue = bookingsWithPrices.reduce(
+      (sum, booking) => sum + (booking.Service?.price || 0),
+      0,
+    );
+    const averageBookingValue =
+      bookingsWithPrices.length > 0
+        ? totalRevenue / bookingsWithPrices.length
+        : 0;
+
+    // Calculate conversion rate (confirmed + completed / total)
+    const conversionRate =
+      totalBookings > 0
+        ? ((confirmedBookings + completedBookings) / totalBookings) * 100
+        : 0;
+
+    // Get unique customers count
+    const uniqueCustomers = await this.prisma.booking.groupBy({
+      by: ['userId'],
+      where: {
+        createdAt: {
+          gte: startDate,
+        },
+      },
+    });
+    const uniqueCustomersCount = uniqueCustomers.length;
+
+    // Calculate repeat customer rate (customers with 2+ bookings)
+    const customerBookingCounts = await this.prisma.booking.groupBy({
+      by: ['userId'],
+      where: {
+        createdAt: {
+          gte: startDate,
+        },
+      },
+      _count: {
+        userId: true,
+      },
+    });
+    const repeatCustomers = customerBookingCounts.filter(
+      (item) => item._count.userId >= 2,
+    ).length;
+    const repeatCustomerRate =
+      uniqueCustomersCount > 0
+        ? (repeatCustomers / uniqueCustomersCount) * 100
+        : 0;
+
     return {
       salons: {
         total: totalSalons,
@@ -99,6 +164,13 @@ export class AnalyticsService {
         completed: completedBookings,
         canceled: canceledBookings,
         byDay: bookingsByDay,
+      },
+      metrics: {
+        totalRevenue,
+        averageBookingValue,
+        conversionRate,
+        uniqueCustomers: uniqueCustomersCount,
+        repeatCustomerRate,
       },
       topServices,
       topSalons,
