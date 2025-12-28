@@ -83,6 +83,39 @@ export class BookingsService {
     }
   }
 
+  async createAnonymousClientUser(
+    name: string,
+    phone?: string,
+  ): Promise<string> {
+    try {
+      // Create a temporary anonymous client user without email
+      // Use a unique identifier based on timestamp and random string
+      const anonymousEmail = `anonymous-${Date.now()}-${nanoid(8)}@anonymous.local`;
+
+      const newUser = await this.prisma.user.create({
+        data: {
+          email: anonymousEmail,
+          name: name,
+          phone: phone || null,
+          role: 'CLIENT',
+          // Mark as guest/anonymous
+          // @ts-ignore - isGuest field will be available after migration
+          isGuest: true,
+          // No password - this is an anonymous booking
+        },
+      });
+
+      this.logger.log('Created anonymous client user', {
+        id: newUser.id,
+        name: newUser.name,
+      });
+      return newUser.id;
+    } catch (error) {
+      this.logger.error('Error creating anonymous client user', error);
+      throw error;
+    }
+  }
+
   async createBooking(
     data: CreateBookingDto,
     userId: string,
@@ -102,15 +135,76 @@ export class BookingsService {
       }
 
       let selectedStaffId = data.staffId;
+      const bookingTime = new Date(data.time);
+      const bookingEndTime = new Date(
+        bookingTime.getTime() + service.duration * 60000,
+      );
 
       // If no staff selected, find an available staff member
       if (!selectedStaffId) {
         selectedStaffId =
           (await this.findAvailableStaff(
             data.salonId,
-            new Date(data.time),
+            bookingTime,
             service.duration,
           )) || undefined;
+
+        // Double-check availability even if findAvailableStaff returned a staff member
+        if (selectedStaffId) {
+          const isStaffAvailable = await this.checkStaffAvailability(
+            selectedStaffId,
+            bookingTime,
+            bookingEndTime,
+          );
+
+          if (!isStaffAvailable) {
+            // Try to find another available staff member
+            const allStaff = await this.prisma.staff.findMany({
+              where: { salonId: data.salonId },
+            });
+
+            for (const staff of allStaff) {
+              if (staff.id !== selectedStaffId) {
+                const isAvailable = await this.checkStaffAvailability(
+                  staff.id,
+                  bookingTime,
+                  bookingEndTime,
+                );
+                if (isAvailable) {
+                  selectedStaffId = staff.id;
+                  break;
+                }
+              }
+            }
+
+            // If still no available staff, throw error
+            if (
+              !selectedStaffId ||
+              !(await this.checkStaffAvailability(
+                selectedStaffId,
+                bookingTime,
+                bookingEndTime,
+              ))
+            ) {
+              throw new Error(
+                'No staff members are available at this time. Please choose another time.',
+              );
+            }
+          }
+        }
+      } else {
+        // Validate that selected staff is available at this time
+        const isStaffAvailable = await this.checkStaffAvailability(
+          selectedStaffId,
+          bookingTime,
+          bookingEndTime,
+        );
+
+        if (!isStaffAvailable) {
+          throw new Error(
+            'Selected staff member is not available at this time. Please choose another time or staff member.',
+          );
+        }
       }
 
       // If owner creates booking, set status as CONFIRMED, otherwise PENDING
@@ -158,7 +252,11 @@ export class BookingsService {
 
       // Send email notifications
       try {
-        await this.sendBookingNotifications(booking, isOwnerCreated);
+        await this.sendBookingNotifications(
+          booking,
+          isOwnerCreated,
+          data.clientName,
+        );
         this.logger.log('Email notifications sent successfully');
       } catch (emailError) {
         this.logger.error('Error sending email notifications', emailError);
@@ -168,8 +266,22 @@ export class BookingsService {
       // Send push notifications if booking is PENDING
       if (booking.status === 'PENDING') {
         try {
-          const clientName =
+          // If owner created booking without email, use clientName from DTO or "Anonymous Client"
+          const salonOwnerId =
+            booking.Salon?.ownerId || booking.Salon?.User?.id;
+          const isOwnerBookingWithoutEmail =
+            isOwnerCreated &&
+            (!booking.User?.email || !booking.User?.email.trim()) &&
+            booking.userId === salonOwnerId;
+
+          let clientName =
             booking.User?.name || booking.User?.email || 'Unknown Client';
+          if (isOwnerBookingWithoutEmail && data.clientName) {
+            clientName = data.clientName;
+          } else if (isOwnerBookingWithoutEmail && !data.clientName) {
+            clientName = 'Anonymous Client';
+          }
+
           const serviceName = booking.Service?.name || 'Service';
 
           await this.notificationsService.sendBookingNotification(
@@ -236,7 +348,9 @@ export class BookingsService {
         ? {
             id: booking.User.id,
             name: booking.User.name,
-            email: booking.User.email,
+            email: booking.User.email?.includes('@anonymous.local')
+              ? null
+              : booking.User.email,
           }
         : null,
     };
@@ -867,9 +981,74 @@ export class BookingsService {
     }
   }
 
+  /**
+   * Check if a specific staff member is available at the given time slot
+   * Returns true if available, false if there's a conflict
+   */
+  private async checkStaffAvailability(
+    staffId: string,
+    bookingStartTime: Date,
+    bookingEndTime: Date,
+  ): Promise<boolean> {
+    try {
+      // Get all existing bookings for this staff member that might conflict
+      const existingBookings = await this.prisma.booking.findMany({
+        where: {
+          staffId: staffId,
+          status: {
+            in: ['PENDING', 'CONFIRMED'],
+          },
+        },
+        include: {
+          Service: {
+            select: {
+              duration: true,
+            },
+          },
+        },
+      });
+
+      // Check each existing booking for overlap
+      for (const existingBooking of existingBookings) {
+        const existingStartTime = existingBooking.dateTime;
+        const existingEndTime = new Date(
+          existingStartTime.getTime() +
+            (existingBooking.Service?.duration || 0) * 60000,
+        );
+
+        // Check if there's any overlap
+        // Two time slots overlap if:
+        // - existingStartTime < bookingEndTime AND existingEndTime > bookingStartTime
+        // This covers all cases: partial overlap, complete containment, etc.
+        const hasOverlap =
+          existingStartTime < bookingEndTime &&
+          existingEndTime > bookingStartTime;
+
+        if (hasOverlap) {
+          this.logger.warn('Staff member has conflicting booking', {
+            staffId,
+            bookingStartTime,
+            bookingEndTime,
+            conflictingBookingId: existingBooking.id,
+            conflictingBookingTime: existingStartTime,
+            conflictingBookingEndTime: existingEndTime,
+          });
+          return false;
+        }
+      }
+
+      return true;
+    } catch (error) {
+      this.logger.error('Error checking staff availability', error);
+      // In case of error, allow booking (fail open) but log the error
+      return true;
+    }
+  }
+
   private async sendBookingNotifications(
     booking: any,
     isOwnerCreated: boolean = false,
+    clientNameFromDto?: string,
   ) {
     try {
       // Format booking data for emails - parse UTC time without timezone conversion
@@ -883,26 +1062,51 @@ export class BookingsService {
       );
 
       // Get client email and name
-      const clientEmail = booking.User?.email;
-      const clientName = booking.User?.name || 'Client';
+      let clientEmail = booking.User?.email;
 
-      // Check if owner created booking without client email
-      // In this case, userId is owner's ID, so we should not send emails
+      // Determine if this is an anonymous booking (owner created without client email)
       const salonOwnerId = booking.Salon?.ownerId || booking.Salon?.User?.id;
+      const isAnonymousUser = booking.User?.email?.includes('@anonymous.local');
+      // If anonymous user was created, userId will be different from ownerId
+      // If anonymous user was NOT created (fallback), userId will be ownerId
       const isOwnerBookingWithoutEmail =
         isOwnerCreated &&
-        (!clientEmail || !clientEmail.trim()) &&
-        booking.userId === salonOwnerId;
+        (isAnonymousUser ||
+          (booking.userId === salonOwnerId &&
+            (!clientEmail || !clientEmail.trim())));
+
+      // If this is an anonymous booking, set clientEmail to null
+      if (
+        isAnonymousUser ||
+        (isOwnerCreated &&
+          booking.userId === salonOwnerId &&
+          (!clientEmail || !clientEmail.trim()))
+      ) {
+        clientEmail = null;
+      }
+
+      let clientName = booking.User?.name || 'Client';
+      if (isOwnerBookingWithoutEmail && clientNameFromDto) {
+        clientName = clientNameFromDto;
+      } else if (isOwnerBookingWithoutEmail && !clientNameFromDto) {
+        clientName = 'Anonymous Client';
+      } else if (isAnonymousUser) {
+        // Use the name from anonymous user or from DTO
+        clientName =
+          clientNameFromDto || booking.User?.name || 'Anonymous Client';
+      }
 
       // If no email and owner created booking without email, skip email notifications
-      if (!clientEmail || !clientEmail.trim()) {
-        if (isOwnerBookingWithoutEmail) {
+      if (!clientEmail || !clientEmail.trim() || isAnonymousUser) {
+        if (isOwnerBookingWithoutEmail || isAnonymousUser) {
           this.logger.log(
             'Skipping email notifications: owner created booking without client email',
             {
               bookingId: booking.id,
               userId: booking.userId,
               salonOwnerId: salonOwnerId,
+              isAnonymousUser: isAnonymousUser,
+              userEmail: booking.User?.email,
             },
           );
           return; // Don't send any emails
@@ -924,7 +1128,12 @@ export class BookingsService {
         status: booking.status,
         clientEmail,
         clientName,
-        salonEmail: booking.Salon?.email || booking.Salon?.owner?.email,
+        salonEmail: booking.Salon?.email || booking.Salon?.User?.email,
+        isAnonymousUser: isAnonymousUser,
+        isOwnerBookingWithoutEmail: isOwnerBookingWithoutEmail,
+        userId: booking.userId,
+        salonOwnerId: salonOwnerId,
+        userEmail: booking.User?.email,
       });
 
       // For PENDING bookings, send notification to salon and client
@@ -1182,7 +1391,7 @@ export class BookingsService {
           throw new Error('Service not found or does not belong to this salon');
         }
 
-        updateData.service = { connect: { id: data.serviceId } };
+        updateData.Service = { connect: { id: data.serviceId } };
       }
 
       if (data.staffId) {
@@ -1200,7 +1409,7 @@ export class BookingsService {
           );
         }
 
-        updateData.staff = { connect: { id: data.staffId } };
+        updateData.Staff = { connect: { id: data.staffId } };
       }
 
       if (data.time) {
