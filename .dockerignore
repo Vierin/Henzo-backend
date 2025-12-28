@@ -4,6 +4,7 @@ npm-debug.log
 .env
 .env.local
 .env.production
+.env.*
 .git
 .gitignore
 README.md
@@ -12,3 +13,17 @@ scripts/
 test/
 coverage/
 *.md
+*.log
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*.swo
+*~
+.git/
+.gitignore
+.prettierrc
+.eslintrc
+tsconfig.json
+tsconfig.build.json
+nest-cli.json

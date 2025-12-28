@@ -34,8 +34,16 @@ fi
 
 cd /var/www/henzo/apps/backend
 
+# Очистка build cache перед сборкой (освободит место)
+echo "🧹 Очистка старого build cache..."
+docker builder prune -f
+
 echo "🔨 Пересборка образа..."
 docker-compose build backend
+
+# Очистка неиспользуемых образов после успешной сборки
+echo "🧹 Очистка неиспользуемых образов..."
+docker image prune -f
 
 echo "🔄 Перезапуск backend..."
 docker-compose up -d --no-deps backend

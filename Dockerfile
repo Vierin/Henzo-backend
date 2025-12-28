@@ -8,8 +8,11 @@ RUN npm install -g npm@latest
 ENV PUPPETEER_SKIP_DOWNLOAD=true
 
 COPY package*.json ./
-# Очищаем npm кэш и устанавливаем зависимости
-RUN npm cache clean --force && npm install
+# Устанавливаем зависимости с npm ci (быстрее и надежнее)
+# Очищаем кеш после установки для уменьшения размера образа
+RUN npm ci --prefer-offline --no-audit && \
+    npm cache clean --force && \
+    rm -rf /root/.npm
 
 COPY . .
 
@@ -29,12 +32,17 @@ ENV PUPPETEER_SKIP_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
 COPY package.json ./
-# Удаляем package-lock.json если он поврежден и устанавливаем только production зависимости
-RUN rm -f package-lock.json && npm cache clean --force && npm install --omit=dev
+# Устанавливаем только production зависимости и очищаем кеш
+RUN npm ci --omit=dev --prefer-offline --no-audit && \
+    npm cache clean --force && \
+    rm -rf /root/.npm
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY prisma ./prisma
+
+# Удаляем временные файлы для уменьшения размера образа
+RUN rm -rf /tmp/* /var/tmp/*
 
 EXPOSE 3001
 
