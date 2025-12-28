@@ -260,13 +260,55 @@ export class AdminService {
               Service: true,
             },
           },
+          Subscription: {
+            select: {
+              type: true,
+              status: true,
+            },
+          },
         },
         orderBy: {
           createdAt: 'desc',
         },
       });
 
-      return salons;
+      // Transform data to match frontend interface
+      return salons.map((salon) => {
+        // Ensure User data is available
+        const userData = salon.User;
+        
+        return {
+          id: salon.id,
+          name: salon.name,
+          description: salon.description || undefined,
+          address: salon.address || undefined,
+          phone: salon.phone || undefined,
+          email: salon.email || undefined,
+          website: salon.website || undefined,
+          instagram: salon.instagram || undefined,
+          logo: salon.logo || undefined,
+          photos: Array.isArray(salon.photos) ? salon.photos : [],
+          workingHours: salon.workingHours || undefined,
+          createdAt: salon.createdAt instanceof Date 
+            ? salon.createdAt.toISOString() 
+            : salon.createdAt,
+          owner: userData ? {
+            id: userData.id,
+            name: userData.name || undefined,
+            email: userData.email,
+          } : undefined,
+          _count: {
+            bookings: salon._count?.Booking || 0,
+            reviews: salon._count?.Review || 0,
+            staff: salon._count?.Staff || 0,
+            services: salon._count?.Service || 0,
+          },
+          subscription: salon.Subscription ? {
+            type: salon.Subscription.type,
+            status: salon.Subscription.status,
+          } : undefined,
+        };
+      });
     } catch (error) {
       throw new Error(`Failed to get salons: ${error.message}`);
     }
@@ -308,7 +350,32 @@ export class AdminService {
         },
       });
 
-      return bookings;
+      // Transform data to match frontend interface
+      return bookings.map((booking) => ({
+        id: booking.id,
+        time: booking.dateTime.toISOString(),
+        status: booking.status,
+        notes: booking.notes || undefined,
+        createdAt: booking.createdAt.toISOString(),
+        salon: booking.Salon ? {
+          id: booking.Salon.id,
+          name: booking.Salon.name,
+        } : undefined,
+        user: booking.User ? {
+          id: booking.User.id,
+          name: booking.User.name || undefined,
+          email: booking.User.email,
+        } : undefined,
+        service: booking.Service ? {
+          id: booking.Service.id,
+          name: booking.Service.name,
+          price: booking.Service.price,
+        } : undefined,
+        staff: booking.Staff ? {
+          id: booking.Staff.id,
+          name: booking.Staff.name,
+        } : undefined,
+      }));
     } catch (error) {
       throw new Error(`Failed to get bookings: ${error.message}`);
     }
