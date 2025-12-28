@@ -131,7 +131,14 @@ export class BookingsService {
           Service: true,
           Staff: true,
           Salon: {
-            include: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              ownerId: true,
+              timezone: true,
+              address: true,
+              phone: true,
               User: true, // Include owner for email fallback
             },
           },
@@ -151,7 +158,7 @@ export class BookingsService {
 
       // Send email notifications
       try {
-        await this.sendBookingNotifications(booking);
+        await this.sendBookingNotifications(booking, isOwnerCreated);
         this.logger.log('Email notifications sent successfully');
       } catch (emailError) {
         this.logger.error('Error sending email notifications', emailError);
@@ -860,7 +867,10 @@ export class BookingsService {
     }
   }
 
-  private async sendBookingNotifications(booking: any) {
+  private async sendBookingNotifications(
+    booking: any,
+    isOwnerCreated: boolean = false,
+  ) {
     try {
       // Format booking data for emails - parse UTC time without timezone conversion
       const dateTimeString =
@@ -872,17 +882,42 @@ export class BookingsService {
         booking.Salon?.timezone || 'Asia/Ho_Chi_Minh',
       );
 
-      // Get client email - ensure it exists
+      // Get client email and name
       const clientEmail = booking.User?.email;
       const clientName = booking.User?.name || 'Client';
 
-      if (!clientEmail) {
-        this.logger.error('Cannot send email: client email is missing', {
-          bookingId: booking.id,
-          userId: booking.userId,
-          user: booking.User,
-        });
-        throw new Error('Client email is required for sending notifications');
+      // Check if owner created booking without client email
+      // In this case, userId is owner's ID, so we should not send emails
+      const salonOwnerId = booking.Salon?.ownerId || booking.Salon?.User?.id;
+      const isOwnerBookingWithoutEmail =
+        isOwnerCreated &&
+        (!clientEmail || !clientEmail.trim()) &&
+        booking.userId === salonOwnerId;
+
+      // If no email and owner created booking without email, skip email notifications
+      if (!clientEmail || !clientEmail.trim()) {
+        if (isOwnerBookingWithoutEmail) {
+          this.logger.log(
+            'Skipping email notifications: owner created booking without client email',
+            {
+              bookingId: booking.id,
+              userId: booking.userId,
+              salonOwnerId: salonOwnerId,
+            },
+          );
+          return; // Don't send any emails
+        } else {
+          // For regular bookings without email, log warning but don't send emails
+          this.logger.warn(
+            'Cannot send email: client email is missing, skipping notifications',
+            {
+              bookingId: booking.id,
+              userId: booking.userId,
+              user: booking.User,
+            },
+          );
+          return; // Don't send any emails
+        }
       }
 
       this.logger.log('Preparing to send email notifications', {
