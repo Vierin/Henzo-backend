@@ -264,6 +264,10 @@ export class AdminService {
             select: {
               type: true,
               status: true,
+              amount: true,
+              startDate: true,
+              endDate: true,
+              nextPaymentDate: true,
             },
           },
         },
@@ -306,6 +310,16 @@ export class AdminService {
           subscription: salon.Subscription ? {
             type: salon.Subscription.type,
             status: salon.Subscription.status,
+            amount: salon.Subscription.amount,
+            startDate: salon.Subscription.startDate instanceof Date 
+              ? salon.Subscription.startDate.toISOString() 
+              : salon.Subscription.startDate,
+            endDate: salon.Subscription.endDate instanceof Date 
+              ? salon.Subscription.endDate.toISOString() 
+              : salon.Subscription.endDate || undefined,
+            nextPaymentDate: salon.Subscription.nextPaymentDate instanceof Date 
+              ? salon.Subscription.nextPaymentDate.toISOString() 
+              : salon.Subscription.nextPaymentDate || undefined,
           } : undefined,
         };
       });
@@ -314,10 +328,71 @@ export class AdminService {
     }
   }
 
-  async getAllBookings() {
+  async getAllBookings(params?: {
+    page?: number;
+    limit?: number;
+    status?: string;
+    search?: string;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+  }) {
     try {
+      const page = params?.page || 1;
+      const limit = Math.min(params?.limit || 20, 100); // Max 100 per page
+      const skip = (page - 1) * limit;
+
+      // Build where clause
+      const where: any = {};
+
+      // Status filter
+      if (params?.status && params.status !== 'all') {
+        where.status = params.status;
+      }
+
+      // Search filter (by salon name, user name, user email, service name)
+      if (params?.search) {
+        const searchTerm = params.search;
+        where.OR = [
+          { Salon: { name: { contains: searchTerm } } },
+          { User: { name: { contains: searchTerm } } },
+          { User: { email: { contains: searchTerm } } },
+          { Service: { name: { contains: searchTerm } } },
+        ];
+      }
+
+      // Build orderBy
+      let orderBy: any = { createdAt: 'desc' }; // Default
+      if (params?.sortBy) {
+        switch (params.sortBy) {
+          case 'date':
+            orderBy = { dateTime: params.sortOrder || 'desc' };
+            break;
+          case 'salon':
+            orderBy = { Salon: { name: params.sortOrder || 'asc' } };
+            break;
+          case 'client':
+            orderBy = { User: { name: params.sortOrder || 'asc' } };
+            break;
+          case 'service':
+            orderBy = { Service: { name: params.sortOrder || 'asc' } };
+            break;
+          default:
+            orderBy = { createdAt: params.sortOrder || 'desc' };
+        }
+      }
+
+      // Get total count for pagination
+      const total = await this.prisma.booking.count({ where });
+
+      // Get paginated bookings with optimized select
       const bookings = await this.prisma.booking.findMany({
-        include: {
+        where,
+        select: {
+          id: true,
+          dateTime: true,
+          status: true,
+          notes: true,
+          createdAt: true,
           Salon: {
             select: {
               id: true,
@@ -345,13 +420,13 @@ export class AdminService {
             },
           },
         },
-        orderBy: {
-          createdAt: 'desc',
-        },
+        orderBy,
+        skip,
+        take: limit,
       });
 
       // Transform data to match frontend interface
-      return bookings.map((booking) => ({
+      const transformedBookings = bookings.map((booking) => ({
         id: booking.id,
         time: booking.dateTime.toISOString(),
         status: booking.status,
@@ -376,39 +451,104 @@ export class AdminService {
           name: booking.Staff.name,
         } : undefined,
       }));
+
+      const totalPages = Math.ceil(total / limit);
+
+      return {
+        data: transformedBookings,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1,
+        },
+      };
     } catch (error) {
       throw new Error(`Failed to get bookings: ${error.message}`);
     }
   }
 
   async getSubscriptions() {
-    // Mock data for now since we don't have subscription table yet
-    return [
-      {
-        id: '1',
-        salon: 'Salon A',
-        subscriptionType: 'Premium',
-        status: 'Active',
-        nextPaymentDate: '2024-02-15',
-        amount: 99.99,
-      },
-      {
-        id: '2',
-        salon: 'Salon B',
-        subscriptionType: 'Basic',
-        status: 'Active',
-        nextPaymentDate: '2024-03-01',
-        amount: 49.99,
-      },
-      {
-        id: '3',
-        salon: 'Salon C',
-        subscriptionType: 'Premium',
-        status: 'Inactive',
-        nextPaymentDate: '2024-01-20',
-        amount: 99.99,
-      },
-    ];
+    try {
+      const subscriptions = await this.prisma.subscription.findMany({
+        include: {
+          Salon: {
+            select: {
+              name: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+
+      return subscriptions.map((sub) => ({
+        id: sub.id,
+        salon: sub.Salon.name,
+        subscriptionType: sub.type,
+        status: sub.status,
+        nextPaymentDate: sub.nextPaymentDate,
+        amount: sub.amount,
+        startDate: sub.startDate,
+        endDate: sub.endDate,
+      }));
+    } catch (error) {
+      throw new Error(`Failed to get subscriptions: ${error.message}`);
+    }
+  }
+
+  async getMonthlyRevenue() {
+    try {
+      // Получаем все активные подписки
+      const subscriptions = await this.prisma.subscription.findMany({
+        where: {
+          status: 'ACTIVE',
+        },
+        select: {
+          amount: true,
+          startDate: true,
+          endDate: true,
+          nextPaymentDate: true,
+        },
+      });
+
+      // Группируем по месяцам
+      const monthlyRevenue: Record<string, number> = {};
+
+      subscriptions.forEach((sub) => {
+        if (!sub.amount || sub.amount === 0) return;
+
+        // Рассчитываем все месяцы оплаты подписки
+        const startDate = new Date(sub.startDate);
+        const endDate = sub.endDate ? new Date(sub.endDate) : new Date();
+        
+        // Начинаем с даты начала подписки
+        let paymentDate = new Date(startDate);
+        
+        // Генерируем все месяцы оплаты до конца подписки или текущей даты
+        while (paymentDate <= endDate) {
+          const monthKey = `${paymentDate.getFullYear()}-${String(paymentDate.getMonth() + 1).padStart(2, '0')}`;
+          
+          if (!monthlyRevenue[monthKey]) {
+            monthlyRevenue[monthKey] = 0;
+          }
+
+          // Добавляем сумму подписки за этот месяц
+          monthlyRevenue[monthKey] += sub.amount;
+
+          // Переходим к следующему месяцу оплаты
+          paymentDate = new Date(paymentDate);
+          paymentDate.setMonth(paymentDate.getMonth() + 1);
+        }
+      });
+
+      return monthlyRevenue;
+    } catch (error) {
+      throw new Error(`Failed to get monthly revenue: ${error.message}`);
+    }
   }
 
   async getSmsUsage() {
