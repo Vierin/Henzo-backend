@@ -814,7 +814,7 @@ export class EmailService {
 
       const baseUrl =
         this.configService.get<string>('FRONTEND_URL') ||
-        'http://localhost:3000';
+        (process.env.NODE_ENV === 'production' ? 'https://henzo.app' : 'http://localhost:3000');
       const confirmUrl = `${baseUrl}/bookings/${bookingData.bookingId}/confirm`;
       const rejectUrl = `${baseUrl}/bookings/${bookingData.bookingId}/reject`;
 

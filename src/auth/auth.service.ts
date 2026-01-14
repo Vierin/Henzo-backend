@@ -1888,7 +1888,7 @@ export class AuthService {
       // Генерируем URL для complete-setup (magic link ведет сразу на настройку салона)
       const frontendUrl =
         this.configService.get<string>('FRONTEND_URL') ||
-        'http://localhost:3000';
+        (process.env.NODE_ENV === 'production' ? 'https://henzo.app' : 'http://localhost:3000');
       const completeSetupUrl = `${frontendUrl}/business/complete-setup?token=${token}`;
 
       console.log(
