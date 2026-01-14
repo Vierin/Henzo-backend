@@ -250,52 +250,57 @@ export class BookingsService {
         ownerEmail: booking.Salon?.User?.email,
       });
 
-      // Send email notifications
-      try {
-        await this.sendBookingNotifications(
-          booking,
-          isOwnerCreated,
-          data.clientName,
-        );
-        this.logger.log('Email notifications sent successfully');
-      } catch (emailError) {
-        this.logger.error('Error sending email notifications', emailError);
-        // Don't fail the booking creation if email fails
-      }
-
-      // Send push notifications if booking is PENDING
-      if (booking.status === 'PENDING') {
+      // Send email notifications asynchronously (don't block response)
+      // Use setImmediate to send in next event loop tick, allowing response to return immediately
+      setImmediate(async () => {
         try {
-          // If owner created booking without email, use clientName from DTO or "Anonymous Client"
-          const salonOwnerId =
-            booking.Salon?.ownerId || booking.Salon?.User?.id;
-          const isOwnerBookingWithoutEmail =
-            isOwnerCreated &&
-            (!booking.User?.email || !booking.User?.email.trim()) &&
-            booking.userId === salonOwnerId;
-
-          let clientName =
-            booking.User?.name || booking.User?.email || 'Unknown Client';
-          if (isOwnerBookingWithoutEmail && data.clientName) {
-            clientName = data.clientName;
-          } else if (isOwnerBookingWithoutEmail && !data.clientName) {
-            clientName = 'Anonymous Client';
-          }
-
-          const serviceName = booking.Service?.name || 'Service';
-
-          await this.notificationsService.sendBookingNotification(
-            booking.salonId,
-            booking.id,
-            clientName,
-            serviceName,
-            booking.dateTime,
+          await this.sendBookingNotifications(
+            booking,
+            isOwnerCreated,
+            data.clientName,
           );
-          this.logger.log('Push notification sent successfully');
-        } catch (pushError) {
-          this.logger.error('Error sending push notification', pushError);
-          // Don't fail the booking creation if push notification fails
+          this.logger.log('Email notifications sent successfully');
+        } catch (emailError) {
+          this.logger.error('Error sending email notifications', emailError);
+          // Don't fail the booking creation if email fails
         }
+      });
+
+      // Send push notifications if booking is PENDING (also async)
+      if (booking.status === 'PENDING') {
+        setImmediate(async () => {
+          try {
+            // If owner created booking without email, use clientName from DTO or "Anonymous Client"
+            const salonOwnerId =
+              booking.Salon?.ownerId || booking.Salon?.User?.id;
+            const isOwnerBookingWithoutEmail =
+              isOwnerCreated &&
+              (!booking.User?.email || !booking.User?.email.trim()) &&
+              booking.userId === salonOwnerId;
+
+            let clientName =
+              booking.User?.name || booking.User?.email || 'Unknown Client';
+            if (isOwnerBookingWithoutEmail && data.clientName) {
+              clientName = data.clientName;
+            } else if (isOwnerBookingWithoutEmail && !data.clientName) {
+              clientName = 'Anonymous Client';
+            }
+
+            const serviceName = booking.Service?.name || 'Service';
+
+            await this.notificationsService.sendBookingNotification(
+              booking.salonId,
+              booking.id,
+              clientName,
+              serviceName,
+              booking.dateTime,
+            );
+            this.logger.log('Push notification sent successfully');
+          } catch (pushError) {
+            this.logger.error('Error sending push notification', pushError);
+            // Don't fail the booking creation if push notification fails
+          }
+        });
       }
 
       return booking;
