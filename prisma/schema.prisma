@@ -102,6 +102,7 @@ model Salon {
   descriptionVi    String?
   descriptionRu    String?
   timezone         String         @default("Asia/Ho_Chi_Minh") // IANA timezone identifier
+  slug             String?        @unique // SEO-friendly slug for salon URLs
   Booking          Booking[]
   Review           Review[]
   User             User          @relation(fields: [ownerId], references: [id])
@@ -114,6 +115,7 @@ model Salon {
   @@index([latitude, longitude])
   @@index([ownerId, createdAt])
   @@index([createdAt])
+  @@index([slug]) // Index for fast slug lookups
 }
 
 model Service {

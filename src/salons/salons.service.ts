@@ -5,6 +5,8 @@ import { CreateSalonDto } from './dto/create-salon.dto';
 import { MapboxService } from '../mapbox/mapbox.service';
 import { TranslationService } from '../services/translation.service';
 import { CacheService } from '../cache/cache.service';
+import { generateSalonSlug } from '../utils/slug';
+import { nanoid } from 'nanoid';
 
 @Injectable()
 export class SalonsService {
@@ -69,6 +71,8 @@ export class SalonsService {
           descriptionEn: true,
           descriptionVi: true,
           descriptionRu: true,
+          slug: true,
+          timezone: true,
           _count: {
             select: {
               Review: true,
@@ -759,7 +763,7 @@ export class SalonsService {
           intervals: [24],
         };
 
-        // Create the salon
+        // Create the salon first to get the generated ID
         const salon = await prisma.salon.create({
           data: {
             ...createSalonDto,
@@ -824,7 +828,56 @@ export class SalonsService {
           },
         });
 
-        return salon;
+        // Generate and update slug using the actual salon ID
+        const slug = generateSalonSlug(
+          salon.name,
+          salon.id,
+          salon.address || undefined,
+        );
+
+        // Update salon with generated slug
+        const salonWithSlug = await prisma.salon.update({
+          where: { id: salon.id },
+          data: { slug },
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            address: true,
+            phone: true,
+            email: true,
+            website: true,
+            instagram: true,
+            logo: true,
+            photos: true,
+            workingHours: true,
+            reminderSettings: true,
+            ownerId: true,
+            createdAt: true,
+            categoryIds: true,
+            latitude: true,
+            longitude: true,
+            descriptionEn: true,
+            descriptionVi: true,
+            descriptionRu: true,
+            slug: true,
+            Service: {
+              include: {
+                ServiceGroup: true,
+              },
+            },
+            Staff: true,
+            User: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        });
+
+        return salonWithSlug;
       });
 
       // Add derived categories from services
@@ -853,6 +906,8 @@ export class SalonsService {
       where: { ownerId: userId },
       select: {
         id: true,
+        name: true,
+        address: true,
         descriptionEn: true,
         descriptionVi: true,
         descriptionRu: true,
@@ -861,6 +916,20 @@ export class SalonsService {
 
     if (!existingSalon) {
       throw new Error('Salon not found');
+    }
+
+    // Generate new slug if name or address changed
+    let slug: string | undefined;
+    if (
+      (updateSalonDto.name && updateSalonDto.name !== existingSalon.name) ||
+      (updateSalonDto.address &&
+        updateSalonDto.address !== existingSalon.address)
+    ) {
+      slug = generateSalonSlug(
+        updateSalonDto.name || existingSalon.name,
+        existingSalon.id,
+        updateSalonDto.address || existingSalon.address || undefined,
+      );
     }
 
     const { ...salonData } = updateSalonDto;
@@ -894,7 +963,7 @@ export class SalonsService {
 
     if (updateSalonDto.description && updateSalonDto.description.trim()) {
       const newDescription = updateSalonDto.description.trim();
-      
+
       // Check if description actually changed by comparing with existing translations
       const descriptionChanged =
         newDescription !== existingSalon.descriptionEn?.trim() &&
@@ -917,11 +986,16 @@ export class SalonsService {
           };
           console.log('✅ Translations generated for update');
         } catch (error) {
-          console.error('⚠️ Failed to generate description translations:', error);
+          console.error(
+            '⚠️ Failed to generate description translations:',
+            error,
+          );
           // Continue without translations
         }
       } else {
-        console.log('ℹ️ Description unchanged, skipping translation generation');
+        console.log(
+          'ℹ️ Description unchanged, skipping translation generation',
+        );
       }
     }
 
@@ -932,6 +1006,7 @@ export class SalonsService {
         ...descriptionTranslations,
         ...(latitude !== undefined && { latitude }),
         ...(longitude !== undefined && { longitude }),
+        ...(slug && { slug }), // Update slug if generated
       } as any,
       include: {
         Service: {
@@ -1015,6 +1090,8 @@ export class SalonsService {
           descriptionEn: true,
           descriptionVi: true,
           descriptionRu: true,
+          slug: true,
+          timezone: true,
           _count: {
             select: {
               Review: true,
@@ -1250,6 +1327,140 @@ export class SalonsService {
       );
       (enhancedError as any).originalError = error;
       throw enhancedError;
+    }
+  }
+
+  /**
+   * Find salon by slug - optimized for fast lookups with indexed slug field
+   * @param slug - salon slug
+   * @returns salon data or null if not found
+   */
+  async findBySlug(slug: string) {
+    try {
+      if (!slug || slug.trim() === '') {
+        return null;
+      }
+
+      // Fast lookup by slug using indexed field
+      const salon = await this.prisma.salon.findUnique({
+        where: { slug },
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          address: true,
+          phone: true,
+          email: true,
+          website: true,
+          instagram: true,
+          logo: true,
+          photos: true,
+          workingHours: true,
+          reminderSettings: true,
+          ownerId: true,
+          createdAt: true,
+          categoryIds: true,
+          latitude: true,
+          longitude: true,
+          descriptionEn: true,
+          descriptionVi: true,
+          descriptionRu: true,
+          slug: true,
+          timezone: true,
+          _count: {
+            select: {
+              Review: true,
+              Service: true,
+              Booking: true,
+              Staff: true,
+            },
+          },
+          Service: {
+            take: 50,
+            select: {
+              id: true,
+              name: true,
+              nameEn: true,
+              nameVi: true,
+              nameRu: true,
+              description: true,
+              descriptionEn: true,
+              descriptionVi: true,
+              descriptionRu: true,
+              duration: true,
+              price: true,
+              serviceCategoryId: true,
+              serviceGroupId: true,
+              service_categories: {
+                select: {
+                  id: true,
+                  name_en: true,
+                  name_vn: true,
+                  name_ru: true,
+                },
+              },
+              ServiceGroup: {
+                select: {
+                  id: true,
+                  name: true,
+                  nameEn: true,
+                  nameVi: true,
+                  nameRu: true,
+                  position: true,
+                },
+              },
+            },
+          },
+          Staff: {
+            select: {
+              id: true,
+              name: true,
+              accessLevel: true,
+              email: true,
+              phone: true,
+            },
+          },
+        },
+      });
+
+      if (!salon) {
+        return null;
+      }
+
+      // Calculate average rating
+      const reviews = await this.prisma.review.findMany({
+        where: { salonId: salon.id },
+        select: { rating: true },
+      });
+
+      const avgRating =
+        reviews.length > 0
+          ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+          : 0;
+
+      // Transform to match expected format
+      const transformedSalon = {
+        ...salon,
+        avgRating: Math.round(avgRating * 10) / 10,
+        reviewCount: salon._count.Review,
+        services: salon.Service,
+        categories: Array.from(
+          new Set(
+            salon.Service.map((s: any) => s.serviceCategoryId).filter(Boolean),
+          ),
+        ),
+      };
+
+      // Remove Prisma-specific fields
+      delete (transformedSalon as any).Service;
+      delete (transformedSalon as any).Staff;
+      delete (transformedSalon as any).Review;
+      delete (transformedSalon as any).User;
+
+      return transformedSalon as any;
+    } catch (error) {
+      console.error('❌ Error in findBySlug:', error);
+      return null;
     }
   }
 

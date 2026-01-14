@@ -228,9 +228,9 @@ export class SalonsController {
         throw new HttpException('Salon not found', HttpStatus.NOT_FOUND);
       }
 
-      // Generate salon URL using slug generation
+      // Use slug from DB or generate if not exists
       const baseUrl = process.env.FRONTEND_URL || 'https://henzo.app';
-      const slug = generateSalonSlug(
+      const slug = salon.slug || generateSalonSlug(
         salon.name,
         salon.id,
         salon.address || undefined,
@@ -515,6 +515,21 @@ export class SalonsController {
         'Failed to generate PDF',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
+    }
+  }
+
+  @Get('by-slug/:slug')
+  @Header('Cache-Control', 'public, max-age=600') // Cache for 10 minutes
+  async getSalonBySlug(@Param('slug') slug: string) {
+    try {
+      const result = await this.salonsService.findBySlug(slug);
+      if (!result) {
+        throw new HttpException('Salon not found', HttpStatus.NOT_FOUND);
+      }
+      return result;
+    } catch (error) {
+      console.error('❌ Error getting salon by slug:', error);
+      throw error;
     }
   }
 
