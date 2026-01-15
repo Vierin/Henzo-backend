@@ -8,7 +8,7 @@ export class ServicesService {
 
   async findBySalonId(salonId: string) {
     // Важно: Используем select вместо include для уменьшения payload
-    return this.prisma.service.findMany({
+    const services = await this.prisma.service.findMany({
       where: { salonId },
       select: {
         id: true,
@@ -57,11 +57,18 @@ export class ServicesService {
         name: 'asc',
       },
     });
+
+    // Transform ServiceGroup to serviceGroup for frontend compatibility
+    return services.map((service) => ({
+      ...service,
+      serviceGroup: service.ServiceGroup || null,
+      ServiceGroup: undefined,
+    }));
   }
 
   async findById(id: string) {
     // Важно: Используем select вместо include для уменьшения payload
-    return this.prisma.service.findUnique({
+    const service = await this.prisma.service.findUnique({
       where: { id },
       select: {
         id: true,
@@ -116,10 +123,19 @@ export class ServicesService {
         },
       },
     });
+
+    if (!service) return null;
+
+    // Transform ServiceGroup to serviceGroup for frontend compatibility
+    return {
+      ...service,
+      serviceGroup: service.ServiceGroup || null,
+      ServiceGroup: undefined,
+    };
   }
 
   async findAllPublic() {
-    return this.prisma.service.findMany({
+    const services = await this.prisma.service.findMany({
       include: {
         Salon: {
           select: {
@@ -136,6 +152,13 @@ export class ServicesService {
         name: 'asc',
       },
     });
+
+    // Transform ServiceGroup to serviceGroup for frontend compatibility
+    return services.map((service) => ({
+      ...service,
+      serviceGroup: service.ServiceGroup || null,
+      ServiceGroup: undefined,
+    }));
   }
 
   async create(data: {

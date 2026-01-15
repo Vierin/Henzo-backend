@@ -27,9 +27,9 @@ export class CreateTimeBlockDto {
   @IsNotEmpty()
   type: TimeBlockType;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  reason: string;
+  reason?: string;
 
   @IsDateString()
   @IsNotEmpty()

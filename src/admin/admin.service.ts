@@ -239,7 +239,6 @@ export class AdminService {
           reminderSettings: true,
           ownerId: true,
           createdAt: true,
-          categoryIds: true,
           latitude: true,
           longitude: true,
           descriptionEn: true,

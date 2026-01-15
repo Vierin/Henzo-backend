@@ -65,7 +65,6 @@ export class SalonsService {
           reminderSettings: true,
           ownerId: true,
           createdAt: true,
-          categoryIds: true,
           latitude: true,
           longitude: true,
           descriptionEn: true,
@@ -349,7 +348,6 @@ export class SalonsService {
         reminderSettings: true,
         ownerId: true,
         createdAt: true,
-        categoryIds: true,
         latitude: true,
         longitude: true,
         descriptionEn: true,
@@ -657,7 +655,6 @@ export class SalonsService {
         reminderSettings: true,
         ownerId: true,
         createdAt: true,
-        categoryIds: true,
         latitude: true,
         longitude: true,
         descriptionEn: true,
@@ -788,7 +785,6 @@ export class SalonsService {
             reminderSettings: true,
             ownerId: true,
             createdAt: true,
-            categoryIds: true,
             latitude: true,
             longitude: true,
             descriptionEn: true,
@@ -854,7 +850,6 @@ export class SalonsService {
             reminderSettings: true,
             ownerId: true,
             createdAt: true,
-            categoryIds: true,
             latitude: true,
             longitude: true,
             descriptionEn: true,
@@ -1084,7 +1079,6 @@ export class SalonsService {
           reminderSettings: true,
           ownerId: true,
           createdAt: true,
-          categoryIds: true,
           latitude: true,
           longitude: true,
           descriptionEn: true,
@@ -1359,7 +1353,6 @@ export class SalonsService {
           reminderSettings: true,
           ownerId: true,
           createdAt: true,
-          categoryIds: true,
           latitude: true,
           longitude: true,
           descriptionEn: true,
@@ -1418,6 +1411,12 @@ export class SalonsService {
               accessLevel: true,
               email: true,
               phone: true,
+            },
+          },
+          _count: {
+            select: {
+              Review: true,
+              Service: true,
             },
           },
         },
@@ -1524,7 +1523,7 @@ export class SalonsService {
 
   async findFeaturedSalons(limit: number) {
     // Cache key includes limit to cache different limits separately
-    // Version 2: includes categoryIds in response
+    // Version 2: categories are derived from services
     const cacheKey = `salons:featured:v2:${limit}`;
 
     // Try to get from cache first (24 hours TTL)
@@ -1542,7 +1541,6 @@ export class SalonsService {
         longitude: true,
         logo: true,
         photos: true,
-        categoryIds: true,
         Service: {
           select: {
             id: true,
@@ -1620,7 +1618,6 @@ export class SalonsService {
         logo: salon.logo,
         photos: salon.photos,
         avgRating: Math.round(avgRating * 10) / 10, // Round to 1 decimal
-        categoryIds: salon.categoryIds || [],
         categories,
         priceRange,
         services: salon.Service.map((s: any) => ({

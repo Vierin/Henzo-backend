@@ -95,14 +95,13 @@ model Salon {
   reminderSettings Json?         @default("{\"intervals\":[24]}")
   ownerId          String
   createdAt        DateTime      @default(now())
-  categoryIds      Int[]
   latitude         Float?
   longitude        Float?
   descriptionEn    String?
   descriptionVi    String?
   descriptionRu    String?
-  timezone         String         @default("Asia/Ho_Chi_Minh") // IANA timezone identifier
-  slug             String?        @unique // SEO-friendly slug for salon URLs
+  timezone         String        @default("Asia/Ho_Chi_Minh") // IANA timezone identifier
+  slug             String?       @unique // SEO-friendly slug for salon URLs
   Booking          Booking[]
   Review           Review[]
   User             User          @relation(fields: [ownerId], references: [id])
@@ -207,7 +206,7 @@ model TimeBlock {
   salonId                                  String
   staffId                                  String?
   type                                     TimeBlockType
-  reason                                   String
+  reason                                   String?
   startDate                                DateTime
   endDate                                  DateTime
   notes                                    String?
