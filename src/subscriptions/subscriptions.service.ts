@@ -1,5 +1,6 @@
 import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { SUBSCRIPTION_PRICES } from './subscription-plans.constants';
 
 @Injectable()
 export class SubscriptionsService {
@@ -58,10 +59,7 @@ export class SubscriptionsService {
     }
   }
 
-  async switchSubscription(
-    userId: string,
-    planType: 'BASIC' | 'ENTERPRISE',
-  ) {
+  async switchSubscription(userId: string, planType: 'BASIC' | 'ENTERPRISE') {
     try {
       // Find user's salon
       const salon = await this.prisma.salon.findFirst({
@@ -85,17 +83,8 @@ export class SubscriptionsService {
       });
 
       if (!currentSubscription) {
-        throw new HttpException(
-          'Subscription not found',
-          HttpStatus.NOT_FOUND,
-        );
+        throw new HttpException('Subscription not found', HttpStatus.NOT_FOUND);
       }
-
-      // Calculate pricing
-      const prices = {
-        BASIC: 350000,
-        ENTERPRISE: 0, // TODO: Set enterprise price
-      };
 
       const now = new Date();
       const oneMonthFromNow = new Date();
@@ -112,7 +101,7 @@ export class SubscriptionsService {
           startDate: now,
           endDate: oneMonthFromNow,
           nextPaymentDate: oneMonthFromNow,
-          amount: prices[planType],
+          amount: SUBSCRIPTION_PRICES[planType],
           updatedAt: now,
         },
       });
@@ -124,4 +113,3 @@ export class SubscriptionsService {
     }
   }
 }
-
