@@ -1851,7 +1851,9 @@ export class BookingsService {
       // Generate confirmation URL
       const frontendUrl =
         this.configService.get<string>('FRONTEND_URL') ||
-        (process.env.NODE_ENV === 'production' ? 'https://henzo.app' : 'http://localhost:3000');
+        (process.env.NODE_ENV === 'production'
+          ? 'https://henzo.app'
+          : 'http://localhost:3000');
       // Default to 'en' locale, but can be customized
       const confirmUrl = `${frontendUrl}/en/booking-confirmed?token=${token}`;
 
