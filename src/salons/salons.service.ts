@@ -113,6 +113,7 @@ export class SalonsService {
                   nameVi: true,
                   nameRu: true,
                   position: true,
+                  isActive: true,
                 },
               },
             },
@@ -156,18 +157,37 @@ export class SalonsService {
       // Transform to match expected format
       const transformedSalons = salons.map((salon: any) => ({
         ...salon,
-        services: (salon.Service || []).map((service: any) => ({
-          ...service,
-          serviceCategory: service.service_categories
-            ? {
-                id: service.service_categories.id,
-                nameEn: service.service_categories.name_en,
-                nameVn: service.service_categories.name_vn,
-                nameRu: service.service_categories.name_ru,
-              }
-            : null,
-          serviceGroup: service.ServiceGroup || null,
-        })),
+        services: (salon.Service || []).map((service: any) => {
+          const transformedService: any = {
+            ...service,
+            serviceCategory: service.service_categories
+              ? {
+                  id: service.service_categories.id,
+                  nameEn: service.service_categories.name_en,
+                  nameVn: service.service_categories.name_vn,
+                  nameRu: service.service_categories.name_ru,
+                }
+              : null,
+          };
+
+          // Ensure serviceGroup has correct id
+          if (service.ServiceGroup) {
+            const groupId = service.ServiceGroup.id || service.serviceGroupId;
+            if (groupId) {
+              transformedService.serviceGroup = {
+                ...service.ServiceGroup,
+                id: groupId,
+                isActive: service.ServiceGroup.isActive !== false,
+              };
+            } else {
+              transformedService.serviceGroup = null;
+            }
+          } else {
+            transformedService.serviceGroup = null;
+          }
+
+          return transformedService;
+        }),
         Service: undefined, // Remove Prisma field
         reviews: salon.Review || [],
         Review: undefined, // Remove Prisma field
@@ -240,58 +260,91 @@ export class SalonsService {
     // Build where clause
     const where: any = {};
 
-    // Text search - prioritize service name search
+    // Build category service filter first (needed for combining with search)
+    let categoryServiceFilter: any = null;
+    if (category && category !== 'all') {
+      const categoryId = parseInt(category, 10);
+
+      if (!Number.isNaN(categoryId)) {
+        // Numeric ID - treat as serviceCategoryId for backward compatibility
+        categoryServiceFilter = { serviceCategoryId: categoryId };
+      } else {
+        // String - check if it's a main category slug (e.g., "hair-barber", "massage-spa")
+        const mainCategories = this.getSalonCategories();
+        const mainCategory = mainCategories.find(
+          (cat) => cat.slug === category,
+        );
+
+        if (mainCategory) {
+          // Filter by main_category_id through service_categories JOIN
+          categoryServiceFilter = {
+            service_categories: {
+              main_category_id: mainCategory.id,
+            },
+          };
+        } else {
+          // Fallback: filter by service category name
+          categoryServiceFilter = {
+            service_categories: {
+              name_en: { equals: category, mode: 'insensitive' },
+            },
+          };
+        }
+      }
+    }
+
+    // Text search - combine with category filter if exists
     if (search.trim()) {
       const searchTerm = search.trim();
-      where.OR = [
-        // Priority 1: Search by service name (most important)
-        {
-          Service: {
-            some: {
-              OR: [
-                { name: { contains: searchTerm, mode: 'insensitive' } },
-                { nameEn: { contains: searchTerm, mode: 'insensitive' } },
-                { nameVi: { contains: searchTerm, mode: 'insensitive' } },
-                { nameRu: { contains: searchTerm, mode: 'insensitive' } },
-              ],
-            },
-          },
-        },
+      const searchOR: any[] = [
         // Priority 2: Search by salon name
         { name: { contains: searchTerm, mode: 'insensitive' } },
         // Priority 3: Search by salon description and address
         { description: { contains: searchTerm, mode: 'insensitive' } },
         { address: { contains: searchTerm, mode: 'insensitive' } },
-        // Priority 4: Search by service description
-        {
+      ];
+
+      // Build service search conditions
+      const serviceSearchConditions: any[] = [
+        { name: { contains: searchTerm, mode: 'insensitive' } },
+        { nameEn: { contains: searchTerm, mode: 'insensitive' } },
+        { nameVi: { contains: searchTerm, mode: 'insensitive' } },
+        { nameRu: { contains: searchTerm, mode: 'insensitive' } },
+        { description: { contains: searchTerm, mode: 'insensitive' } },
+      ];
+
+      // Combine service search with category filter if exists
+      if (categoryServiceFilter) {
+        // Search within specific category
+        searchOR.unshift({
           Service: {
             some: {
-              description: { contains: searchTerm, mode: 'insensitive' },
+              AND: [categoryServiceFilter, { OR: serviceSearchConditions }],
             },
           },
-        },
-      ];
+        });
+      } else {
+        // Search in all services
+        searchOR.unshift({
+          Service: {
+            some: {
+              OR: serviceSearchConditions,
+            },
+          },
+        });
+      }
+
+      where.OR = searchOR;
+    } else if (categoryServiceFilter) {
+      // Only category filter, no search - apply directly
+      where.Service = {
+        some: categoryServiceFilter,
+      };
     }
 
     // Location filter
     if (location.trim()) {
       where.address = { contains: location, mode: 'insensitive' };
-    }
-
-    // Category filter
-    if (category && category !== 'all') {
-      const categoryId = parseInt(category, 10);
-      if (!Number.isNaN(categoryId)) {
-        where.Service = { some: { serviceCategoryId: categoryId } };
-      } else {
-        where.Service = {
-          some: {
-            service_categories: {
-              name_en: { equals: category, mode: 'insensitive' },
-            },
-          },
-        };
-      }
     }
 
     // Rating filter
@@ -433,20 +486,39 @@ export class SalonsService {
     // Transform to match expected format (Service -> services)
     let transformedSalons = salons.map((salon: any) => ({
       ...salon,
-      services: (salon.Service || []).map((service: any) => ({
-        ...service,
-        serviceCategory: service.service_categories
-          ? {
-              id: service.service_categories.id,
-              name_en: service.service_categories.name_en,
-              name_vn: service.service_categories.name_vn,
-              name_ru: service.service_categories.name_ru,
-            }
-          : null,
-        service_categories: undefined, // Remove Prisma field
-        serviceGroup: service.ServiceGroup || null,
-        ServiceGroup: undefined, // Remove Prisma field
-      })),
+      services: (salon.Service || []).map((service: any) => {
+        const transformedService: any = {
+          ...service,
+          serviceCategory: service.service_categories
+            ? {
+                id: service.service_categories.id,
+                name_en: service.service_categories.name_en,
+                name_vn: service.service_categories.name_vn,
+                name_ru: service.service_categories.name_ru,
+              }
+            : null,
+          service_categories: undefined, // Remove Prisma field
+        };
+
+        // Ensure serviceGroup has correct id
+        if (service.ServiceGroup) {
+          const groupId = service.ServiceGroup.id || service.serviceGroupId;
+          if (groupId) {
+            transformedService.serviceGroup = {
+              ...service.ServiceGroup,
+              id: groupId,
+              isActive: service.ServiceGroup.isActive !== false,
+            };
+          } else {
+            transformedService.serviceGroup = null;
+          }
+        } else {
+          transformedService.serviceGroup = null;
+        }
+
+        transformedService.ServiceGroup = undefined; // Remove Prisma field
+        return transformedService;
+      }),
       Service: undefined, // Remove Prisma field
       reviews: salon.Review || [],
       Review: undefined, // Remove Prisma field
@@ -623,8 +695,8 @@ export class SalonsService {
       },
       {
         id: 5,
-        name: 'Cosmetic Medicine',
-        slug: 'cosmetic-medicine',
+        name: 'Brows & Lashes',
+        slug: 'brows-lashes',
       },
       {
         id: 6,
@@ -1126,6 +1198,7 @@ export class SalonsService {
                   nameVi: true,
                   nameRu: true,
                   position: true,
+                  isActive: true,
                 },
               },
             },
@@ -1249,19 +1322,23 @@ export class SalonsService {
               ? groupsMap.get(service.serviceGroupId)
               : null);
           if (serviceGroup) {
-            transformedService.serviceGroup = {
-              id: serviceGroup.id,
-              salonId: serviceGroup.salonId,
-              name: serviceGroup.name,
-              nameEn: serviceGroup.nameEn,
-              nameVi: serviceGroup.nameVi,
-              nameRu: serviceGroup.nameRu,
-              position: serviceGroup.position,
-              isActive: serviceGroup.isActive,
-              createdAt:
-                serviceGroup.createdAt?.toISOString() ||
-                new Date().toISOString(),
-            };
+            // Ensure we use serviceGroupId as fallback if serviceGroup.id is missing
+            const groupId = serviceGroup.id || service.serviceGroupId;
+            if (groupId) {
+              transformedService.serviceGroup = {
+                id: groupId,
+                salonId: serviceGroup.salonId,
+                name: serviceGroup.name,
+                nameEn: serviceGroup.nameEn,
+                nameVi: serviceGroup.nameVi,
+                nameRu: serviceGroup.nameRu,
+                position: serviceGroup.position,
+                isActive: serviceGroup.isActive !== false, // Default to true if undefined
+                createdAt:
+                  serviceGroup.createdAt?.toISOString() ||
+                  new Date().toISOString(),
+              };
+            }
           }
 
           return transformedService;
@@ -1400,6 +1477,7 @@ export class SalonsService {
                   nameVi: true,
                   nameRu: true,
                   position: true,
+                  isActive: true,
                 },
               },
             },
@@ -1411,12 +1489,6 @@ export class SalonsService {
               accessLevel: true,
               email: true,
               phone: true,
-            },
-          },
-          _count: {
-            select: {
-              Review: true,
-              Service: true,
             },
           },
         },
@@ -1437,12 +1509,90 @@ export class SalonsService {
           ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
           : 0;
 
+      // Load all service groups for this salon separately to ensure all groups are available
+      const allGroups = await this.prisma.serviceGroup.findMany({
+        where: { salonId: salon.id, isActive: true },
+        orderBy: { position: 'asc' },
+      });
+
+      // Create a map of service groups by ID for quick lookup
+      const groupsMap = new Map<string, any>();
+      allGroups.forEach((group) => {
+        groupsMap.set(group.id, group);
+      });
+
+      // Also add groups from services if they're not already in the map
+      salon.Service.forEach((service: any) => {
+        if (
+          service.ServiceGroup &&
+          service.serviceGroupId &&
+          !groupsMap.has(service.serviceGroupId)
+        ) {
+          groupsMap.set(service.serviceGroupId, service.ServiceGroup);
+        }
+      });
+
       // Transform to match expected format
       const transformedSalon = {
         ...salon,
         avgRating: Math.round(avgRating * 10) / 10,
         reviewCount: salon._count.Review,
-        services: salon.Service,
+        services: salon.Service.map((service: any) => {
+          const transformedService: any = {
+            id: service.id,
+            name: service.name,
+            description: service.description,
+            nameEn: service.nameEn,
+            nameVi: service.nameVi,
+            nameRu: service.nameRu,
+            descriptionEn: service.descriptionEn,
+            descriptionVi: service.descriptionVi,
+            descriptionRu: service.descriptionRu,
+            duration: service.duration,
+            price: service.price,
+            salonId: service.salonId,
+            categoryId: service.categoryId,
+            serviceCategoryId: service.serviceCategoryId,
+            serviceGroupId: service.serviceGroupId,
+          };
+
+          if (service.service_categories) {
+            transformedService.serviceCategory = {
+              id: service.service_categories.id,
+              nameEn: service.service_categories.name_en,
+              nameVn: service.service_categories.name_vn,
+              nameRu: service.service_categories.name_ru,
+            };
+          }
+
+          // Use ServiceGroup from service if available, otherwise lookup from map
+          const serviceGroup =
+            service.ServiceGroup ||
+            (service.serviceGroupId
+              ? groupsMap.get(service.serviceGroupId)
+              : null);
+          if (serviceGroup) {
+            // Ensure we use serviceGroupId as fallback if serviceGroup.id is missing
+            const groupId = serviceGroup.id || service.serviceGroupId;
+            if (groupId) {
+              transformedService.serviceGroup = {
+                id: groupId,
+                salonId: serviceGroup.salonId,
+                name: serviceGroup.name,
+                nameEn: serviceGroup.nameEn,
+                nameVi: serviceGroup.nameVi,
+                nameRu: serviceGroup.nameRu,
+                position: serviceGroup.position,
+                isActive: serviceGroup.isActive !== false, // Default to true if undefined
+                createdAt:
+                  serviceGroup.createdAt?.toISOString() ||
+                  new Date().toISOString(),
+              };
+            }
+          }
+
+          return transformedService;
+        }),
         categories: Array.from(
           new Set(
             salon.Service.map((s: any) => s.serviceCategoryId).filter(Boolean),

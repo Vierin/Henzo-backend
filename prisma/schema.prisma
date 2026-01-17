@@ -260,11 +260,12 @@ model PushToken {
 }
 
 model service_categories {
-  id      Int       @id @default(autoincrement())
-  name_en String    @unique
-  name_vn String    @unique
-  name_ru String    @unique
-  Service Service[]
+  id             Int       @id @default(autoincrement())
+  name_en        String    @unique
+  name_vn        String    @unique
+  name_ru        String    @unique
+  main_category_id Int?
+  Service        Service[]
 }
 
 model RecommendedService {
