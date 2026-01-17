@@ -5,6 +5,7 @@ import {
   HttpException,
   HttpStatus,
   Query,
+  Param,
 } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { AuthService } from '../auth/auth.service';
@@ -177,6 +178,52 @@ export class AdminController {
     } catch (error) {
       throw new HttpException(
         error.message || 'Failed to get platform metrics',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Get('structure')
+  async getStructure(@Headers('authorization') authHeader: string) {
+    try {
+      const currentUser = await this.authService.getCurrentUser(authHeader);
+
+      if (currentUser.user.role !== 'ADMIN') {
+        throw new HttpException('Access denied', HttpStatus.FORBIDDEN);
+      }
+
+      const structure = await this.adminService.getStructure();
+      return structure;
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Failed to get structure',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Get('structure/service-category/:id')
+  async getServiceCategoryDetails(
+    @Headers('authorization') authHeader: string,
+    @Param('id') id: string,
+  ) {
+    try {
+      const currentUser = await this.authService.getCurrentUser(authHeader);
+
+      if (currentUser.user.role !== 'ADMIN') {
+        throw new HttpException('Access denied', HttpStatus.FORBIDDEN);
+      }
+
+      const serviceCategoryId = parseInt(id, 10);
+      if (isNaN(serviceCategoryId)) {
+        throw new HttpException('Invalid service category ID', HttpStatus.BAD_REQUEST);
+      }
+
+      const details = await this.adminService.getServiceCategoryDetails(serviceCategoryId);
+      return details;
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Failed to get service category details',
         HttpStatus.BAD_REQUEST,
       );
     }

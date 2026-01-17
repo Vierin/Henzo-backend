@@ -594,4 +594,188 @@ export class AdminService {
       throw new Error(`Failed to get customers: ${error.message}`);
     }
   }
+
+  async getServiceCategoryDetails(serviceCategoryId: number) {
+    try {
+      const category = await this.prisma.service_categories.findUnique({
+        where: { id: serviceCategoryId },
+        select: {
+          id: true,
+          name_en: true,
+          name_vn: true,
+          name_ru: true,
+          main_category_id: true,
+        },
+      });
+
+      if (!category) {
+        throw new Error('Service category not found');
+      }
+
+      // Get all services with this category, grouped by salon
+      const services = await this.prisma.service.findMany({
+        where: {
+          serviceCategoryId: serviceCategoryId,
+        },
+        select: {
+          id: true,
+          name: true,
+          nameEn: true,
+          nameVi: true,
+          nameRu: true,
+          price: true,
+          duration: true,
+          salonId: true,
+          Salon: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+            },
+          },
+        },
+        orderBy: {
+          Salon: {
+            name: 'asc',
+          },
+        },
+      });
+
+      // Group services by salon
+      const servicesBySalon = services.reduce((acc, service) => {
+        const salonId = service.salonId;
+        const salonName = service.Salon?.name || 'Unknown Salon';
+
+        if (!acc[salonId]) {
+          acc[salonId] = {
+            salonId,
+            salonName,
+            salonSlug: service.Salon?.slug || null,
+            services: [],
+          };
+        }
+
+        acc[salonId].services.push({
+          id: service.id,
+          name: service.name,
+          nameEn: service.nameEn || service.name,
+          nameVi: service.nameVi || service.name,
+          nameRu: service.nameRu || service.name,
+          price: service.price,
+          duration: service.duration,
+        });
+
+        return acc;
+      }, {} as Record<string, any>);
+
+      const salons = Object.values(servicesBySalon).sort((a: any, b: any) =>
+        a.salonName.localeCompare(b.salonName)
+      );
+
+      return {
+        category,
+        salons,
+        totalServices: services.length,
+        totalSalons: salons.length,
+      };
+    } catch (error) {
+      throw new Error(`Failed to get service category details: ${error.message}`);
+    }
+  }
+
+  async getStructure() {
+    try {
+      // Get all main categories (static from JSON - we'll use the same IDs)
+      const mainCategories = [
+        { id: 1, slug: 'hair-barber', name: 'Hair & Barber' },
+        { id: 2, slug: 'tattoo-piercing', name: 'Tattoo & Piercing' },
+        { id: 3, slug: 'massage-spa', name: 'Massage & Spa' },
+        { id: 4, slug: 'manicure-pedicure', name: 'Manicure & Pedicure' },
+        { id: 5, slug: 'brows-lashes', name: 'Brows & Lashes' },
+        { id: 6, slug: 'other-services', name: 'Other Services' },
+      ];
+
+      // Get all service categories with their main_category_id and service counts
+      const serviceCategories = await this.prisma.service_categories.findMany({
+        select: {
+          id: true,
+          name_en: true,
+          name_vn: true,
+          name_ru: true,
+          main_category_id: true,
+          _count: {
+            select: {
+              Service: true,
+            },
+          },
+        },
+        orderBy: {
+          name_en: 'asc',
+        },
+      });
+
+      // Get all recommended services
+      const recommendedServices = await this.prisma.recommendedService.findMany({
+        select: {
+          id: true,
+          nameEn: true,
+          nameVi: true,
+          nameRu: true,
+          categoryId: true,
+          priority: true,
+        },
+        orderBy: [
+          { priority: 'desc' },
+          { nameEn: 'asc' },
+        ],
+      });
+
+      // Group service categories by main_category_id
+      const categoriesByMain = mainCategories.map((mainCat) => {
+        const serviceCats = serviceCategories.filter(
+          (sc) => sc.main_category_id === mainCat.id,
+        );
+        return {
+          ...mainCat,
+          serviceCategories: serviceCats.map((sc) => ({
+            id: sc.id,
+            nameEn: sc.name_en,
+            nameVn: sc.name_vn,
+            nameRu: sc.name_ru,
+            serviceCount: sc._count.Service,
+          })),
+          totalServices: serviceCats.reduce(
+            (sum, sc) => sum + sc._count.Service,
+            0,
+          ),
+        };
+      });
+
+      // Also include service categories without main_category_id
+      const unassignedCategories = serviceCategories
+        .filter((sc) => !sc.main_category_id)
+        .map((sc) => ({
+          id: sc.id,
+          nameEn: sc.name_en,
+          nameVn: sc.name_vn,
+          nameRu: sc.name_ru,
+          serviceCount: sc._count.Service,
+        }));
+
+      return {
+        mainCategories: categoriesByMain,
+        unassignedCategories,
+        recommendedServices: recommendedServices.map((rs) => ({
+          id: rs.id,
+          nameEn: rs.nameEn,
+          nameVi: rs.nameVi,
+          nameRu: rs.nameRu,
+          categoryId: rs.categoryId,
+          priority: rs.priority,
+        })),
+      };
+    } catch (error) {
+      throw new Error(`Failed to get structure: ${error.message}`);
+    }
+  }
 }
