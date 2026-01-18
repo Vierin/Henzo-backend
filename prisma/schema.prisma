@@ -283,6 +283,18 @@ model RecommendedService {
   @@index([categoryId])
 }
 
+model City {
+  id          String  @id
+  name        String
+  countryCode String  @default("VN")
+  lat         Float
+  lng         Float
+  isActive    Boolean @default(true)
+
+  @@index([countryCode, isActive])
+  @@index([isActive])
+}
+
 enum BookingStatus {
   CONFIRMED
   CANCELED

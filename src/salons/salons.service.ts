@@ -342,9 +342,72 @@ export class SalonsService {
       };
     }
 
-    // Location filter
+    // Location filter - check cities table first
     if (location.trim()) {
-      where.address = { contains: location, mode: 'insensitive' };
+      const normalizedLocation = this.normalizeLocationForSearch(location.trim());
+      
+      // Try to find city in cities table
+      const city = await this.prisma.city.findFirst({
+        where: {
+          isActive: true,
+          name: {
+            equals: normalizedLocation,
+            mode: 'insensitive',
+          },
+        },
+      });
+
+      // Create location variations for better matching
+      const locationVariations = new Set<string>();
+      locationVariations.add(normalizedLocation);
+      locationVariations.add(location.trim());
+      
+      // If city found in table, add its name to variations
+      if (city) {
+        locationVariations.add(city.name);
+      }
+
+      // Add Vietnamese-English name variations for major cities
+      // Da Nang / Đà Nẵng
+      if (/đà nẵng|da nang/i.test(normalizedLocation)) {
+        locationVariations.add('Da Nang');
+        locationVariations.add('Đà Nẵng');
+        locationVariations.add('Da Nang, Vietnam');
+        locationVariations.add('Đà Nẵng, Vietnam');
+      }
+      
+      // Ho Chi Minh City / Hồ Chí Minh
+      if (/hồ chí minh|ho chi minh/i.test(normalizedLocation)) {
+        locationVariations.add('Ho Chi Minh City');
+        locationVariations.add('Hồ Chí Minh');
+        locationVariations.add('Ho Chi Minh City, Vietnam');
+        locationVariations.add('Hồ Chí Minh, Vietnam');
+        locationVariations.add('Ho Chi Minh');
+      }
+
+      // Create address conditions array
+      const addressConditions = Array.from(locationVariations).map((loc) => ({
+        address: { contains: loc, mode: 'insensitive' as const },
+      }));
+
+      // If city found and has coordinates, also search by proximity
+      if (city && city.lat && city.lng) {
+        // For now, we'll use address matching
+        // TODO: Add geospatial search if needed (requires PostGIS)
+      }
+
+      // If we already have OR conditions (from search), wrap everything in AND
+      if (where.OR) {
+        const existingOR = where.OR;
+        where.AND = [
+          { OR: existingOR },
+          { OR: addressConditions },
+        ];
+        delete where.OR;
+      } else {
+        // If no OR conditions, use OR for address conditions directly
+        where.OR = addressConditions;
+      }
     }
 
     // Rating filter
@@ -1960,5 +2023,31 @@ export class SalonsService {
       ],
       message: 'Basic availability - full implementation coming soon',
     };
+  }
+
+  /**
+   * Normalize location name for search by removing administrative prefixes
+   */
+  private normalizeLocationForSearch(location: string): string {
+    if (!location) return location;
+
+    // Remove common Vietnamese administrative prefixes
+    const prefixes = [
+      /^Thành phố\s+/i, // City
+      /^Tỉnh\s+/i, // Province
+      /^Huyện\s+/i, // District
+      /^Quận\s+/i, // Urban district
+      /^Thị xã\s+/i, // Town
+      /^Xã\s+/i, // Commune
+      /^Phường\s+/i, // Ward
+      /^Thị trấn\s+/i, // Township
+    ];
+
+    let cleaned = location.trim();
+    for (const prefix of prefixes) {
+      cleaned = cleaned.replace(prefix, '');
+    }
+
+    return cleaned.trim();
   }
 }
