@@ -110,7 +110,7 @@ export class SalonsController {
     const params = {
       lat: lat ? parseFloat(lat) : undefined,
       lng: lng ? parseFloat(lng) : undefined,
-      radius: radius ? parseInt(radius, 10) : 10, // km
+      radius: radius ? parseInt(radius, 10) : 50, // km - default 50km for MVP
       limit: limit ? parseInt(limit, 10) : 10,
     };
 

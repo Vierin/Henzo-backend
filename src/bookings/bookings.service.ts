@@ -328,6 +328,9 @@ export class BookingsService {
         ? {
             id: booking.Service.id,
             name: booking.Service.name,
+            nameEn: booking.Service.nameEn,
+            nameVi: booking.Service.nameVi,
+            nameRu: booking.Service.nameRu,
             description: booking.Service.description,
             duration: booking.Service.duration,
             price: booking.Service.price,
@@ -381,6 +384,9 @@ export class BookingsService {
             select: {
               id: true,
               name: true,
+              nameEn: true,
+              nameVi: true,
+              nameRu: true,
               duration: true,
               price: true,
               // Убираем description - не нужен для списка
@@ -448,6 +454,9 @@ export class BookingsService {
             select: {
               id: true,
               name: true,
+              nameEn: true,
+              nameVi: true,
+              nameRu: true,
               duration: true,
               price: true,
               // Убираем description - не нужен для списка
@@ -521,6 +530,9 @@ export class BookingsService {
             select: {
               id: true,
               name: true,
+              nameEn: true,
+              nameVi: true,
+              nameRu: true,
               duration: true,
               price: true,
               // Убираем description - не нужен для списка
@@ -579,6 +591,9 @@ export class BookingsService {
             select: {
               id: true,
               name: true,
+              nameEn: true,
+              nameVi: true,
+              nameRu: true,
               duration: true,
               price: true,
               // Убираем description - не нужен для списка
@@ -631,6 +646,9 @@ export class BookingsService {
             select: {
               id: true,
               name: true,
+              nameEn: true,
+              nameVi: true,
+              nameRu: true,
               description: true,
               duration: true,
               price: true,
@@ -843,6 +861,9 @@ export class BookingsService {
             select: {
               id: true,
               name: true,
+              nameEn: true,
+              nameVi: true,
+              nameRu: true,
               duration: true,
               price: true,
               // Убираем description - не нужен для списка
@@ -1443,6 +1464,9 @@ export class BookingsService {
             select: {
               id: true,
               name: true,
+              nameEn: true,
+              nameVi: true,
+              nameRu: true,
               description: true,
               duration: true,
               price: true,
