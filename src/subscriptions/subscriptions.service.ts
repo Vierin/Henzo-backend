@@ -30,21 +30,24 @@ export class SubscriptionsService {
       });
 
       if (!subscription) {
-        // If no subscription exists, create FREEMIUM subscription
+        // If no subscription exists, create BASIC subscription with 3-month trial
         // This handles cases where salon was created before subscription system
         const now = new Date();
-        const oneYearFromNow = new Date();
-        oneYearFromNow.setFullYear(now.getFullYear() + 1);
+        const trialEndDate = new Date();
+        trialEndDate.setMonth(now.getMonth() + 3); // 3 months trial
+        const oneMonthFromTrialEnd = new Date(trialEndDate);
+        oneMonthFromTrialEnd.setMonth(trialEndDate.getMonth() + 1);
 
         const newSubscription = await this.prisma.subscription.create({
           data: {
             salonId: salon.id,
-            type: 'FREEMIUM' as any,
+            type: 'BASIC' as any,
             status: 'ACTIVE' as any,
             startDate: now,
-            endDate: oneYearFromNow,
-            nextPaymentDate: oneYearFromNow,
-            amount: 0.0,
+            endDate: oneMonthFromTrialEnd,
+            nextPaymentDate: oneMonthFromTrialEnd,
+            trialEndDate: trialEndDate,
+            amount: 0.0, // Free during trial
             updatedAt: now,
           },
         });
@@ -59,7 +62,7 @@ export class SubscriptionsService {
     }
   }
 
-  async switchSubscription(userId: string, planType: 'BASIC' | 'ENTERPRISE') {
+  async switchSubscription(userId: string, planType: 'BASIC') {
     try {
       // Find user's salon
       const salon = await this.prisma.salon.findFirst({

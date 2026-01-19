@@ -47,7 +47,7 @@ export class SubscriptionsController {
   @Post('switch')
   async switchSubscription(
     @Headers('authorization') authHeader: string,
-    @Body('planType') planType: 'BASIC' | 'ENTERPRISE',
+    @Body('planType') planType: 'BASIC',
   ) {
     try {
       const currentUser = await this.authService.getCurrentUser(authHeader);
@@ -59,9 +59,9 @@ export class SubscriptionsController {
         );
       }
 
-      if (!planType || !['BASIC', 'ENTERPRISE'].includes(planType)) {
+      if (!planType || !['BASIC'].includes(planType)) {
         throw new HttpException(
-          'Invalid plan type. Must be BASIC or ENTERPRISE',
+          'Invalid plan type. Must be BASIC',
           HttpStatus.BAD_REQUEST,
         );
       }

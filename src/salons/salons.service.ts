@@ -941,20 +941,23 @@ export class SalonsService {
           },
         });
 
-        // Create freemium subscription for the new salon
+        // Create BASIC subscription with 3-month trial for the new salon
         const now = new Date();
-        const oneYearFromNow = new Date();
-        oneYearFromNow.setFullYear(now.getFullYear() + 1);
+        const trialEndDate = new Date();
+        trialEndDate.setMonth(now.getMonth() + 3); // 3 months trial
+        const oneMonthFromTrialEnd = new Date(trialEndDate);
+        oneMonthFromTrialEnd.setMonth(trialEndDate.getMonth() + 1);
 
         await prisma.subscription.create({
           data: {
             salonId: salon.id,
-            type: 'FREEMIUM' as any,
+            type: 'BASIC' as any,
             status: 'ACTIVE' as any,
             startDate: now,
-            endDate: oneYearFromNow,
-            nextPaymentDate: oneYearFromNow, // No payment needed for freemium
-            amount: 0.0, // Free subscription
+            endDate: oneMonthFromTrialEnd,
+            nextPaymentDate: oneMonthFromTrialEnd,
+            trialEndDate: trialEndDate,
+            amount: 0.0, // Free during trial
             updatedAt: now,
           },
         });
@@ -1022,7 +1025,7 @@ export class SalonsService {
       (result as any).services = services;
 
       console.log(
-        `✅ Created salon "${result.name}" with freemium subscription`,
+        `✅ Created salon "${result.name}" with BASIC subscription and 3-month trial`,
       );
       return result;
     } catch (error) {

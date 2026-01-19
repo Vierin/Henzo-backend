@@ -195,6 +195,7 @@ model Subscription {
   startDate       DateTime
   endDate         DateTime?
   nextPaymentDate DateTime?
+  trialEndDate    DateTime?
   amount          Float
   createdAt       DateTime           @default(now())
   updatedAt       DateTime
@@ -323,8 +324,6 @@ enum SubscriptionStatus {
 
 enum SubscriptionType {
   BASIC
-  ENTERPRISE
-  FREEMIUM
 }
 
 enum TimeBlockType {
