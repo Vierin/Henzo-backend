@@ -42,6 +42,7 @@ export class TimeBlocksController {
 			// Get user's salon
 			const userSalon = await this.prisma.salon.findFirst({
 				where: { ownerId: currentUser.user.id },
+				select: { id: true },
 			});
 
       if (!userSalon) {
@@ -81,6 +82,7 @@ export class TimeBlocksController {
 
       const userSalon = await this.prisma.salon.findFirst({
         where: { ownerId: currentUser.user.id },
+        select: { id: true },
       });
 
       if (!userSalon) {
@@ -115,6 +117,7 @@ export class TimeBlocksController {
 
       const userSalon = await this.prisma.salon.findFirst({
         where: { ownerId: currentUser.user.id },
+        select: { id: true },
       });
 
       if (!userSalon) {
@@ -165,6 +168,7 @@ export class TimeBlocksController {
 
       const userSalon = await this.prisma.salon.findFirst({
         where: { ownerId: currentUser.user.id },
+        select: { id: true },
       });
 
       if (!userSalon) {
@@ -218,6 +222,7 @@ export class TimeBlocksController {
 
       const userSalon = await this.prisma.salon.findFirst({
         where: { ownerId: currentUser.user.id },
+        select: { id: true },
       });
 
       if (!userSalon) {
@@ -254,6 +259,7 @@ export class TimeBlocksController {
 
       const userSalon = await this.prisma.salon.findFirst({
         where: { ownerId: currentUser.user.id },
+        select: { id: true },
       });
 
       if (!userSalon) {
