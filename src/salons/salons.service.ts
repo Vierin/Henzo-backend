@@ -798,6 +798,9 @@ export class SalonsService {
         descriptionEn: true,
         descriptionVi: true,
         descriptionRu: true,
+        slug: true,
+        timezone: true,
+        status: true,
         Service: {
           include: {
             ServiceGroup: true,
@@ -1225,6 +1228,7 @@ export class SalonsService {
           descriptionRu: true,
           slug: true,
           timezone: true,
+          status: true,
           _count: {
             select: {
               Review: true,
