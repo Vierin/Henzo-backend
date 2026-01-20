@@ -223,6 +223,7 @@ export class SalonsController {
       // Get user's salon
       const salon = await this.prisma.salon.findFirst({
         where: { ownerId: currentUser.user.id },
+        select: { id: true, slug: true, name: true, address: true, phone: true, email: true },
       });
 
       if (!salon) {
@@ -566,6 +567,7 @@ export class SalonsController {
       // Verify salon belongs to user
       const salon = await this.prisma.salon.findFirst({
         where: { id, ownerId: currentUser.user.id },
+        select: { id: true, status: true },
       });
 
       if (!salon) {
