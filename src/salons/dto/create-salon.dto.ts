@@ -54,10 +54,6 @@ export class CreateSalonDto {
   instagram?: string;
 
   @IsOptional()
-  @IsString()
-  logo?: string;
-
-  @IsOptional()
   @IsArray()
   @IsString({ each: true })
   photos?: string[];

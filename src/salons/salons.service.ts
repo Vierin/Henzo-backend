@@ -25,6 +25,7 @@ export class SalonsService {
     const term = search.trim();
     return this.prisma.salon.findMany({
       where: {
+        status: 'ACTIVE', // Only suggest active salons
         OR: [
           { name: { contains: term, mode: 'insensitive' } },
           { address: { contains: term, mode: 'insensitive' } },
@@ -50,6 +51,9 @@ export class SalonsService {
       }
 
       const salons = await this.prisma.salon.findMany({
+        where: {
+          status: 'ACTIVE', // Only show active salons in public listings
+        },
         select: {
           id: true,
           name: true,
@@ -59,7 +63,6 @@ export class SalonsService {
           email: true,
           website: true,
           instagram: true,
-          logo: true,
           photos: true,
           workingHours: true,
           reminderSettings: true,
@@ -258,7 +261,9 @@ export class SalonsService {
     const skip = (page - 1) * limit;
 
     // Build where clause
-    const where: any = {};
+    const where: any = {
+      status: 'ACTIVE', // Only show active salons in public search
+    };
 
     // Build category service filter first (needed for combining with search)
     let categoryServiceFilter: any = null;
@@ -458,7 +463,6 @@ export class SalonsService {
         email: true,
         website: true,
         instagram: true,
-        logo: true,
         photos: true,
         workingHours: true,
         reminderSettings: true,
@@ -784,7 +788,6 @@ export class SalonsService {
         email: true,
         website: true,
         instagram: true,
-        logo: true,
         photos: true,
         workingHours: true,
         reminderSettings: true,
@@ -904,6 +907,7 @@ export class SalonsService {
             latitude,
             longitude,
             ownerId: userId,
+            status: 'DRAFT', // Set to DRAFT after complete setup
           } as any,
           select: {
             id: true,
@@ -914,7 +918,6 @@ export class SalonsService {
             email: true,
             website: true,
             instagram: true,
-            logo: true,
             photos: true,
             workingHours: true,
             reminderSettings: true,
@@ -982,7 +985,6 @@ export class SalonsService {
             email: true,
             website: true,
             instagram: true,
-            logo: true,
             photos: true,
             workingHours: true,
             reminderSettings: true,
@@ -1211,7 +1213,6 @@ export class SalonsService {
           email: true,
           website: true,
           instagram: true,
-          logo: true,
           photos: true,
           workingHours: true,
           reminderSettings: true,
@@ -1490,7 +1491,6 @@ export class SalonsService {
           email: true,
           website: true,
           instagram: true,
-          logo: true,
           photos: true,
           workingHours: true,
           reminderSettings: true,
@@ -1705,15 +1705,20 @@ export class SalonsService {
       };
     }
 
+    // Add status filter for public listings
+    const publicWhere = {
+      ...where,
+      status: 'ACTIVE',
+    };
+
     const [salons, total] = await Promise.all([
       this.prisma.salon.findMany({
-        where,
+        where: publicWhere,
         select: {
           id: true,
           name: true,
           address: true,
           phone: true,
-          logo: true,
           photos: true, // Get all photos, but we'll only use the first one
           _count: true,
         },
@@ -1749,13 +1754,15 @@ export class SalonsService {
     }
 
     const salons = await this.prisma.salon.findMany({
+      where: {
+        status: 'ACTIVE', // Only show active salons in featured listings
+      },
       select: {
         id: true,
         name: true,
         address: true,
         latitude: true,
         longitude: true,
-        logo: true,
         photos: true,
         Service: {
           select: {
@@ -1831,7 +1838,6 @@ export class SalonsService {
         address: salon.address,
         latitude: salon.latitude,
         longitude: salon.longitude,
-        logo: salon.logo,
         photos: salon.photos,
         avgRating: Math.round(avgRating * 10) / 10, // Round to 1 decimal
         categories,
@@ -1907,6 +1913,7 @@ export class SalonsService {
     // Get all salons with coordinates
     const salons = await this.prisma.salon.findMany({
       where: {
+        status: 'ACTIVE', // Only show active salons
         latitude: { not: null },
         longitude: { not: null },
       },
@@ -1916,7 +1923,6 @@ export class SalonsService {
         address: true,
         latitude: true,
         longitude: true,
-        logo: true,
         photos: true,
         _count: {
           select: {

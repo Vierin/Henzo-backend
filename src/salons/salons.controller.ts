@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Put,
+  Patch,
   Body,
   Param,
   Headers,
@@ -549,6 +550,42 @@ export class SalonsController {
       }
       throw new HttpException(
         error.message || 'Failed to get salon',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Patch(':id/publish')
+  async publishSalon(
+    @Param('id') id: string,
+    @Headers('authorization') authHeader: string,
+  ) {
+    try {
+      const currentUser = await this.authService.getCurrentUser(authHeader);
+      
+      // Verify salon belongs to user
+      const salon = await this.prisma.salon.findFirst({
+        where: { id, ownerId: currentUser.user.id },
+      });
+
+      if (!salon) {
+        throw new HttpException('Salon not found', HttpStatus.NOT_FOUND);
+      }
+
+      // Update salon status to ACTIVE
+      const updatedSalon = await this.prisma.salon.update({
+        where: { id },
+        data: { status: 'ACTIVE' },
+      });
+
+      return updatedSalon;
+    } catch (error) {
+      console.error('❌ Error publishing salon:', error);
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException(
+        error.message || 'Failed to publish salon',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }

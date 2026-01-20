@@ -233,7 +233,6 @@ export class AdminService {
           email: true,
           website: true,
           instagram: true,
-          logo: true,
           photos: true,
           workingHours: true,
           reminderSettings: true,
@@ -289,7 +288,6 @@ export class AdminService {
           email: salon.email || undefined,
           website: salon.website || undefined,
           instagram: salon.instagram || undefined,
-          logo: salon.logo || undefined,
           photos: Array.isArray(salon.photos) ? salon.photos : [],
           workingHours: salon.workingHours || undefined,
           createdAt: salon.createdAt instanceof Date 

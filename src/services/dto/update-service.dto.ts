@@ -59,4 +59,9 @@ export class UpdateServiceDto {
   @IsOptional()
   @IsString()
   serviceGroupId?: string | null;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  staffIds?: string[];
 }

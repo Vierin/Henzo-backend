@@ -59,4 +59,9 @@ export class CreateServiceDto {
   @IsOptional()
   @IsString()
   serviceGroupId?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  staffIds?: string[];
 }

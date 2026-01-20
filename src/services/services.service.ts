@@ -175,9 +175,48 @@ export class ServicesService {
     salonId: string;
     serviceCategoryId?: number;
     serviceGroupId?: string;
+    staffIds?: string[];
   }) {
+    // Update salon status to READY if it's DRAFT
+    const salon = await this.prisma.salon.findUnique({
+      where: { id: data.salonId },
+      select: { status: true },
+    });
+
+    if (salon?.status === 'DRAFT') {
+      await this.prisma.salon.update({
+        where: { id: data.salonId },
+        data: { status: 'READY' },
+      });
+    }
+
+    // Extract staffIds from data
+    const { staffIds, ...serviceData } = data;
+
+    // If staffIds is not provided or empty, connect to all staff in the salon
+    let staffConnect: { connect: { id: string }[] } | undefined;
+    if (staffIds && staffIds.length > 0) {
+      staffConnect = {
+        connect: staffIds.map((id) => ({ id })),
+      };
+    } else {
+      // Get all staff for the salon
+      const allStaff = await this.prisma.staff.findMany({
+        where: { salonId: data.salonId },
+        select: { id: true },
+      });
+      if (allStaff.length > 0) {
+        staffConnect = {
+          connect: allStaff.map((staff) => ({ id: staff.id })),
+        };
+      }
+    }
+
     return this.prisma.service.create({
-      data,
+      data: {
+        ...serviceData,
+        Staff: staffConnect,
+      },
       include: {
         Staff: true,
         service_categories: true,
@@ -201,11 +240,43 @@ export class ServicesService {
       price?: number;
       serviceCategoryId?: number;
       serviceGroupId?: string | null;
+      staffIds?: string[];
     },
   ) {
+    // Extract staffIds from data
+    const { staffIds, ...updateData } = data;
+
+    // Prepare staff connection if staffIds is provided
+    let staffUpdate: { set: { id: string }[] } | undefined;
+    if (staffIds !== undefined) {
+      if (staffIds.length === 0) {
+        // If empty array, connect to all staff in the salon
+        const service = await this.prisma.service.findUnique({
+          where: { id },
+          select: { salonId: true },
+        });
+        if (service) {
+          const allStaff = await this.prisma.staff.findMany({
+            where: { salonId: service.salonId },
+            select: { id: true },
+          });
+          staffUpdate = {
+            set: allStaff.map((staff) => ({ id: staff.id })),
+          };
+        }
+      } else {
+        staffUpdate = {
+          set: staffIds.map((staffId) => ({ id: staffId })),
+        };
+      }
+    }
+
     return this.prisma.service.update({
       where: { id },
-      data,
+      data: {
+        ...updateData,
+        ...(staffUpdate && { Staff: staffUpdate }),
+      },
       include: {
         Staff: true,
         service_categories: true,

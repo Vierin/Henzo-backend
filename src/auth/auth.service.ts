@@ -1322,7 +1322,6 @@ export class AuthService {
           email: true,
           website: true,
           instagram: true,
-          logo: true,
           photos: true,
           // Убираем workingHours, reminderSettings, ownerId, createdAt, categoryIds, latitude, longitude - не нужны для списка
           Service: {

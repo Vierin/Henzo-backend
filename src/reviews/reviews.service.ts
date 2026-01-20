@@ -73,7 +73,6 @@ export class ReviewsService {
               id: true,
               name: true,
               address: true,
-              logo: true,
             },
           },
           Booking: {

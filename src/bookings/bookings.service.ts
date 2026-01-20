@@ -348,7 +348,6 @@ export class BookingsService {
             name: booking.Salon.name,
             address: booking.Salon.address,
             phone: booking.Salon.phone,
-            logo: booking.Salon.logo,
             photos: booking.Salon.photos || [],
           }
         : null,
@@ -403,7 +402,6 @@ export class BookingsService {
             select: {
               id: true,
               name: true,
-              logo: true,
               photos: true, // Только для первого фото
               // Убираем address, phone, description - не нужны для списка
             },
@@ -473,7 +471,6 @@ export class BookingsService {
             select: {
               id: true,
               name: true,
-              logo: true,
               photos: true, // Только для первого фото
               // Убираем address, phone, description - не нужны для списка
             },
@@ -549,7 +546,6 @@ export class BookingsService {
             select: {
               id: true,
               name: true,
-              logo: true,
               photos: true, // Только для первого фото
               // Убираем address, phone, description - не нужны для списка
             },

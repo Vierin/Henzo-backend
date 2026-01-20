@@ -36,6 +36,7 @@ export class StaffController {
       phone?: string;
       accessLevel: 'ADMIN' | 'EMPLOYEE';
       salonId: string;
+      serviceIds?: string[];
     },
   ) {
     return this.staffService.create(data);
@@ -50,6 +51,7 @@ export class StaffController {
       email?: string;
       phone?: string;
       accessLevel?: 'ADMIN' | 'EMPLOYEE';
+      serviceIds?: string[];
     },
   ) {
     return this.staffService.update(id, data);

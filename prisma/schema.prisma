@@ -80,6 +80,12 @@ model Review {
   @@index([salonId, rating])
 }
 
+enum SalonStatus {
+  DRAFT
+  READY
+  ACTIVE
+}
+
 model Salon {
   id               String        @id @default(cuid())
   name             String
@@ -89,7 +95,6 @@ model Salon {
   email            String?
   website          String?
   instagram        String?
-  logo             String?
   photos           String[]
   workingHours     Json?
   reminderSettings Json?         @default("{\"intervals\":[24]}")
@@ -102,6 +107,7 @@ model Salon {
   descriptionRu    String?
   timezone         String        @default("Asia/Ho_Chi_Minh") // IANA timezone identifier
   slug             String?       @unique // SEO-friendly slug for salon URLs
+  status           SalonStatus   @default(DRAFT) // Salon publication status
   Booking          Booking[]
   Review           Review[]
   User             User          @relation(fields: [ownerId], references: [id])
