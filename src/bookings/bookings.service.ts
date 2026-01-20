@@ -1282,9 +1282,42 @@ export class BookingsService {
         where: {
           id: bookingId,
         },
-        include: {
-          Salon: true,
-          User: true,
+        select: {
+          id: true,
+          userId: true,
+          salonId: true,
+          serviceId: true,
+          staffId: true,
+          status: true,
+          dateTime: true,
+          createdAt: true,
+          Salon: {
+            select: {
+              id: true,
+              ownerId: true,
+              name: true,
+              email: true,
+              phone: true,
+              address: true,
+              timezone: true,
+              photos: true,
+              User: {
+                select: {
+                  id: true,
+                  email: true,
+                  name: true,
+                },
+              },
+            },
+          },
+          User: {
+            select: {
+              id: true,
+              email: true,
+              name: true,
+              phone: true,
+            },
+          },
         },
       });
 
@@ -1338,8 +1371,33 @@ export class BookingsService {
         include: {
           Service: true,
           Staff: true,
-          Salon: true,
-          User: true,
+          Salon: {
+            select: {
+              id: true,
+              ownerId: true,
+              name: true,
+              email: true,
+              phone: true,
+              address: true,
+              timezone: true,
+              photos: true,
+              User: {
+                select: {
+                  id: true,
+                  email: true,
+                  name: true,
+                },
+              },
+            },
+          },
+          User: {
+            select: {
+              id: true,
+              email: true,
+              name: true,
+              phone: true,
+            },
+          },
         },
       });
 
@@ -1381,7 +1439,25 @@ export class BookingsService {
       const existingBooking = await this.prisma.booking.findFirst({
         where: { id: bookingId },
         include: {
-          Salon: true,
+          Salon: {
+            select: {
+              id: true,
+              ownerId: true,
+              name: true,
+              email: true,
+              phone: true,
+              address: true,
+              timezone: true,
+              photos: true,
+              User: {
+                select: {
+                  id: true,
+                  email: true,
+                  name: true,
+                },
+              },
+            },
+          },
           Service: true,
           Staff: true,
         },
@@ -1640,8 +1716,33 @@ export class BookingsService {
         include: {
           Service: true,
           Staff: true,
-          Salon: true,
-          User: true,
+          Salon: {
+            select: {
+              id: true,
+              ownerId: true,
+              name: true,
+              email: true,
+              phone: true,
+              address: true,
+              timezone: true,
+              photos: true,
+              User: {
+                select: {
+                  id: true,
+                  email: true,
+                  name: true,
+                },
+              },
+            },
+          },
+          User: {
+            select: {
+              id: true,
+              email: true,
+              name: true,
+              phone: true,
+            },
+          },
         },
       });
 
@@ -1660,8 +1761,33 @@ export class BookingsService {
         include: {
           Service: true,
           Staff: true,
-          Salon: true,
-          User: true,
+          Salon: {
+            select: {
+              id: true,
+              ownerId: true,
+              name: true,
+              email: true,
+              phone: true,
+              address: true,
+              timezone: true,
+              photos: true,
+              User: {
+                select: {
+                  id: true,
+                  email: true,
+                  name: true,
+                },
+              },
+            },
+          },
+          User: {
+            select: {
+              id: true,
+              email: true,
+              name: true,
+              phone: true,
+            },
+          },
         },
       });
 
@@ -1708,8 +1834,33 @@ export class BookingsService {
         include: {
           Service: true,
           Staff: true,
-          Salon: true,
-          User: true,
+          Salon: {
+            select: {
+              id: true,
+              ownerId: true,
+              name: true,
+              email: true,
+              phone: true,
+              address: true,
+              timezone: true,
+              photos: true,
+              User: {
+                select: {
+                  id: true,
+                  email: true,
+                  name: true,
+                },
+              },
+            },
+          },
+          User: {
+            select: {
+              id: true,
+              email: true,
+              name: true,
+              phone: true,
+            },
+          },
         },
       });
 
@@ -1728,8 +1879,33 @@ export class BookingsService {
         include: {
           Service: true,
           Staff: true,
-          Salon: true,
-          User: true,
+          Salon: {
+            select: {
+              id: true,
+              ownerId: true,
+              name: true,
+              email: true,
+              phone: true,
+              address: true,
+              timezone: true,
+              photos: true,
+              User: {
+                select: {
+                  id: true,
+                  email: true,
+                  name: true,
+                },
+              },
+            },
+          },
+          User: {
+            select: {
+              id: true,
+              email: true,
+              name: true,
+              phone: true,
+            },
+          },
         },
       });
 

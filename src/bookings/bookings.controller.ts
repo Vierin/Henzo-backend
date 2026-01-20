@@ -85,31 +85,58 @@ export class BookingsController {
         ownerId: currentUser.user.id,
       });
 
-      if (isOwnerCreated && isOwnerOfSalon && data.clientEmail && data.clientEmail.trim()) {
-        // Owner is creating booking on behalf of a client with email in their own salon
-        console.log('📧 Owner creating booking for client:', {
-          clientEmail: data.clientEmail,
-          clientName: data.clientName,
-          clientPhone: data.clientPhone,
+      // CRITICAL: If owner is creating booking, we MUST NOT use owner's user ID
+      // Always create/find a client user instead
+      if (isOwnerCreated && isOwnerOfSalon) {
+        // Owner is creating booking in their own salon
+        const hasClientEmail = data.clientEmail && data.clientEmail.trim();
+        
+        if (hasClientEmail) {
+          // Owner is creating booking on behalf of a client with email
+          const clientEmail = data.clientEmail!.trim(); // Safe because hasClientEmail is true
+          console.log('📧 Owner creating booking for client with email:', {
+            clientEmail: clientEmail,
+            clientName: data.clientName,
+            clientPhone: data.clientPhone,
+          });
+          bookingUserId = await this.bookingsService.findOrCreateClientUser(
+            clientEmail,
+            data.clientName,
+            data.clientPhone,
+          );
+          console.log('✅ Using client user ID for booking:', bookingUserId);
+        } else {
+          // Owner creating booking without client email - MUST create anonymous client user
+          // This ensures owner's data is NEVER used for the booking
+          console.log('📧 Owner creating booking for anonymous client (no email provided):', {
+            clientName: data.clientName || 'Anonymous Client',
+            clientPhone: data.clientPhone,
+            hasClientEmail: false,
+            willCreateAnonymousUser: true,
+          });
+          bookingUserId = await this.bookingsService.createAnonymousClientUser(
+            data.clientName || 'Anonymous Client',
+            data.clientPhone,
+          );
+          console.log('✅ Created anonymous client user ID for booking:', bookingUserId);
+          console.log('⚠️ Owner ID was:', currentUser.user.id, '- NOT using it for booking');
+        }
+      } else if (isOwnerCreated && !isOwnerOfSalon) {
+        // Owner trying to book in another salon - this should be blocked on frontend
+        // But if it happens, we should still not use owner's ID
+        console.warn('⚠️ Owner trying to book in salon they do not own:', {
+          ownerId: currentUser.user.id,
+          salonId: data.salonId,
         });
-        bookingUserId = await this.bookingsService.findOrCreateClientUser(
-          data.clientEmail,
-          data.clientName,
-          data.clientPhone,
-        );
-        console.log('✅ Using client user ID for booking:', bookingUserId);
-      } else if (isOwnerCreated && isOwnerOfSalon && (!data.clientEmail || !data.clientEmail.trim())) {
-        // Owner creating booking without client email in their own salon - create anonymous client user
-        console.log('📧 Owner creating booking for anonymous client:', {
-          clientName: data.clientName || 'Anonymous Client',
-          clientPhone: data.clientPhone,
-          hasClientEmail: !!data.clientEmail,
-        });
-        bookingUserId = await this.bookingsService.createAnonymousClientUser(
-          data.clientName || 'Anonymous Client',
-          data.clientPhone,
-        );
-        console.log('✅ Using anonymous client user ID for booking:', bookingUserId);
+        // Even in this case, if no client email provided, create anonymous client
+        // This prevents owner's data from being used incorrectly
+        if (!data.clientEmail || !data.clientEmail.trim()) {
+          console.log('📧 Creating anonymous client even for wrong salon to prevent owner data usage');
+          bookingUserId = await this.bookingsService.createAnonymousClientUser(
+            data.clientName || 'Anonymous Client',
+            data.clientPhone,
+          );
+        }
       }
 
       const booking = await this.bookingsService.createBooking(
