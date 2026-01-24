@@ -210,7 +210,7 @@ export class RemindersService {
 
             // Format date and time for display - convert from UTC to salon's timezone
             // Use date-fns-tz for proper timezone conversion
-            const salonTimezone = booking.Salon?.timezone || 'Asia/Ho_Chi_Minh';
+            // salonTimezone already defined above
             
             const bookingDate = new Date(booking.dateTime);
             const zonedDate = toZonedTime(bookingDate, salonTimezone);
