@@ -53,7 +53,7 @@ export class RemindersService {
       console.log(`⏰ Current time (local): ${now.toString()}`);
 
       // Define all possible reminder intervals in hours
-      const possibleIntervals = [3, 24, 168]; // 3 hours, 1 day, 1 week
+      const possibleIntervals = [3, 24]; // 3 hours, 1 day
       const windowMinutes = 15; // ±15 minutes window
 
       let totalSent = 0;
@@ -62,18 +62,25 @@ export class RemindersService {
       // Process each interval
       for (const intervalHours of possibleIntervals) {
         const intervalMs = intervalHours * 60 * 60 * 1000;
+        const windowMs = windowMinutes * 60 * 1000;
+        
+        // Calculate a wider window to account for timezone differences
+        // We'll filter more precisely later for each booking's timezone
+        // Use a wider window: ±2 hours to account for timezone offsets (max ±12 hours)
+        const wideWindowMs = 2 * 60 * 60 * 1000; // ±2 hours
         const reminderWindowStart = new Date(
-          now.getTime() + intervalMs - windowMinutes * 60 * 1000,
+          now.getTime() + intervalMs - wideWindowMs,
         );
         const reminderWindowEnd = new Date(
-          now.getTime() + intervalMs + windowMinutes * 60 * 1000,
+          now.getTime() + intervalMs + wideWindowMs,
         );
 
         console.log(
           `Checking ${intervalHours}h interval: bookings between ${reminderWindowStart.toISOString()} and ${reminderWindowEnd.toISOString()}`,
         );
 
-        // Find CONFIRMED bookings that are scheduled at this interval
+        // Find CONFIRMED bookings that might be scheduled at this interval
+        // We use a wider window and filter precisely later
         let bookings: BookingWithRelations[];
         try {
           bookings = (await this.prisma.booking.findMany({
@@ -146,12 +153,36 @@ export class RemindersService {
         // Process each booking
         for (const booking of bookings) {
           try {
-            // Log booking details for debugging
+            // Calculate time until booking in UTC (dateTime is stored in UTC)
             const timeUntilBooking = booking.dateTime.getTime() - now.getTime();
             const hoursUntilBooking = timeUntilBooking / (1000 * 60 * 60);
+            
+            // Get salon timezone
+            const salonTimezone = booking.Salon?.timezone || 'Asia/Ho_Chi_Minh';
+            
+            // IMPORTANT: dateTime is stored in UTC but represents the appointment time in salon's timezone
+            // We need to check if the time difference matches the reminder interval
+            // The interval should be calculated from the current time to the booking time
+            const targetIntervalMs = intervalMs;
+            const minIntervalMs = targetIntervalMs - windowMs;
+            const maxIntervalMs = targetIntervalMs + windowMs;
+            
+            // Check if the time until booking is within the reminder window
+            const isWithinWindow = 
+              timeUntilBooking >= minIntervalMs && 
+              timeUntilBooking <= maxIntervalMs;
+            
             console.log(
-              `🔍 Processing booking ${booking.id}: dateTime=${booking.dateTime.toISOString()}, hoursUntil=${hoursUntilBooking.toFixed(2)}, interval=${intervalHours}h`,
+              `🔍 Processing booking ${booking.id}: dateTime=${booking.dateTime.toISOString()}, hoursUntil=${hoursUntilBooking.toFixed(2)}, interval=${intervalHours}h, timezone=${salonTimezone}, withinWindow=${isWithinWindow}, targetInterval=${(targetIntervalMs / (1000 * 60 * 60)).toFixed(2)}h, window=[${(minIntervalMs / (1000 * 60 * 60)).toFixed(2)}h, ${(maxIntervalMs / (1000 * 60 * 60)).toFixed(2)}h]`,
             );
+
+            // Skip if not within the precise reminder window
+            if (!isWithinWindow) {
+              console.log(
+                `⏭️ Skipping booking ${booking.id}: not within ${intervalHours}h reminder window (${hoursUntilBooking.toFixed(2)}h until booking)`,
+              );
+              continue;
+            }
 
             // Get salon reminder settings
             const reminderSettings = (booking.Salon.reminderSettings as any) || {
