@@ -94,7 +94,33 @@ export class ReviewsService {
         take: maxLimit,
       });
 
-      return reviews;
+      // Transform to match frontend expectations (Salon -> salon, Booking -> booking)
+      return reviews.map((review) => ({
+        id: review.id,
+        salonId: review.salonId,
+        bookingId: review.Booking?.id,
+        rating: review.rating,
+        comment: review.comment,
+        createdAt: review.createdAt,
+        salon: review.Salon
+          ? {
+              id: review.Salon.id,
+              name: review.Salon.name,
+              logo: undefined,
+            }
+          : undefined,
+        booking: review.Booking
+          ? {
+              id: review.Booking.id,
+              service: review.Booking.Service
+                ? {
+                    name: review.Booking.Service.name,
+                  }
+                : undefined,
+              time: undefined,
+            }
+          : undefined,
+      }));
     } catch (error) {
       console.error('❌ Error fetching user reviews:', error.message);
       throw error;

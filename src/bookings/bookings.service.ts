@@ -1196,20 +1196,32 @@ export class BookingsService {
 
         // Send email to client about pending booking
         try {
-          await this.emailService.sendBookingPending(clientEmail, clientName, {
-            serviceName: booking.Service?.name || '',
-            date: formattedDate,
-            time: formattedTime,
-            duration: booking.Service?.duration || 0,
-            price: booking.Service?.price || 0,
-            salonName: booking.Salon?.name || '',
-            salonAddress: booking.Salon?.address || null,
-            salonPhone: booking.Salon?.phone || null,
-            staffName: booking.Staff?.name,
-            dateTime: booking.dateTime,
-            salonTimezone:
-              (booking.Salon as any)?.timezone || 'Asia/Ho_Chi_Minh',
-          });
+          const salonTimezone =
+            (booking.Salon as any)?.timezone || 'Asia/Ho_Chi_Minh';
+          const workingHours = (booking.Salon as any)?.workingHours;
+          const isWithinWorkingHours = this.isWithinWorkingHours(
+            workingHours,
+            salonTimezone,
+          );
+
+          await this.emailService.sendBookingPending(
+            clientEmail,
+            clientName,
+            {
+              serviceName: booking.Service?.name || '',
+              date: formattedDate,
+              time: formattedTime,
+              duration: booking.Service?.duration || 0,
+              price: booking.Service?.price || 0,
+              salonName: booking.Salon?.name || '',
+              salonAddress: booking.Salon?.address || null,
+              salonPhone: booking.Salon?.phone || null,
+              staffName: booking.Staff?.name,
+              dateTime: booking.dateTime,
+              salonTimezone: salonTimezone,
+              isWithinWorkingHours: isWithinWorkingHours,
+            },
+          );
           this.logger.log('Client pending booking email sent', { clientEmail });
         } catch (clientEmailError) {
           this.logger.error(
@@ -1942,6 +1954,65 @@ export class BookingsService {
       this.logger.error('Error rejecting booking', error);
       throw error;
     }
+  }
+
+  /**
+   * Check if current time is within salon's working hours
+   */
+  private isWithinWorkingHours(
+    workingHours: any,
+    salonTimezone: string = 'Asia/Ho_Chi_Minh',
+  ): boolean {
+    if (!workingHours || typeof workingHours !== 'object') {
+      return true; // Assume open if no working hours specified
+    }
+
+    const now = new Date();
+    const zonedNow = toZonedTime(now, salonTimezone);
+    const dayOfWeek = zonedNow.getDay();
+    const dayNames = [
+      'sunday',
+      'monday',
+      'tuesday',
+      'wednesday',
+      'thursday',
+      'friday',
+      'saturday',
+    ];
+    const dayName = dayNames[dayOfWeek];
+    const dayHours = workingHours[dayName];
+
+    if (!dayHours || dayHours.closed) {
+      return false; // Salon is closed on this day
+    }
+
+    const currentHour = zonedNow.getHours();
+    const currentMinute = zonedNow.getMinutes();
+    const currentTimeInMinutes = currentHour * 60 + currentMinute;
+
+    const [openHour, openMinute] = (dayHours.open || '09:00')
+      .split(':')
+      .map(Number);
+    const [closeHour, closeMinute] = (dayHours.close || '18:00')
+      .split(':')
+      .map(Number);
+
+    const openTimeInMinutes = openHour * 60 + openMinute;
+    const closeTimeInMinutes = closeHour * 60 + closeMinute;
+
+    // Handle overnight shifts (e.g., 22:00 - 06:00)
+    if (closeTimeInMinutes < openTimeInMinutes) {
+      return (
+        currentTimeInMinutes >= openTimeInMinutes ||
+        currentTimeInMinutes <= closeTimeInMinutes
+      );
+    }
+
+    // Normal working hours
+    return (
+      currentTimeInMinutes >= openTimeInMinutes &&
+      currentTimeInMinutes < closeTimeInMinutes
+    );
   }
 
   /**

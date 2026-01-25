@@ -965,6 +965,7 @@ export class EmailService {
       staffName?: string;
       dateTime?: Date | string;
       salonTimezone?: string; // IANA timezone identifier (e.g., "Asia/Ho_Chi_Minh")
+      isWithinWorkingHours?: boolean; // Whether booking was created during working hours
     },
   ) {
     try {
@@ -1002,7 +1003,11 @@ export class EmailService {
               <div class="pending-notice">
                 <h3>Awaiting Salon Confirmation</h3>
                 <p>Your booking request has been sent to <strong>${bookingData.salonName}</strong>.</p>
-                <p>Usually the salon confirms the booking within 2 hours. We'll notify you as soon as the salon confirms your appointment.</p>
+                ${
+                  bookingData.isWithinWorkingHours !== false
+                    ? '<p>Usually the salon confirms the booking within 2 hours. We\'ll notify you as soon as the salon confirms your appointment.</p>'
+                    : '<p><strong>The salon will confirm your booking when they open.</strong></p>'
+                }
               </div>
               
               <div class="booking-details">

@@ -351,67 +351,6 @@ export class AuthController {
     }
   }
 
-  @Get('telegram/bot-id')
-  async getTelegramBotId() {
-    try {
-      let botToken = process.env.TELEGRAM_BOT_TOKEN;
-      if (!botToken) {
-        console.warn('⚠️ TELEGRAM_BOT_TOKEN not configured');
-        return { botId: null };
-      }
-
-      // Очищаем токен от возможного лишнего текста (если скопировали весь ответ BotFather)
-      botToken = botToken.trim();
-      // Убираем префикс "You can use this token to access HTTP API:" если есть
-      if (botToken.includes('You can use this token')) {
-        const tokenMatch = botToken.match(/(\d+:[A-Za-z0-9_-]+)/);
-        if (tokenMatch) {
-          botToken = tokenMatch[1];
-        }
-      }
-
-      // Telegram Login Widget может использовать как bot_id (число), так и username (строка)
-      // Проверяем, есть ли username в переменных окружения
-      const botUsername = process.env.TELEGRAM_BOT_USERNAME;
-
-      if (botUsername) {
-        // Используем username, если он указан (рекомендуется)
-        // Убираем @ если пользователь случайно его добавил
-        let username = botUsername.trim();
-        if (username.startsWith('@')) {
-          username = username.substring(1);
-        }
-        return { botId: username };
-      }
-
-      // Иначе используем bot_id из токена (первые цифры до двоеточия)
-      const botId = botToken.split(':')[0];
-
-      if (!botId || isNaN(Number(botId))) {
-        console.warn('⚠️ Could not extract valid bot ID from token');
-        return { botId: null };
-      }
-
-      return { botId };
-    } catch (error) {
-      console.error('❌ Failed to get bot ID:', error.message);
-      return { botId: null };
-    }
-  }
-
-  @Post('telegram')
-  async telegramAuth(@Body() data: any) {
-    try {
-      const result = await this.authService.authenticateWithTelegram(data);
-      return result;
-    } catch (error) {
-      console.error('❌ Telegram auth failed:', error.message);
-      throw new HttpException(
-        error.message || 'Telegram authentication failed',
-        HttpStatus.BAD_REQUEST,
-      );
-    }
-  }
 
   @Get('verify-business-magic-link')
   async verifyBusinessMagicLink(@Query('token') token: string) {

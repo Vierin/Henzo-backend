@@ -23,7 +23,7 @@ export class EnvironmentVariables {
   @IsNotEmpty()
   SUPABASE_URL: string;
 
-  // SUPABASE_KEY / SUPABASE_ANON_KEY - optional, only needed for Telegram auth
+  // SUPABASE_KEY / SUPABASE_ANON_KEY - optional
   // Can use either SUPABASE_KEY or SUPABASE_ANON_KEY
   @IsString()
   @IsOptional()

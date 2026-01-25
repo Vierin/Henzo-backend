@@ -15,31 +15,31 @@ export class SearchService {
       lang === 'vn'
         ? {
             OR: [
-              { name_vn: { contains: q, mode: Prisma.QueryMode.insensitive } },
-              { name_en: { contains: q, mode: Prisma.QueryMode.insensitive } },
+              { name_vn: { contains: q, mode: 'insensitive' as const } },
+              { name_en: { contains: q, mode: 'insensitive' as const } },
             ],
           }
         : lang === 'ru'
           ? {
               OR: [
                 {
-                  name_ru: { contains: q, mode: Prisma.QueryMode.insensitive },
+                  name_ru: { contains: q, mode: 'insensitive' as const },
                 },
                 {
-                  name_en: { contains: q, mode: Prisma.QueryMode.insensitive },
+                  name_en: { contains: q, mode: 'insensitive' as const },
                 },
                 {
-                  name_vn: { contains: q, mode: Prisma.QueryMode.insensitive },
+                  name_vn: { contains: q, mode: 'insensitive' as const },
                 },
               ],
             }
           : {
               OR: [
                 {
-                  name_en: { contains: q, mode: Prisma.QueryMode.insensitive },
+                  name_en: { contains: q, mode: 'insensitive' as const },
                 },
                 {
-                  name_vn: { contains: q, mode: Prisma.QueryMode.insensitive },
+                  name_vn: { contains: q, mode: 'insensitive' as const },
                 },
               ],
             };
@@ -173,13 +173,13 @@ export class SearchService {
                 {
                   name_vn: {
                     contains: query,
-                    mode: Prisma.QueryMode.insensitive,
+                    mode: 'insensitive' as const,
                   },
                 },
                 {
                   name_en: {
                     contains: query,
-                    mode: Prisma.QueryMode.insensitive,
+                    mode: 'insensitive' as const,
                   },
                 },
               ],
@@ -190,19 +190,19 @@ export class SearchService {
                   {
                     name_ru: {
                       contains: query,
-                      mode: Prisma.QueryMode.insensitive,
+                      mode: 'insensitive' as const,
                     },
                   },
                   {
                     name_en: {
                       contains: query,
-                      mode: Prisma.QueryMode.insensitive,
+                      mode: 'insensitive' as const,
                     },
                   },
                   {
                     name_vn: {
                       contains: query,
-                      mode: Prisma.QueryMode.insensitive,
+                      mode: 'insensitive' as const,
                     },
                   },
                 ],
@@ -212,13 +212,13 @@ export class SearchService {
                   {
                     name_en: {
                       contains: query,
-                      mode: Prisma.QueryMode.insensitive,
+                      mode: 'insensitive' as const,
                     },
                   },
                   {
                     name_vn: {
                       contains: query,
-                      mode: Prisma.QueryMode.insensitive,
+                      mode: 'insensitive' as const,
                     },
                   },
                 ],
@@ -356,7 +356,7 @@ export class SearchService {
         where: {
           name: {
             contains: query,
-            mode: Prisma.QueryMode.insensitive,
+            mode: 'insensitive' as const,
           },
         },
         select: {
@@ -408,13 +408,13 @@ export class SearchService {
                     {
                       name_vn: {
                         contains: query,
-                        mode: Prisma.QueryMode.insensitive,
+                        mode: 'insensitive' as const,
                       },
                     },
                     {
                       name_en: {
                         contains: query,
-                        mode: Prisma.QueryMode.insensitive,
+                        mode: 'insensitive' as const,
                       },
                     },
                   ],
@@ -433,13 +433,13 @@ export class SearchService {
                     {
                       name_en: {
                         contains: query,
-                        mode: Prisma.QueryMode.insensitive,
+                        mode: 'insensitive' as const,
                       },
                     },
                     {
                       name_vn: {
                         contains: query,
-                        mode: Prisma.QueryMode.insensitive,
+                        mode: 'insensitive' as const,
                       },
                     },
                   ],
@@ -531,24 +531,24 @@ export class SearchService {
         lang === 'vn'
           ? {
               OR: [
-                { nameVi: { contains: q, mode: Prisma.QueryMode.insensitive } },
-                { nameEn: { contains: q, mode: Prisma.QueryMode.insensitive } },
-                { nameRu: { contains: q, mode: Prisma.QueryMode.insensitive } },
+                { nameVi: { contains: q, mode: 'insensitive' as const } },
+                { nameEn: { contains: q, mode: 'insensitive' as const } },
+                { nameRu: { contains: q, mode: 'insensitive' as const } },
               ],
             }
           : lang === 'ru'
             ? {
                 OR: [
-                  { nameRu: { contains: q, mode: Prisma.QueryMode.insensitive } },
-                  { nameEn: { contains: q, mode: Prisma.QueryMode.insensitive } },
-                  { nameVi: { contains: q, mode: Prisma.QueryMode.insensitive } },
+                  { nameRu: { contains: q, mode: 'insensitive' as const } },
+                  { nameEn: { contains: q, mode: 'insensitive' as const } },
+                  { nameVi: { contains: q, mode: 'insensitive' as const } },
                 ],
               }
             : {
                 OR: [
-                  { nameEn: { contains: q, mode: Prisma.QueryMode.insensitive } },
-                  { nameVi: { contains: q, mode: Prisma.QueryMode.insensitive } },
-                  { nameRu: { contains: q, mode: Prisma.QueryMode.insensitive } },
+                  { nameEn: { contains: q, mode: 'insensitive' as const } },
+                  { nameVi: { contains: q, mode: 'insensitive' as const } },
+                  { nameRu: { contains: q, mode: 'insensitive' as const } },
                 ],
               };
 
@@ -656,7 +656,7 @@ export class SearchService {
 
       const salons = await this.prisma.salon.findMany({
         where: {
-          name: { contains: q, mode: Prisma.QueryMode.insensitive },
+          name: { contains: q, mode: 'insensitive' as const },
         },
         select: {
           id: true,
