@@ -1419,7 +1419,12 @@ export class SalonsService {
           Staff: undefined,
         })),
         reviews: ((salon as any).Review || []).map((review: any) => ({
-          ...review,
+          id: review.id,
+          rating: review.rating,
+          comment: review.comment,
+          createdAt: review.createdAt
+            ? new Date(review.createdAt).toISOString()
+            : new Date().toISOString(),
           user: review.User
             ? {
                 id: review.User.id,
@@ -1427,7 +1432,6 @@ export class SalonsService {
                 email: review.User.email,
               }
             : undefined,
-          User: undefined,
         })),
         owner: (salon as any).User
           ? {
@@ -1568,10 +1572,25 @@ export class SalonsService {
         return null;
       }
 
-      // Calculate average rating
+      // Load reviews with user information
       const reviews = await this.prisma.review.findMany({
         where: { salonId: salon.id },
-        select: { rating: true },
+        select: {
+          id: true,
+          rating: true,
+          comment: true,
+          createdAt: true,
+          User: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
       });
 
       const avgRating =
@@ -1607,6 +1626,21 @@ export class SalonsService {
         ...salon,
         avgRating: Math.round(avgRating * 10) / 10,
         reviewCount: salon._count.Review,
+        reviews: reviews.map((review: any) => ({
+          id: review.id,
+          rating: review.rating,
+          comment: review.comment,
+          createdAt: review.createdAt
+            ? new Date(review.createdAt).toISOString()
+            : new Date().toISOString(),
+          user: review.User
+            ? {
+                id: review.User.id,
+                name: review.User.name,
+                email: review.User.email,
+              }
+            : null,
+        })),
         services: salon.Service.map((service: any) => {
           const transformedService: any = {
             id: service.id,
