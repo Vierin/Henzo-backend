@@ -1694,8 +1694,8 @@ export class SalonsService {
 
   async findFeaturedSalons(limit: number) {
     // Cache key includes limit to cache different limits separately
-    // Version 4: removed priceRange (not used on frontend)
-    const cacheKey = `salons:featured:v4:${limit}`;
+    // Version 5: added serviceCategoryIds for category filtering
+    const cacheKey = `salons:featured:v5:${limit}`;
 
     // Try to get from cache first (24 hours TTL)
     const cached = await this.cacheService.get<any[]>(cacheKey);
@@ -1747,7 +1747,7 @@ export class SalonsService {
       },
     });
 
-    // Get unique categories from services (only need category names, not all services)
+    // Get unique categories from services (only need category names and IDs, not all services)
     const categoryData = await this.prisma.service.findMany({
       where: {
         salonId: { in: salonIds },
@@ -1777,17 +1777,20 @@ export class SalonsService {
       ]),
     );
 
-    // Group categories by salonId
+    // Group categories by salonId (both names and IDs)
     const categoryMap = new Map<string, Set<string>>();
+    const categoryIdsMap = new Map<string, Set<number>>();
     categoryData.forEach((item) => {
-      if (!item.service_categories) return;
+      if (!item.service_categories || !item.serviceCategoryId) return;
       const categoryName = item.service_categories.name_en || item.service_categories.name_vn;
       if (!categoryName) return;
 
       if (!categoryMap.has(item.salonId)) {
         categoryMap.set(item.salonId, new Set());
+        categoryIdsMap.set(item.salonId, new Set());
       }
       categoryMap.get(item.salonId)!.add(categoryName);
+      categoryIdsMap.get(item.salonId)!.add(item.serviceCategoryId);
     });
 
     // Enrich salons with aggregated data
@@ -1798,6 +1801,7 @@ export class SalonsService {
       };
 
       const categories = Array.from(categoryMap.get(salon.id) || []);
+      const serviceCategoryIds = Array.from(categoryIdsMap.get(salon.id) || []);
 
       return {
         id: salon.id,
@@ -1808,6 +1812,7 @@ export class SalonsService {
         photos: salon.photos,
         avgRating: Math.round(ratingData.avgRating * 10) / 10, // Round to 1 decimal
         categories,
+        serviceCategoryIds, // Add category IDs for filtering
         _count: {
           Service: salon._count?.Service || 0,
           Review: ratingData.reviewCount,
