@@ -133,6 +133,27 @@ export class AuthController {
     }
   }
 
+  @Get('initialize')
+  async initialize(
+    @Headers('authorization') authHeader: string,
+    @Query('includeSalon') includeSalon?: string,
+  ) {
+    try {
+      console.log('📝 Received initialize request');
+      const result = await this.authService.initializeUser(authHeader, {
+        includeSalon: includeSalon === 'true',
+      });
+      console.log('✅ Initialize successful:', result.user.email);
+      return result;
+    } catch (error) {
+      console.error('❌ Initialize failed:', error.message);
+      throw new HttpException(
+        error.message || 'Failed to initialize user',
+        HttpStatus.UNAUTHORIZED,
+      );
+    }
+  }
+
   @Put('profile')
   async updateProfile(
     @Body() data: UpdateProfileDto,

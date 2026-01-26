@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { EmailService } from '../email/email.service';
 import { ConfigService } from '@nestjs/config';
+import { JwtVerifierService } from './jwt-verifier.service';
 import { nanoid } from 'nanoid';
 import * as crypto from 'crypto';
 
@@ -14,12 +15,20 @@ export class AuthService {
     string,
     { result: any; timestamp: number }
   >();
-  private readonly CACHE_TTL = 1000; // 1 second cache
+  private readonly CACHE_TTL = 30000; // 30 seconds cache (увеличено с 1 секунды)
+
+  // Кэш для синхронизации app_metadata (ленивая синхронизация)
+  private roleSyncCache = new Map<
+    string,
+    { lastSync: number; role: string }
+  >();
+  private readonly ROLE_SYNC_TTL = 5 * 60 * 1000; // 5 минут между синхронизациями
 
   constructor(
     private prisma: PrismaService,
     private emailService: EmailService,
     private configService: ConfigService,
+    private jwtVerifier: JwtVerifierService,
   ) {}
 
   async registerOwner(data: {
@@ -756,24 +765,47 @@ export class AuthService {
 
       console.log('🔑 Token extracted, length:', token.length);
 
-      // Verify the token with Supabase
-      console.log('🔍 Verifying token with Supabase...');
-      const {
-        data: { user },
-        error,
-      } = await supabase.auth.getUser(token);
+      // Локальная верификация JWT (быстро, без сетевых запросов)
+      let decodedToken: any;
+      let user: any;
 
-      if (error) {
-        console.error('❌ Supabase token verification error:', error.message);
-        throw new Error('Invalid token');
+      try {
+        console.log('🔍 Verifying token locally (JWT)...');
+        decodedToken = await this.jwtVerifier.verifyToken(token);
+        
+        // Создаем объект user из decoded token для совместимости
+        user = {
+          id: this.jwtVerifier.getUserIdFromToken(decodedToken),
+          email: this.jwtVerifier.getEmailFromToken(decodedToken),
+          app_metadata: decodedToken.app_metadata || {},
+          user_metadata: decodedToken.user_metadata || {},
+        };
+
+        console.log('✅ Token verified locally:', user.id, user.email);
+      } catch (jwtError: any) {
+        // Fallback на Supabase API если локальная верификация не удалась
+        // (например, ключи еще не загружены или токен использует другой алгоритм)
+        console.log('⚠️ Local JWT verification failed, falling back to Supabase API:', jwtError.message);
+        console.log('🔍 Verifying token with Supabase API (fallback)...');
+        
+        const {
+          data: { user: supabaseUser },
+          error,
+        } = await supabase.auth.getUser(token);
+
+        if (error) {
+          console.error('❌ Supabase token verification error:', error.message);
+          throw new Error('Invalid token');
+        }
+
+        if (!supabaseUser) {
+          console.log('❌ No user returned from Supabase');
+          throw new Error('User not found');
+        }
+
+        user = supabaseUser;
+        console.log('✅ User verified via Supabase API (fallback):', user.id, user.email);
       }
-
-      if (!user) {
-        console.log('❌ No user returned from Supabase');
-        throw new Error('User not found');
-      }
-
-      console.log('✅ User verified in Supabase:', user.id, user.email);
 
       // Get user data from our database
       // IMPORTANT: we use email as the stable link between Supabase and our DB,
@@ -787,23 +819,33 @@ export class AuthService {
         where: { email: user.email.toLowerCase() },
       });
 
-      // Синхронизируем роль в app_metadata если она есть в БД, но отсутствует в JWT
-      // Это гарантирует, что роль будет доступна в следующих запросах
+      // Ленивая синхронизация роли в app_metadata
+      // Синхронизируем только если:
+      // 1. Роль в БД отличается от роли в токене
+      // 2. И прошло больше 5 минут с последней синхронизации
       if (dbUser) {
         const currentRole = user.app_metadata?.role || user.user_metadata?.role;
-        if (currentRole !== dbUser.role) {
-          try {
-            await supabase.auth.admin.updateUserById(user.id, {
-              app_metadata: {
-                role: dbUser.role,
-              },
-            });
-            console.log(
-              `✅ Role synced to app_metadata for user ${user.id}: ${dbUser.role}`,
-            );
-          } catch (error) {
-            console.error('⚠️ Failed to sync role to app_metadata:', error);
-          }
+        const syncCacheKey = user.id;
+        const syncCache = this.roleSyncCache.get(syncCacheKey);
+        const now = Date.now();
+
+        const shouldSync =
+          currentRole !== dbUser.role &&
+          (!syncCache ||
+            syncCache.role !== dbUser.role ||
+            now - syncCache.lastSync > this.ROLE_SYNC_TTL);
+
+        if (shouldSync) {
+          // Синхронизируем в фоне (не блокируем ответ)
+          this.syncRoleToAppMetadata(user.id, dbUser.role).catch((error) => {
+            console.error('⚠️ Background role sync failed:', error);
+          });
+
+          // Обновляем кэш синхронизации
+          this.roleSyncCache.set(syncCacheKey, {
+            lastSync: now,
+            role: dbUser.role,
+          });
         }
       }
 
@@ -1059,6 +1101,88 @@ export class AuthService {
       });
       throw new Error(
         `Failed to get user: ${error.message || 'Unknown error'}`,
+      );
+    }
+  }
+
+  /**
+   * Синхронизировать роль в app_metadata Supabase (в фоне)
+   */
+  private async syncRoleToAppMetadata(
+    userId: string,
+    role: string,
+  ): Promise<void> {
+    try {
+      await supabase.auth.admin.updateUserById(userId, {
+        app_metadata: {
+          role: role,
+        },
+      });
+      console.log(
+        `✅ Role synced to app_metadata for user ${userId}: ${role}`,
+      );
+    } catch (error) {
+      console.error('⚠️ Failed to sync role to app_metadata:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Batch endpoint для инициализации пользователя
+   * Возвращает пользователя и опционально салон (для OWNER)
+   * Один запрос вместо нескольких
+   */
+  async initializeUser(
+    authHeader: string,
+    options: { includeSalon?: boolean } = {},
+  ) {
+    try {
+      // Получаем пользователя (использует кэш)
+      const userResult = await this.getCurrentUser(authHeader);
+      const user = userResult.user;
+
+      const result: any = {
+        user,
+      };
+
+      // Если OWNER и запрошен салон, получаем его
+      if (options.includeSalon && user.role === 'OWNER') {
+        try {
+          const salon = await this.prisma.salon.findFirst({
+            where: { ownerId: user.id },
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              address: true,
+              phone: true,
+              email: true,
+              description: true,
+              photos: true,
+              status: true,
+            },
+          });
+
+          if (salon) {
+            result.salon = salon;
+            result.needsSetup = false;
+          } else {
+            result.needsSetup = true;
+          }
+        } catch (salonError) {
+          console.error('⚠️ Error fetching salon:', salonError);
+          result.needsSetup = true;
+        }
+      }
+
+      return result;
+    } catch (error: any) {
+      console.error('❌ Error in initializeUser:', {
+        message: error.message,
+        stack: error.stack,
+      });
+      throw new Error(
+        `Failed to initialize user: ${error.message || 'Unknown error'}`,
       );
     }
   }
