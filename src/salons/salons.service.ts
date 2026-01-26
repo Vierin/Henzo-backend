@@ -451,7 +451,7 @@ export class SalonsService {
     // Get total count for pagination
     const total = await this.prisma.salon.count({ where });
 
-    // Get paginated results
+    // Get paginated results with optimized select (only fields needed for cards)
     const salons = await this.prisma.salon.findMany({
       where,
       select: {
@@ -460,83 +460,31 @@ export class SalonsService {
         description: true,
         address: true,
         phone: true,
-        email: true,
-        website: true,
-        instagram: true,
         photos: true,
         workingHours: true,
-        reminderSettings: true,
-        ownerId: true,
         createdAt: true,
         latitude: true,
         longitude: true,
-        descriptionEn: true,
-        descriptionVi: true,
-        descriptionRu: true,
+        slug: true,
         _count: {
           select: {
             Review: true,
             Service: true,
-            Booking: true,
           },
         },
         Service: {
-          take: 10, // P0: Увеличено до 10, но все еще ограничено
+          take: 3, // Only 3 services needed for card display
           select: {
             id: true,
             name: true,
             nameEn: true,
             nameVi: true,
             nameRu: true,
-            description: true,
             duration: true,
             price: true,
-            serviceCategoryId: true,
-            serviceGroupId: true,
-            service_categories: {
-              select: {
-                id: true,
-                name_en: true,
-                name_vn: true,
-                name_ru: true,
-              },
-            },
-            ServiceGroup: {
-              select: {
-                id: true,
-                name: true,
-                nameEn: true,
-                nameVi: true,
-                nameRu: true,
-                position: true,
-              },
-            },
-          },
-        },
-        Review: {
-          take: 10, // P0: Лимит на reviews для предотвращения огромных payloads
-          select: {
-            id: true,
-            rating: true,
-            comment: true,
-            createdAt: true,
-            User: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-              },
-            },
           },
           orderBy: {
-            createdAt: 'desc',
-          },
-        },
-        User: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
+            id: 'asc', // Consistent ordering (Service model doesn't have createdAt)
           },
         },
       },
@@ -545,53 +493,67 @@ export class SalonsService {
       take: limit,
     });
 
+    // Get salon IDs for aggregate queries
+    const salonIds = salons.map((s) => s.id);
+
+    // Calculate average ratings for all salons in one query (only if we have salons)
+    let ratingMap = new Map<string, { avgRating: number; reviewCount: number }>();
+    if (salonIds.length > 0) {
+      const ratingAggregates = await this.prisma.review.groupBy({
+        by: ['salonId'],
+        where: {
+          salonId: { in: salonIds },
+        },
+        _avg: {
+          rating: true,
+        },
+        _count: {
+          rating: true,
+        },
+      });
+
+      // Create a map for quick lookup
+      ratingMap = new Map(
+        ratingAggregates.map((agg) => [
+          agg.salonId,
+          {
+            avgRating: agg._avg.rating || 0,
+            reviewCount: agg._count.rating,
+          },
+        ]),
+      );
+    }
+
     // Calculate pagination info
     const totalPages = Math.ceil(total / limit);
     const hasNextPage = page < totalPages;
     const hasPreviousPage = page > 1;
 
-    // Transform to match expected format (Service -> services)
-    let transformedSalons = salons.map((salon: any) => ({
-      ...salon,
-      services: (salon.Service || []).map((service: any) => {
-        const transformedService: any = {
-          ...service,
-          serviceCategory: service.service_categories
-            ? {
-                id: service.service_categories.id,
-                name_en: service.service_categories.name_en,
-                name_vn: service.service_categories.name_vn,
-                name_ru: service.service_categories.name_ru,
-              }
-            : null,
-          service_categories: undefined, // Remove Prisma field
-        };
+    // Transform to match expected format (Service -> services) and add ratings
+    let transformedSalons = salons.map((salon: any) => {
+      const ratingData = ratingMap.get(salon.id) || {
+        avgRating: 0,
+        reviewCount: 0,
+      };
 
-        // Ensure serviceGroup has correct id
-        if (service.ServiceGroup) {
-          const groupId = service.ServiceGroup.id || service.serviceGroupId;
-          if (groupId) {
-            transformedService.serviceGroup = {
-              ...service.ServiceGroup,
-              id: groupId,
-              isActive: service.ServiceGroup.isActive !== false,
-            };
-          } else {
-            transformedService.serviceGroup = null;
-          }
-        } else {
-          transformedService.serviceGroup = null;
-        }
-
-        transformedService.ServiceGroup = undefined; // Remove Prisma field
-        return transformedService;
-      }),
-      Service: undefined, // Remove Prisma field
-      reviews: salon.Review || [],
-      Review: undefined, // Remove Prisma field
-      owner: salon.User || null,
-      User: undefined, // Remove Prisma field
-    }));
+      return {
+        ...salon,
+        services: (salon.Service || []).map((service: any) => ({
+          id: service.id,
+          name: service.name,
+          nameEn: service.nameEn,
+          nameVi: service.nameVi,
+          nameRu: service.nameRu,
+          duration: service.duration,
+          price: service.price,
+        })),
+        Service: undefined, // Remove Prisma field
+        reviews: [], // Empty array - not needed for cards, use avgRating instead
+        avgRating: Math.round(ratingData.avgRating * 10) / 10, // Round to 1 decimal
+        reviewCount: ratingData.reviewCount,
+        rating: Math.round(ratingData.avgRating * 10) / 10, // Alias for compatibility
+      };
+    });
 
     // Filter salons by date and time if provided
     if (date) {
@@ -690,28 +652,17 @@ export class SalonsService {
       });
     }
 
-    // Sort in memory if needed (for rating and services count)
-    if (sortBy === 'rating') {
+    // Sort in memory if needed (for services count - rating already sorted via SQL if possible)
+    if (sortBy === 'services') {
       transformedSalons.sort((a: any, b: any) => {
-        const aReviews = a.reviews || [];
-        const bReviews = b.reviews || [];
-        const aAvgRating =
-          aReviews.length > 0
-            ? aReviews.reduce((sum: number, r: any) => sum + r.rating, 0) /
-              aReviews.length
-            : 0;
-        const bAvgRating =
-          bReviews.length > 0
-            ? bReviews.reduce((sum: number, r: any) => sum + r.rating, 0) /
-              bReviews.length
-            : 0;
-        return bAvgRating - aAvgRating; // Descending
-      });
-    } else if (sortBy === 'services') {
-      transformedSalons.sort((a: any, b: any) => {
-        const aCount = (a.services || []).length;
-        const bCount = (b.services || []).length;
+        const aCount = a._count?.Service || 0;
+        const bCount = b._count?.Service || 0;
         return bCount - aCount; // Descending
+      });
+    } else if (sortBy === 'rating') {
+      // Sort by avgRating (already calculated)
+      transformedSalons.sort((a: any, b: any) => {
+        return (b.avgRating || 0) - (a.avgRating || 0); // Descending
       });
     }
 
