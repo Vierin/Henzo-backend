@@ -1164,32 +1164,24 @@ export class SalonsService {
           description: true,
           address: true,
           phone: true,
-          email: true,
           website: true,
           instagram: true,
           photos: true,
           workingHours: true,
-          reminderSettings: true,
-          ownerId: true,
-          createdAt: true,
           latitude: true,
           longitude: true,
           descriptionEn: true,
           descriptionVi: true,
           descriptionRu: true,
           slug: true,
-          timezone: true,
-          status: true,
           _count: {
             select: {
               Review: true,
               Service: true,
-              Booking: true,
-              Staff: true,
             },
           },
           Service: {
-            take: 50,
+            // Remove limit - load all services for detail page
             select: {
               id: true,
               name: true,
@@ -1215,27 +1207,23 @@ export class SalonsService {
               ServiceGroup: {
                 select: {
                   id: true,
+                  salonId: true,
                   name: true,
                   nameEn: true,
                   nameVi: true,
                   nameRu: true,
                   position: true,
                   isActive: true,
+                  createdAt: true,
                 },
               },
             },
-          },
-          Staff: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              phone: true,
-              accessLevel: true,
+            orderBy: {
+              id: 'asc', // Consistent ordering
             },
           },
           Review: {
-            take: 20,
+            take: 50, // Increased from 20 to show more reviews, but still limited
             select: {
               id: true,
               rating: true,
@@ -1245,7 +1233,7 @@ export class SalonsService {
                 select: {
                   id: true,
                   name: true,
-                  email: true,
+                  // Removed email - not used on frontend
                 },
               },
             },
@@ -1257,58 +1245,44 @@ export class SalonsService {
             select: {
               id: true,
               name: true,
-              email: true,
+              // Removed email - not used on frontend
             },
           },
         },
-      });
-
-      // Load all service groups for this salon separately to ensure all groups are available
-      const allGroups = await this.prisma.serviceGroup.findMany({
-        where: { salonId: id, isActive: true },
-        orderBy: { position: 'asc' },
-      });
-
-      console.log('SalonsService.findById result:', {
-        salonId: salon?.id,
-        salonName: salon?.name,
-        servicesCount: ((salon as any)?.Service || []).length,
-        servicesWithGroups:
-          ((salon as any)?.Service || []).filter((s: any) => s.ServiceGroup)
-            ?.length || 0,
-        groupsCount: allGroups.length,
-        groups: allGroups.map((g) => ({
-          id: g.id,
-          name: g.name,
-          position: g.position,
-        })),
-        reviewsCount: ((salon as any)?.Review || []).length,
       });
 
       if (!salon) {
         return null;
       }
 
-      // Create a map of service groups by ID for quick lookup
+      // Create a map of service groups from services (no separate query needed)
       const groupsMap = new Map<string, any>();
-      allGroups.forEach((group) => {
-        groupsMap.set(group.id, group);
-      });
-
-      // Also add groups from services if they're not already in the map
       ((salon as any).Service || []).forEach((service: any) => {
-        if (
-          service.ServiceGroup &&
-          service.serviceGroupId &&
-          !groupsMap.has(service.serviceGroupId)
-        ) {
-          groupsMap.set(service.serviceGroupId, service.ServiceGroup);
+        if (service.ServiceGroup && service.serviceGroupId) {
+          if (!groupsMap.has(service.serviceGroupId)) {
+            groupsMap.set(service.serviceGroupId, service.ServiceGroup);
+          }
         }
       });
 
       // Transform Prisma response to frontend format
       const transformedSalon = {
-        ...salon,
+        id: salon.id,
+        name: salon.name,
+        description: salon.description,
+        address: salon.address,
+        phone: salon.phone,
+        website: salon.website,
+        instagram: salon.instagram,
+        photos: salon.photos,
+        workingHours: salon.workingHours,
+        latitude: salon.latitude,
+        longitude: salon.longitude,
+        descriptionEn: salon.descriptionEn,
+        descriptionVi: salon.descriptionVi,
+        descriptionRu: salon.descriptionRu,
+        slug: salon.slug,
+        _count: salon._count,
         services: ((salon as any).Service || []).map((service: any) => {
           const transformedService: any = {
             id: service.id,
@@ -1322,8 +1296,6 @@ export class SalonsService {
             descriptionRu: service.descriptionRu,
             duration: service.duration,
             price: service.price,
-            salonId: service.salonId,
-            categoryId: service.categoryId,
             serviceCategoryId: service.serviceCategoryId,
             serviceGroupId: service.serviceGroupId,
           };
@@ -1344,7 +1316,6 @@ export class SalonsService {
               ? groupsMap.get(service.serviceGroupId)
               : null);
           if (serviceGroup) {
-            // Ensure we use serviceGroupId as fallback if serviceGroup.id is missing
             const groupId = serviceGroup.id || service.serviceGroupId;
             if (groupId) {
               transformedService.serviceGroup = {
@@ -1355,20 +1326,16 @@ export class SalonsService {
                 nameVi: serviceGroup.nameVi,
                 nameRu: serviceGroup.nameRu,
                 position: serviceGroup.position,
-                isActive: serviceGroup.isActive !== false, // Default to true if undefined
-                createdAt:
-                  serviceGroup.createdAt?.toISOString() ||
-                  new Date().toISOString(),
+                isActive: serviceGroup.isActive !== false,
+                createdAt: serviceGroup.createdAt
+                  ? new Date(serviceGroup.createdAt).toISOString()
+                  : new Date().toISOString(),
               };
             }
           }
 
           return transformedService;
         }),
-        staff: ((salon as any).Staff || []).map((staff: any) => ({
-          ...staff,
-          Staff: undefined,
-        })),
         reviews: ((salon as any).Review || []).map((review: any) => ({
           id: review.id,
           rating: review.rating,
@@ -1380,7 +1347,7 @@ export class SalonsService {
             ? {
                 id: review.User.id,
                 name: review.User.name,
-                email: review.User.email,
+                // Removed email - not used on frontend
               }
             : undefined,
         })),
@@ -1388,7 +1355,7 @@ export class SalonsService {
           ? {
               id: (salon as any).User.id,
               name: (salon as any).User.name,
-              email: (salon as any).User.email,
+              // Removed email - not used on frontend
             }
           : undefined,
         // Add derived categories from services
@@ -1400,12 +1367,6 @@ export class SalonsService {
           ),
         ),
       };
-
-      // Remove Prisma-specific fields
-      delete (transformedSalon as any).Service;
-      delete (transformedSalon as any).Staff;
-      delete (transformedSalon as any).Review;
-      delete (transformedSalon as any).User;
 
       return transformedSalon as any;
     } catch (error) {
@@ -1733,8 +1694,8 @@ export class SalonsService {
 
   async findFeaturedSalons(limit: number) {
     // Cache key includes limit to cache different limits separately
-    // Version 2: categories are derived from services
-    const cacheKey = `salons:featured:v2:${limit}`;
+    // Version 4: removed priceRange (not used on frontend)
+    const cacheKey = `salons:featured:v4:${limit}`;
 
     // Try to get from cache first (24 hours TTL)
     const cached = await this.cacheService.get<any[]>(cacheKey);
@@ -1742,6 +1703,7 @@ export class SalonsService {
       return cached;
     }
 
+    // Get salons with minimal data
     const salons = await this.prisma.salon.findMany({
       where: {
         status: 'ACTIVE', // Only show active salons in featured listings
@@ -1753,25 +1715,6 @@ export class SalonsService {
         latitude: true,
         longitude: true,
         photos: true,
-        Service: {
-          select: {
-            id: true,
-            price: true,
-            serviceCategoryId: true,
-            service_categories: {
-              select: {
-                id: true,
-                name_en: true,
-                name_vn: true,
-              },
-            },
-          },
-        },
-        Review: {
-          select: {
-            rating: true,
-          },
-        },
         _count: {
           select: {
             Service: true,
@@ -1779,71 +1722,103 @@ export class SalonsService {
           },
         },
       },
-      // Do not hard-filter by rating; we will sort by avg rating and reviews count
       orderBy: { createdAt: 'desc' },
-      take: limit,
+      take: limit * 2, // Get more to sort and filter, then take top N
     });
 
-    // Salons already have coordinates from the database
-    const salonsWithCoordinates = salons.map((salon) => ({
-      ...salon,
-      latitude: salon.latitude ?? undefined,
-      longitude: salon.longitude ?? undefined,
-    }));
+    if (salons.length === 0) {
+      return [];
+    }
 
-    // Calculate average rating and price range for each salon
-    const enriched = salonsWithCoordinates.map((salon) => {
-      const avgRating =
-        salon.Review.length > 0
-          ? salon.Review.reduce((sum, r) => sum + r.rating, 0) /
-            salon.Review.length
-          : 0;
+    // Get salon IDs for aggregate queries
+    const salonIds = salons.map((s) => s.id);
 
-      // Extract unique categories from services
-      const categories = Array.from(
-        new Set(
-          salon.Service.map(
-            (s) =>
-              s.service_categories?.name_en || s.service_categories?.name_vn,
-          ).filter(Boolean),
-        ),
-      );
+    // Calculate average ratings using aggregate (much faster than loading all reviews)
+    const ratingAggregates = await this.prisma.review.groupBy({
+      by: ['salonId'],
+      where: {
+        salonId: { in: salonIds },
+      },
+      _avg: {
+        rating: true,
+      },
+      _count: {
+        rating: true,
+      },
+    });
 
-      // Calculate price range
-      const prices = salon.Service.map((s) => s.price).filter((p) => p > 0);
-      let priceRange = '$$';
-      if (prices.length > 0) {
-        const avgPrice = prices.reduce((sum, p) => sum + p, 0) / prices.length;
-        if (avgPrice < 200000) {
-          priceRange = '$';
-        } else if (avgPrice > 500000) {
-          priceRange = '$$$';
-        }
+    // Get unique categories from services (only need category names, not all services)
+    const categoryData = await this.prisma.service.findMany({
+      where: {
+        salonId: { in: salonIds },
+        serviceCategoryId: { not: null },
+      },
+      select: {
+        salonId: true,
+        serviceCategoryId: true,
+        service_categories: {
+          select: {
+            name_en: true,
+            name_vn: true,
+          },
+        },
+      },
+      distinct: ['salonId', 'serviceCategoryId'], // Only unique combinations
+    });
+
+    // Create maps for quick lookup
+    const ratingMap = new Map(
+      ratingAggregates.map((agg) => [
+        agg.salonId,
+        {
+          avgRating: agg._avg.rating || 0,
+          reviewCount: agg._count.rating,
+        },
+      ]),
+    );
+
+    // Group categories by salonId
+    const categoryMap = new Map<string, Set<string>>();
+    categoryData.forEach((item) => {
+      if (!item.service_categories) return;
+      const categoryName = item.service_categories.name_en || item.service_categories.name_vn;
+      if (!categoryName) return;
+
+      if (!categoryMap.has(item.salonId)) {
+        categoryMap.set(item.salonId, new Set());
       }
+      categoryMap.get(item.salonId)!.add(categoryName);
+    });
+
+    // Enrich salons with aggregated data
+    const enriched = salons.map((salon) => {
+      const ratingData = ratingMap.get(salon.id) || {
+        avgRating: 0,
+        reviewCount: 0,
+      };
+
+      const categories = Array.from(categoryMap.get(salon.id) || []);
 
       return {
         id: salon.id,
         name: salon.name,
         address: salon.address,
-        latitude: salon.latitude,
-        longitude: salon.longitude,
+        latitude: salon.latitude ?? undefined,
+        longitude: salon.longitude ?? undefined,
         photos: salon.photos,
-        avgRating: Math.round(avgRating * 10) / 10, // Round to 1 decimal
+        avgRating: Math.round(ratingData.avgRating * 10) / 10, // Round to 1 decimal
         categories,
-        priceRange,
-        services: salon.Service.map((s: any) => ({
-          id: s.id,
-          serviceCategoryId: s.serviceCategoryId,
-          price: s.price,
-        })),
         _count: {
-          Service: salon._count?.Service || salon.Service?.length || 0,
-          Review: salon._count?.Review || salon.Review?.length || 0,
+          Service: salon._count?.Service || 0,
+          Review: ratingData.reviewCount,
+          // Add aliases for frontend compatibility
+          services: salon._count?.Service || 0,
+          reviews: ratingData.reviewCount,
         },
       };
     });
 
-    // Sort by avgRating desc, then by reviews count desc, then by newest
+    // Sort by avgRating desc, then by reviews count desc
     enriched.sort((a, b) => {
       if (b.avgRating !== a.avgRating) return b.avgRating - a.avgRating;
       const br = (b._count?.Review || 0) - (a._count?.Review || 0);
