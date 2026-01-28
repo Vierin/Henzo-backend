@@ -305,29 +305,21 @@ export class EmailService {
               <div class="booking-details">
                 <h3>🏢 Salon Information</h3>
                 <div class="detail-row">
-                  <span class="detail-label">Salon:</span>
+                  <span class="detail-label">Name:</span>
                   <span class="detail-value">${bookingData.salonName}</span>
                 </div>
-                ${
-                  bookingData.salonAddress
-                    ? `
                 <div class="detail-row">
                   <span class="detail-label">Address:</span>
-                  <span class="detail-value">${bookingData.salonAddress}</span>
+                  <span class="detail-value">${
+                    bookingData.salonAddress || 'Not provided'
+                  }</span>
                 </div>
-                `
-                    : ''
-                }
-                ${
-                  bookingData.salonPhone
-                    ? `
                 <div class="detail-row">
                   <span class="detail-label">Phone:</span>
-                  <span class="detail-value">${bookingData.salonPhone}</span>
+                  <span class="detail-value">${
+                    bookingData.salonPhone || 'Not provided'
+                  }</span>
                 </div>
-                `
-                    : ''
-                }
               </div>
 
               <p><strong>Important:</strong> Please arrive 5-10 minutes before your appointment time.</p>
