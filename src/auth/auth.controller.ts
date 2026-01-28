@@ -374,12 +374,15 @@ export class AuthController {
 
 
   @Get('verify-business-magic-link')
-  async verifyBusinessMagicLink(@Query('token') token: string) {
+  async verifyBusinessMagicLink(
+    @Query('token') token: string,
+    @Query('locale') locale?: string,
+  ) {
     try {
       if (!token) {
         throw new HttpException('Token is required', HttpStatus.BAD_REQUEST);
       }
-      const result = await this.authService.verifyBusinessMagicLink(token);
+      const result = await this.authService.verifyBusinessMagicLink(token, locale);
       return result;
     } catch (error) {
       console.error('❌ Verify business magic link failed:', error.message);

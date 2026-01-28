@@ -1812,7 +1812,7 @@ export class AuthService {
     }
   }
 
-  async verifyBusinessMagicLink(token: string) {
+  async verifyBusinessMagicLink(token: string, locale?: string) {
     try {
       console.log('🔍 Verifying business magic link with token:', token);
       
@@ -1894,18 +1894,21 @@ export class AuthService {
         throw new BadRequestException('User not found');
       }
 
-      // Генерируем magic link с redirectTo на главную страницу
-      // Supabase может игнорировать redirectTo для magic links, поэтому обрабатываем токены на главной
-      // Главная страница обработает hash токены и редиректит OWNER на complete-setup
+      // Генерируем magic link с redirectTo на URL С ЛОКАЛЬЮ.
+      // Важно: фронт middleware редиректит все пути без /{locale}/, и hash (#access_token=...)
+      // при серверном редиректе теряется. Поэтому redirectTo должен содержать locale.
       const frontendUrl =
         this.configService.get<string>('FRONTEND_URL') ||
         (process.env.NODE_ENV === 'production'
           ? 'https://henzo.app'
           : 'http://localhost:3000');
-      
-      // Используем главную страницу как redirectTo, так как Supabase может игнорировать другие URL
-      // Главная страница обработает hash токены и редиректит на нужную страницу
-      const redirectTo = `${frontendUrl}/`;
+
+      const safeLocale =
+        locale === 'ru' || locale === 'en' || locale === 'vi' ? locale : 'vi';
+
+      // Отправляем на /{locale}/auth/callback?type=business — там уже есть логика
+      // установки сессии из hash и последующего редиректа.
+      const redirectTo = `${frontendUrl}/${safeLocale}/auth/callback?type=business`;
 
       const { data: linkData, error: linkError } =
         await supabase.auth.admin.generateLink({
