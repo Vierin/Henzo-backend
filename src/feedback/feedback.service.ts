@@ -32,10 +32,6 @@ export class FeedbackService {
           email: userEmail || 'No email provided',
           message: this.formatFeedbackMessage(
             message,
-            userId,
-            userEmail,
-            userName,
-            timestamp,
           ),
           timestamp,
         },
@@ -55,29 +51,8 @@ export class FeedbackService {
 
   private formatFeedbackMessage(
     message: string,
-    userId?: string,
-    userEmail?: string,
-    userName?: string,
-    timestamp?: string,
   ): string {
     let formattedMessage = message;
-
-    if (userName || userEmail || userId) {
-      formattedMessage += '\n\n---\n';
-      formattedMessage += 'User Information:\n';
-      if (userName) {
-        formattedMessage += `Name: ${userName}\n`;
-      }
-      if (userEmail) {
-        formattedMessage += `Email: ${userEmail}\n`;
-      }
-      if (userId) {
-        formattedMessage += `User ID: ${userId}\n`;
-      }
-      if (timestamp) {
-        formattedMessage += `Time: ${timestamp}\n`;
-      }
-    }
 
     return formattedMessage;
   }
