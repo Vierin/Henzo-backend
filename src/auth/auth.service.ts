@@ -1785,23 +1785,27 @@ export class AuthService {
         expiresAt,
       });
 
-      // Генерируем URL для complete-setup (magic link ведет сразу на настройку салона)
-      const frontendUrl =
-        this.configService.get<string>('FRONTEND_URL') ||
-        (process.env.NODE_ENV === 'production' ? 'https://henzo.app' : 'http://localhost:3000');
-      const completeSetupUrl = `${frontendUrl}/business/complete-setup?token=${token}`;
+      // Генерируем URL для прямого редиректа на Supabase magic link
+      // Новый endpoint проверяет токен и сразу редиректит на Supabase, минуя промежуточные страницы
+      const backendUrl =
+        this.configService.get<string>('BACKEND_URL') ||
+        process.env.BACKEND_URL ||
+        (process.env.NODE_ENV === 'production'
+          ? 'https://api.henzo.app'
+          : 'http://localhost:3001');
+      const magicLinkUrl = `${backendUrl}/auth/business-magic-link/${token}`;
 
       console.log(
         '📧 Sending business registration magic link email to:',
         normalizedEmail,
       );
-      console.log('🔗 Magic link URL:', completeSetupUrl);
+      console.log('🔗 Magic link URL:', magicLinkUrl);
 
       // Отправляем email
       await this.emailService.sendBusinessRegistrationMagicLink(
         email,
         name,
-        completeSetupUrl,
+        magicLinkUrl,
       );
 
       console.log('✅ Business magic link sent:', { email });

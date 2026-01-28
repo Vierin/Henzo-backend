@@ -8,9 +8,12 @@ import {
   Body,
   Headers,
   Query,
+  Param,
+  Res,
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { AuthService } from './auth.service';
 import { RegisterClientDto } from './dto/register-client.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
@@ -390,6 +393,79 @@ export class AuthController {
         error.message || 'Failed to verify magic link',
         HttpStatus.BAD_REQUEST,
       );
+    }
+  }
+
+  @Get('business-magic-link/:token')
+  async redirectBusinessMagicLink(
+    @Param('token') token: string,
+    @Query('locale') locale?: string,
+    @Headers('accept-language') acceptLanguage?: string,
+    @Res() res: Response,
+  ) {
+    try {
+      if (!token) {
+        const frontendUrl =
+          process.env.FRONTEND_URL ||
+          (process.env.NODE_ENV === 'production' ? 'https://henzo.app' : 'http://localhost:3000');
+        return res.redirect(`${frontendUrl}/en/business/register?error=invalid_link`);
+      }
+
+      // Определяем locale: из query параметра, из Accept-Language заголовка, или дефолтный 'en'
+      let detectedLocale = locale;
+      if (!detectedLocale && acceptLanguage) {
+        const lang = acceptLanguage.split(',')[0]?.split('-')[0]?.toLowerCase();
+        if (lang === 'ru' || lang === 'en' || lang === 'vi') {
+          detectedLocale = lang;
+        }
+      }
+      if (!detectedLocale || (detectedLocale !== 'ru' && detectedLocale !== 'en' && detectedLocale !== 'vi')) {
+        detectedLocale = 'en';
+      }
+
+      console.log(`🔍 Processing business magic link with locale: ${detectedLocale}`);
+
+      const result = await this.authService.verifyBusinessMagicLink(token, detectedLocale);
+
+      if (result.success && result.magicLinkUrl) {
+        // Редиректим напрямую на Supabase magic link
+        console.log('✅ Redirecting to Supabase magic link');
+        return res.redirect(result.magicLinkUrl);
+      }
+
+      // Если нет magicLinkUrl, редиректим на страницу регистрации с ошибкой
+      const frontendUrl =
+        process.env.FRONTEND_URL ||
+        (process.env.NODE_ENV === 'production' ? 'https://henzo.app' : 'http://localhost:3000');
+      return res.redirect(
+        `${frontendUrl}/${detectedLocale}/business/register?error=verification_failed`,
+      );
+    } catch (error) {
+      console.error('❌ Redirect business magic link failed:', error.message);
+      const frontendUrl =
+        process.env.FRONTEND_URL ||
+        (process.env.NODE_ENV === 'production' ? 'https://henzo.app' : 'http://localhost:3000');
+      
+      // Определяем locale для ошибки
+      let detectedLocale = locale;
+      if (!detectedLocale && acceptLanguage) {
+        const lang = acceptLanguage.split(',')[0]?.split('-')[0]?.toLowerCase();
+        if (lang === 'ru' || lang === 'en' || lang === 'vi') {
+          detectedLocale = lang;
+        }
+      }
+      if (!detectedLocale || (detectedLocale !== 'ru' && detectedLocale !== 'en' && detectedLocale !== 'vi')) {
+        detectedLocale = 'en';
+      }
+      
+      let errorParam = 'verification_failed';
+      if (error.message?.includes('expired')) {
+        errorParam = 'link_expired';
+      } else if (error.message?.includes('Invalid')) {
+        errorParam = 'invalid_link';
+      }
+
+      return res.redirect(`${frontendUrl}/${detectedLocale}/business/register?error=${errorParam}`);
     }
   }
 }
