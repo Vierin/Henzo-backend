@@ -172,27 +172,29 @@ export class AdminService {
         totalCustomers: salon.Booking.length,
       }));
 
-      // Get subscription data (mock data for now)
-      const subscriptions = [
-        {
-          salon: 'Salon A',
-          subscriptionType: 'Premium',
-          status: 'Active',
-          nextPaymentDate: '2024-02-15',
+      // Get subscription data from database
+      const subscriptionsData = await this.prisma.subscription.findMany({
+        include: {
+          Salon: {
+            select: {
+              name: true,
+            },
+          },
         },
-        {
-          salon: 'Salon B',
-          subscriptionType: 'Basic',
-          status: 'Active',
-          nextPaymentDate: '2024-03-01',
+        orderBy: {
+          createdAt: 'desc',
         },
-        {
-          salon: 'Salon C',
-          subscriptionType: 'Premium',
-          status: 'Inactive',
-          nextPaymentDate: '2024-01-20',
-        },
-      ];
+        take: 10, // Limit to 10 most recent subscriptions for dashboard
+      });
+
+      const subscriptions = subscriptionsData.map((sub) => ({
+        salon: sub.Salon.name,
+        subscriptionType: sub.type,
+        status: sub.status,
+        nextPaymentDate: sub.nextPaymentDate
+          ? sub.nextPaymentDate.toISOString().substring(0, 10)
+          : null,
+      }));
 
       // Get deleted salons (assuming we track deletion with a deletedAt field)
       // For now, we'll use mock data since we don't have deletion tracking
