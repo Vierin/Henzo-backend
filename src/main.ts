@@ -157,6 +157,7 @@ async function bootstrap() {
       'http://localhost:3000',
       'http://localhost:3001',
       'http://192.168.1.6:3000',
+      'http://192.168.1.2:3000',
       'http://127.0.0.1:3000',
       'https://henzo.app',
       'https://www.henzo.app',
@@ -176,6 +177,13 @@ async function bootstrap() {
 
         // Check if origin is in allowed list
         if (allowedOrigins.includes(origin)) {
+          return callback(null, true);
+        }
+
+        // Allow any local network frontend like http://192.168.x.x:3000
+        // Helpful when testing from different devices on the same LAN
+        const lanFrontendRegex = /^http:\/\/192\.168\.\d+\.\d+:3000$/;
+        if (lanFrontendRegex.test(origin)) {
           return callback(null, true);
         }
 
