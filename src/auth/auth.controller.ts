@@ -398,10 +398,10 @@ export class AuthController {
 
   @Get('business-magic-link/:token')
   async redirectBusinessMagicLink(
+    @Res() res: Response,
     @Param('token') token: string,
     @Query('locale') locale?: string,
     @Headers('accept-language') acceptLanguage?: string,
-    @Res() res: Response,
   ) {
     try {
       if (!token) {
