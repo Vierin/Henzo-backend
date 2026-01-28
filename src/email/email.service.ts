@@ -270,7 +270,6 @@ export class EmailService {
             </div>
             
             <div class="content">
-              <h2>Hello ${clientName}!</h2>
               <p>Thank you for booking with us. Here are your appointment details:</p>
               
               <div class="booking-details">
@@ -280,12 +279,8 @@ export class EmailService {
                   <span class="detail-value">${bookingData.serviceName}</span>
                 </div>
                 <div class="detail-row">
-                  <span class="detail-label">Date:</span>
-                  <span class="detail-value">${bookingData.date}</span>
-                </div>
-                <div class="detail-row">
-                  <span class="detail-label">Time:</span>
-                  <span class="detail-value">${bookingData.time}</span>
+                  <span class="detail-label">Date & Time:</span>
+                  <span class="detail-value">${bookingData.date} - ${bookingData.time}</span>
                 </div>
                 <div class="detail-row">
                   <span class="detail-label">Duration:</span>
@@ -377,7 +372,6 @@ export class EmailService {
             </div>
             
             <div class="footer">
-              <p>Thank you for choosing ${bookingData.salonName}!</p>
               <p>This is an automated message. Please do not reply to this email.</p>
             </div>
           </div>
@@ -484,12 +478,8 @@ export class EmailService {
                   <span class="detail-value">${bookingData.serviceName}</span>
                 </div>
                 <div class="detail-row">
-                  <span class="detail-label">Date:</span>
-                  <span class="detail-value">${bookingData.date}</span>
-                </div>
-                <div class="detail-row">
-                  <span class="detail-label">Time:</span>
-                  <span class="detail-value">${bookingData.time}</span>
+                  <span class="detail-label">Date & Time:</span>
+                  <span class="detail-value">${bookingData.date} - ${bookingData.time}</span>
                 </div>
                 <div class="detail-row">
                   <span class="detail-label">Duration:</span>
@@ -595,7 +585,7 @@ export class EmailService {
             </div>
             
             <div class="content">
-              <h2>Hello ${clientName}!</h2>
+              <h2>Hello,</h2>
               
               <div class="reminder">
                 <h3>🔔 Don't forget!</h3>
@@ -609,12 +599,8 @@ export class EmailService {
                   <span class="detail-value">${bookingData.serviceName}</span>
                 </div>
                 <div class="detail-row">
-                  <span class="detail-label">Date:</span>
-                  <span class="detail-value">${bookingData.date}</span>
-                </div>
-                <div class="detail-row">
-                  <span class="detail-label">Time:</span>
-                  <span class="detail-value">${bookingData.time}</span>
+                  <span class="detail-label">Date & Time:</span>
+                  <span class="detail-value">${bookingData.date} - ${bookingData.time}</span>
                 </div>
                 <div class="detail-row">
                   <span class="detail-label">Duration:</span>
@@ -669,7 +655,6 @@ export class EmailService {
             </div>
             
             <div class="footer">
-              <p>Thank you for choosing ${bookingData.salonName}!</p>
               <p>This is an automated reminder. Please do not reply to this email.</p>
             </div>
           </div>
@@ -883,12 +868,8 @@ export class EmailService {
                   <span class="detail-value">${bookingData.serviceName}</span>
                 </div>
                 <div class="detail-row">
-                  <span class="detail-label">Date:</span>
-                  <span class="detail-value">${bookingData.date}</span>
-                </div>
-                <div class="detail-row">
-                  <span class="detail-label">Time:</span>
-                  <span class="detail-value">${bookingData.time}</span>
+                  <span class="detail-label">Date & Time:</span>
+                  <span class="detail-value">${bookingData.date} - ${bookingData.time}</span>
                 </div>
                 <div class="detail-row">
                   <span class="detail-label">Duration:</span>
@@ -998,8 +979,6 @@ export class EmailService {
             </div>
             
             <div class="content">
-              <h2>Hello ${clientName}!</h2>
-              
               <div class="pending-notice">
                 <h3>Awaiting Salon Confirmation</h3>
                 <p>Your booking request has been sent to <strong>${bookingData.salonName}</strong>.</p>
@@ -1017,12 +996,8 @@ export class EmailService {
                   <span class="detail-value">${bookingData.serviceName}</span>
                 </div>
                 <div class="detail-row">
-                  <span class="detail-label">Date:</span>
-                  <span class="detail-value">${bookingData.date}</span>
-                </div>
-                <div class="detail-row">
-                  <span class="detail-label">Time:</span>
-                  <span class="detail-value">${bookingData.time}</span>
+                  <span class="detail-label">Date & Time:</span>
+                  <span class="detail-value">${bookingData.date} - ${bookingData.time}</span>
                 </div>
                 <div class="detail-row">
                   <span class="detail-label">Duration:</span>
@@ -1078,47 +1053,9 @@ export class EmailService {
                 <li>You'll receive a confirmation email once approved</li>
                 <li>If there are any issues, the salon will contact you directly</li>
               </ul>
-              
-              ${
-                bookingData.dateTime
-                  ? `
-              <div style="text-align: center; margin: 30px 0;">
-                <a href="${this.generateGoogleCalendarUrl({
-                  serviceName: bookingData.serviceName,
-                  dateTime: bookingData.dateTime,
-                  duration: bookingData.duration,
-                  salonName: bookingData.salonName,
-                  salonAddress: bookingData.salonAddress,
-                  staffName: bookingData.staffName,
-                  salonTimezone: bookingData.salonTimezone,
-                })}" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  class="button"
-                  style="display: inline-block; background-color: #4285f4; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 10px; font-weight: bold;">
-                  📅 Add to Google Calendar
-                </a>
-                ${
-                  bookingData.salonAddress
-                    ? `
-                <a href="${this.generateGoogleMapsUrl(bookingData.salonAddress)}" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  class="button"
-                  style="display: inline-block; background-color: #ff5b5b; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 10px; font-weight: bold;">
-                  🗺️ Get Directions
-                </a>
-                `
-                    : ''
-                }
-              </div>
-              `
-                  : ''
-              }
             </div>
             
             <div class="footer">
-              <p>Thank you for choosing ${bookingData.salonName}!</p>
               <p>This is an automated message. Please do not reply to this email.</p>
             </div>
           </div>
@@ -1196,7 +1133,7 @@ export class EmailService {
             </div>
             
             <div class="content">
-              <h2>Hello ${clientName},</h2>
+              <h2>Hello,</h2>
               
               <div class="rejection-notice">
                 <h3>Booking Request Not Confirmed</h3>
@@ -1211,12 +1148,8 @@ export class EmailService {
                   <span class="detail-value">${bookingData.serviceName}</span>
                 </div>
                 <div class="detail-row">
-                  <span class="detail-label">Date:</span>
-                  <span class="detail-value">${bookingData.date}</span>
-                </div>
-                <div class="detail-row">
-                  <span class="detail-label">Time:</span>
-                  <span class="detail-value">${bookingData.time}</span>
+                  <span class="detail-label">Date & Time:</span>
+                  <span class="detail-value">${bookingData.date} - ${bookingData.time}</span>
                 </div>
               </div>
 
@@ -1362,12 +1295,8 @@ export class EmailService {
                   <span class="detail-value">${data.serviceName}</span>
                 </div>
                 <div class="detail-row">
-                  <span class="detail-label">Date:</span>
-                  <span class="detail-value">${data.date}</span>
-                </div>
-                <div class="detail-row">
-                  <span class="detail-label">Time:</span>
-                  <span class="detail-value">${data.time}</span>
+                  <span class="detail-label">Date & Time:</span>
+                  <span class="detail-value">${data.date} - ${data.time}</span>
                 </div>
                 <div class="detail-row">
                   <span class="detail-label">Salon:</span>
@@ -1385,7 +1314,6 @@ export class EmailService {
             </div>
             
             <div class="footer">
-              <p>Thank you for choosing ${data.salonName}!</p>
               <p>This is an automated message. Please do not reply to this email.</p>
             </div>
           </div>
