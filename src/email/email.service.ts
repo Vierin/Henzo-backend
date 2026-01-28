@@ -260,6 +260,14 @@ export class EmailService {
             .detail-value { color: #333; }
             .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
             .button { display: inline-block; background-color: #ff5b5b; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+
+            @media only screen and (max-width: 480px) {
+              .container { padding: 10px !important; }
+              .content { padding: 15px !important; }
+              .booking-details { padding: 10px !important; margin: 10px 0 !important; }
+              .header { padding: 15px !important; }
+              .button { padding: 10px 16px !important; margin: 10px 0 !important; }
+            }
           </style>
         </head>
         <body>
@@ -427,6 +435,14 @@ export class EmailService {
             .detail-value { color: #333; }
             .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
             .urgent { background-color: #ffe5e5; border: 1px solid #ff5b5b; padding: 15px; border-radius: 5px; margin: 20px 0; }
+
+            @media only screen and (max-width: 480px) {
+              .container { padding: 10px !important; }
+              .content { padding: 15px !important; }
+              .booking-details { padding: 10px !important; margin: 10px 0 !important; }
+              .header { padding: 15px !important; }
+              .urgent { padding: 10px !important; margin: 10px 0 !important; }
+            }
           </style>
         </head>
         <body>
@@ -567,6 +583,15 @@ export class EmailService {
             .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
             .reminder { background-color: #ffe5e5; border: 1px solid #ff5b5b; padding: 15px; border-radius: 5px; margin: 20px 0; }
             .button { display: inline-block; background-color: #ff5b5b; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+
+            @media only screen and (max-width: 480px) {
+              .container { padding: 10px !important; }
+              .content { padding: 15px !important; }
+              .booking-details { padding: 10px !important; margin: 10px 0 !important; }
+              .header { padding: 15px !important; }
+              .reminder { padding: 10px !important; margin: 10px 0 !important; }
+              .button { padding: 10px 16px !important; margin: 10px 0 !important; }
+            }
           </style>
         </head>
         <body>
@@ -706,6 +731,14 @@ export class EmailService {
             .detail-value { color: #333; }
             .message-content { background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #ff5b5b; }
             .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
+
+            @media only screen and (max-width: 480px) {
+              .container { padding: 10px !important; }
+              .content { padding: 15px !important; }
+              .message-details { padding: 10px !important; margin: 10px 0 !important; }
+              .header { padding: 15px !important; }
+              .message-content { padding: 10px !important; margin: 10px 0 !important; }
+            }
           </style>
         </head>
         <body>
@@ -816,6 +849,16 @@ export class EmailService {
             .button { display: inline-block; padding: 15px 30px; text-decoration: none; border-radius: 5px; margin: 0 10px; font-weight: bold; font-size: 16px; }
             .button-confirm { background-color: #28a745; color: white; }
             .button-reject { background-color: #dc3545; color: white; }
+
+            @media only screen and (max-width: 480px) {
+              .container { padding: 10px !important; }
+              .content { padding: 15px !important; }
+              .booking-details { padding: 10px !important; margin: 10px 0 !important; }
+              .header { padding: 15px !important; }
+              .urgent { padding: 10px !important; margin: 10px 0 !important; }
+              .button-container { margin: 15px 0 !important; }
+              .button { padding: 10px 16px !important; margin: 5px !important; font-size: 14px !important; }
+            }
           </style>
         </head>
         <body>
@@ -961,6 +1004,14 @@ export class EmailService {
             .detail-value { color: #333; }
             .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
             .pending-notice { background-color: #ffe5e5; border: 1px solid #ff5b5b; padding: 20px; border-radius: 5px; margin: 20px 0; text-align: center; }
+
+            @media only screen and (max-width: 480px) {
+              .container { padding: 10px !important; }
+              .content { padding: 15px !important; }
+              .booking-details { padding: 10px !important; margin: 10px 0 !important; }
+              .header { padding: 15px !important; }
+              .pending-notice { padding: 10px !important; margin: 10px 0 !important; }
+            }
           </style>
         </head>
         <body>
@@ -1115,6 +1166,15 @@ export class EmailService {
             .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
             .rejection-notice { background-color: #f8d7da; border: 1px solid #f5c6cb; padding: 20px; border-radius: 5px; margin: 20px 0; }
             .button { display: inline-block; background-color: #ff5b5b; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+
+            @media only screen and (max-width: 480px) {
+              .container { padding: 10px !important; }
+              .content { padding: 15px !important; }
+              .booking-details { padding: 10px !important; margin: 10px 0 !important; }
+              .header { padding: 15px !important; }
+              .rejection-notice { padding: 10px !important; margin: 10px 0 !important; }
+              .button { padding: 10px 16px !important; margin: 10px 0 !important; }
+            }
           </style>
         </head>
         <body>
@@ -1263,6 +1323,16 @@ export class EmailService {
             .button { display: inline-block; background-color: #ff5b5b; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; font-weight: bold; }
             .button-container { text-align: center; margin: 30px 0; }
             .notice { background-color: #ffe5e5; border: 1px solid #ff5b5b; padding: 15px; border-radius: 5px; margin: 20px 0; }
+
+            @media only screen and (max-width: 480px) {
+              .container { padding: 10px !important; }
+              .content { padding: 15px !important; }
+              .booking-details { padding: 10px !important; margin: 10px 0 !important; }
+              .header { padding: 15px !important; }
+              .button { padding: 10px 16px !important; margin: 10px 0 !important; }
+              .button-container { margin: 15px 0 !important; }
+              .notice { padding: 10px !important; margin: 10px 0 !important; }
+            }
           </style>
         </head>
         <body>
