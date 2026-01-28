@@ -1894,33 +1894,44 @@ export class AuthService {
         throw new BadRequestException('User not found');
       }
 
-      // Генерируем magic link для автоматического логина
+      // Генерируем magic link с redirectTo на главную страницу
+      // Supabase может игнорировать redirectTo для magic links, поэтому обрабатываем токены на главной
+      // Главная страница обработает hash токены и редиректит OWNER на complete-setup
+      const frontendUrl =
+        this.configService.get<string>('FRONTEND_URL') ||
+        (process.env.NODE_ENV === 'production'
+          ? 'https://henzo.app'
+          : 'http://localhost:3000');
+      
+      // Используем главную страницу как redirectTo, так как Supabase может игнорировать другие URL
+      // Главная страница обработает hash токены и редиректит на нужную страницу
+      const redirectTo = `${frontendUrl}/`;
+
       const { data: linkData, error: linkError } =
         await supabase.auth.admin.generateLink({
           type: 'magiclink',
           email: user.email,
+          options: {
+            redirectTo,
+          },
         });
 
       if (linkError) {
         console.error('❌ Failed to generate login link:', linkError);
-        // Возвращаем данные пользователя, фронтенд залогинит через обычный login
-        return {
-          success: true,
-          user: {
-            id: user.id,
-            email: user.email,
-            name: user.name,
-            role: user.role,
-          },
-          emailConfirmed: true,
-        };
+        // НЕ удаляем токен при ошибке, чтобы пользователь мог попробовать еще раз
+        throw new BadRequestException(
+          'Failed to generate authentication link. Please try again.',
+        );
       }
 
-      // Удаляем использованный токен только после успешной генерации login link
+      // Удаляем использованный токен только после успешной генерации magic link
       await this.prisma.pendingBusinessRegistration.delete({
         where: { id: pendingReg.id },
       });
 
+      // Возвращаем magic link URL для редиректа
+      // Фронтенд будет редиректить на этот URL, который затем вернет пользователя
+      // на наш callback endpoint с токенами в hash
       return {
         success: true,
         user: {
@@ -1930,7 +1941,7 @@ export class AuthService {
           role: user.role,
         },
         emailConfirmed: true,
-        loginUrl: linkData.properties?.action_link,
+        magicLinkUrl: linkData.properties?.action_link,
       };
     } catch (error) {
       console.error('❌ Error verifying business magic link:', error);
