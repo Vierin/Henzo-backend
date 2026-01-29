@@ -116,6 +116,7 @@ model Salon {
   Staff            Staff[]
   Subscription     Subscription?
   TimeBlock        TimeBlock[]
+  ClientNote       ClientNote[]
 
   @@index([latitude, longitude])
   @@index([ownerId, createdAt])
@@ -231,23 +232,24 @@ model TimeBlock {
 }
 
 model User {
-  id               String      @id @default(cuid())
-  email            String      @unique
+  id               String       @id @default(cuid())
+  email            String       @unique
   name             String?
   phone            String?
-  role             UserRole    @default(OWNER)
+  role             UserRole     @default(OWNER)
   /// Indicates that the user was created implicitly (e.g. via booking magic link)
   /// and has not yet completed full account registration.
-  isGuest          Boolean     @default(false)
-  createdAt        DateTime    @default(now())
-  favoriteSalons   String[]    @default([])
-  telegramId       String?     @unique
+  isGuest          Boolean      @default(false)
+  createdAt        DateTime     @default(now())
+  favoriteSalons   String[]     @default([])
+  telegramId       String?      @unique
   telegramUsername String?
   telegramPhotoUrl String?
   Booking          Booking[]
   pushTokens       PushToken[]
   Review           Review[]
   Salon            Salon[]
+  ClientNote       ClientNote[]
 }
 
 model PushToken {
@@ -267,12 +269,12 @@ model PushToken {
 }
 
 model service_categories {
-  id             Int       @id @default(autoincrement())
-  name_en        String    @unique
-  name_vn        String    @unique
-  name_ru        String    @unique
+  id               Int       @id @default(autoincrement())
+  name_en          String    @unique
+  name_vn          String    @unique
+  name_ru          String    @unique
   main_category_id Int?
-  Service        Service[]
+  Service          Service[]
 }
 
 model RecommendedService {
@@ -300,6 +302,21 @@ model City {
 
   @@index([countryCode, isActive])
   @@index([isActive])
+}
+
+model ClientNote {
+  id        String   @id @default(cuid())
+  salonId   String
+  userId    String
+  note      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  Salon     Salon    @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([salonId, userId])
+  @@index([userId])
+  @@index([salonId])
 }
 
 enum BookingStatus {

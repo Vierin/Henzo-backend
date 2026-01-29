@@ -27,6 +27,7 @@ import { StorageModule } from './storage/storage.module';
 import { validate } from './config/env.validation';
 import { LoggerModule } from './common/logger/logger.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
+import { ClientsModule } from './clients/clients.module';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { SubscriptionsModule } from './subscriptions/subscriptions.module';
     MapboxModule,
     StorageModule,
     SubscriptionsModule,
+    ClientsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
