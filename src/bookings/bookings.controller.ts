@@ -115,6 +115,7 @@ export class BookingsController {
             willCreateAnonymousUser: true,
           });
           bookingUserId = await this.bookingsService.createAnonymousClientUser(
+            data.salonId,
             data.clientName || 'Anonymous Client',
             data.clientPhone,
           );
@@ -133,6 +134,7 @@ export class BookingsController {
         if (!data.clientEmail || !data.clientEmail.trim()) {
           console.log('📧 Creating anonymous client even for wrong salon to prevent owner data usage');
           bookingUserId = await this.bookingsService.createAnonymousClientUser(
+            data.salonId,
             data.clientName || 'Anonymous Client',
             data.clientPhone,
           );

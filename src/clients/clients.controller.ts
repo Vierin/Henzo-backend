@@ -27,6 +27,8 @@ export class ClientsController {
   async getClients(
     @Headers('authorization') authHeader: string,
     @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
     try {
       const currentUser = await this.authService.getCurrentUser(authHeader);
@@ -38,7 +40,22 @@ export class ClientsController {
         );
       }
 
-      return this.clientsService.getClients(currentUser.user.id, { search });
+      const pageNumber = page ? parseInt(page, 10) : 1;
+      const limitNumber = limit ? parseInt(limit, 10) : 50;
+
+      // Validate pagination params
+      if (pageNumber < 1 || limitNumber < 1 || limitNumber > 100) {
+        throw new HttpException(
+          'Invalid pagination parameters',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      return this.clientsService.getClients(currentUser.user.id, {
+        search,
+        page: pageNumber,
+        limit: limitNumber,
+      });
     } catch (error) {
       if (error instanceof HttpException) {
         throw error;

@@ -84,18 +84,25 @@ export class BookingsService {
   }
 
   async createAnonymousClientUser(
+    salonId: string,
     name: string,
     phone?: string,
   ): Promise<string> {
     try {
-      // Create a temporary anonymous client user without email
-      // Use a unique identifier based on timestamp and random string
-      const anonymousEmail = `anonymous-${Date.now()}-${nanoid(8)}@anonymous.local`;
+      // Use one anonymous email per salon to group all anonymous bookings
+      const anonymousEmail = `anonymous-${salonId}@anonymous.local`;
 
-      const newUser = await this.prisma.user.create({
-        data: {
+      // Find or create anonymous client for this salon
+      const anonymousUser = await this.prisma.user.upsert({
+        where: { email: anonymousEmail },
+        update: {
+          // Update name/phone if provided (keep most recent info)
+          name: name || undefined,
+          phone: phone || undefined,
+        },
+        create: {
           email: anonymousEmail,
-          name: name,
+          name: name || 'Anonymous Client',
           phone: phone || null,
           role: 'CLIENT',
           // Mark as guest/anonymous
@@ -105,11 +112,12 @@ export class BookingsService {
         },
       });
 
-      this.logger.log('Created anonymous client user', {
-        id: newUser.id,
-        name: newUser.name,
+      this.logger.log('Found or created anonymous client user for salon', {
+        id: anonymousUser.id,
+        salonId: salonId,
+        name: anonymousUser.name,
       });
-      return newUser.id;
+      return anonymousUser.id;
     } catch (error) {
       this.logger.error('Error creating anonymous client user', error);
       throw error;
