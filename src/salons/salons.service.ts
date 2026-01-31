@@ -792,6 +792,16 @@ export class SalonsService {
         throw new Error('User already has a salon');
       }
 
+      // Validate photos - reject URLs
+      if (createSalonDto.photos && Array.isArray(createSalonDto.photos)) {
+        const hasUrl = createSalonDto.photos.some(
+          (photo) => typeof photo === 'string' && (photo.startsWith('http://') || photo.startsWith('https://'))
+        );
+        if (hasUrl) {
+          throw new Error('Photo URLs are not allowed. Please upload files only.');
+        }
+      }
+
       // Geocode address if provided and coordinates not provided
       let latitude = createSalonDto.latitude;
       let longitude = createSalonDto.longitude;
@@ -1005,6 +1015,16 @@ export class SalonsService {
 
     if (!existingSalon) {
       throw new Error('Salon not found');
+    }
+
+    // Validate photos - reject URLs
+    if (updateSalonDto.photos && Array.isArray(updateSalonDto.photos)) {
+      const hasUrl = updateSalonDto.photos.some(
+        (photo) => typeof photo === 'string' && (photo.startsWith('http://') || photo.startsWith('https://'))
+      );
+      if (hasUrl) {
+        throw new Error('Photo URLs are not allowed. Please upload files only.');
+      }
     }
 
     // Generate new slug if name or address changed
