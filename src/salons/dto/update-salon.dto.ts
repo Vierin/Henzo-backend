@@ -6,6 +6,7 @@ import {
   IsArray,
   IsInt,
   IsNumber,
+  IsBoolean,
   Min,
   Max,
 } from 'class-validator';
@@ -63,5 +64,7 @@ export class UpdateSalonDto {
   @IsOptional()
   reminderSettings?: InputJsonValue;
 
-  // categoryIds removed: categories are derived from services
+  @IsOptional()
+  @IsBoolean()
+  autoConfirmBookings?: boolean;
 }

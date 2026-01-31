@@ -215,8 +215,14 @@ export class BookingsService {
         }
       }
 
-      // If owner creates booking, set status as CONFIRMED, otherwise PENDING
-      const bookingStatus = isOwnerCreated ? 'CONFIRMED' : 'PENDING';
+      // If owner creates booking, or salon has auto-confirm, set status as CONFIRMED; otherwise PENDING
+      const salon = await this.prisma.salon.findUnique({
+        where: { id: data.salonId },
+        select: { autoConfirmBookings: true },
+      });
+      const autoConfirm = salon?.autoConfirmBookings === true;
+      const bookingStatus =
+        isOwnerCreated || autoConfirm ? 'CONFIRMED' : 'PENDING';
 
       // Create booking
       const booking = await this.prisma.booking.create({

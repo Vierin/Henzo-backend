@@ -108,6 +108,7 @@ model Salon {
   timezone         String        @default("Asia/Ho_Chi_Minh") // IANA timezone identifier
   slug             String?       @unique // SEO-friendly slug for salon URLs
   status           SalonStatus   @default(DRAFT) // Salon publication status
+  autoConfirmBookings Boolean   @default(false) // New bookings auto-confirmed (no owner approval)
   Booking          Booking[]
   Review           Review[]
   User             User          @relation(fields: [ownerId], references: [id])
