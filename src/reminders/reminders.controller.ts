@@ -75,16 +75,6 @@ export class RemindersController {
     }
   }
 
-  // Cron job: Run every 30 minutes to check for bookings that need reminders
-  // This ensures reminders are sent exactly 24 hours before each appointment
-  @Cron('0,15,30,45 * * * *')
-  async handleRemindersCron() {
-    console.log('📧 Running reminders cron job (every 30 minutes)...');
-    try {
-      const result = await this.remindersService.sendBookingReminders();
-      console.log(`✅ Reminders cron completed: ${result.sent} reminders sent`);
-    } catch (error) {
-      console.error('❌ Reminders cron failed:', error);
-    }
-  }
+  // Reminder sending is handled by RemindersScheduler (every 15 min) to avoid duplicate emails.
+  // Do NOT add another cron here — it was causing double emails.
 }
