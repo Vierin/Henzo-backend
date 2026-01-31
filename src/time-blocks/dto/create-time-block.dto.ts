@@ -27,10 +27,6 @@ export class CreateTimeBlockDto {
   @IsNotEmpty()
   type: TimeBlockType;
 
-  @IsOptional()
-  @IsString()
-  reason?: string;
-
   @IsDateString()
   @IsNotEmpty()
   startDate: string;

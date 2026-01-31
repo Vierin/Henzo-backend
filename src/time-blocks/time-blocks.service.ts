@@ -250,7 +250,6 @@ export class TimeBlocksService {
         salonId,
         staffId: data.staffId || null,
         type: data.type,
-        reason: data.reason || null,
         startDate,
         endDate,
         updatedAt: new Date(),
@@ -295,7 +294,6 @@ export class TimeBlocksService {
     const updateData: any = {};
 
     if (data.type) updateData.type = data.type;
-    if (data.reason) updateData.reason = data.reason;
     if (data.startDate) updateData.startDate = new Date(data.startDate);
     if (data.endDate) updateData.endDate = new Date(data.endDate);
     if (data.notes !== undefined) updateData.notes = data.notes;

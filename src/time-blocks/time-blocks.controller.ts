@@ -135,7 +135,6 @@ export class TimeBlocksController {
         salonId: userSalon.id,
         staffId: data.staffId || null,
         type: data.type,
-        reason: data.reason || null,
         startDate: data.startDate,
         endDate: data.endDate,
         notes: data.notes,

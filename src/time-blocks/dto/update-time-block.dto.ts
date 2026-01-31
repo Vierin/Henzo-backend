@@ -7,10 +7,6 @@ export class UpdateTimeBlockDto {
   type?: TimeBlockType;
 
   @IsOptional()
-  @IsString()
-  reason?: string;
-
-  @IsOptional()
   @IsDateString()
   startDate?: string;
 
