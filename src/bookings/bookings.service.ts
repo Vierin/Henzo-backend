@@ -272,6 +272,7 @@ export class BookingsService {
             booking,
             isOwnerCreated,
             data.clientName,
+            data.preferredLocale,
           );
           this.logger.log('Email notifications sent successfully');
         } catch (emailError) {
@@ -1081,10 +1082,15 @@ export class BookingsService {
     }
   }
 
+  private normalizeEmailLocale(s?: string): 'en' | 'ru' | 'vi' {
+    return s === 'ru' || s === 'vi' ? s : 'en';
+  }
+
   private async sendBookingNotifications(
     booking: any,
     isOwnerCreated: boolean = false,
     clientNameFromDto?: string,
+    preferredLocale?: string,
   ) {
     try {
       // Format booking data for emails - parse UTC time without timezone conversion
@@ -1457,6 +1463,7 @@ export class BookingsService {
       time?: string;
       notes?: string;
       status?: string;
+      locale?: string;
     },
     ownerId: string,
   ) {
@@ -1628,6 +1635,7 @@ export class BookingsService {
                 salonName: updatedBooking.Salon?.name || '',
                 salonTimezone:
                   (updatedBooking.Salon as any)?.timezone || 'Asia/Ho_Chi_Minh',
+                locale: this.normalizeEmailLocale(data.locale),
               },
             );
           } else if (data.status === 'CANCELED') {
@@ -1734,7 +1742,7 @@ export class BookingsService {
     }
   }
 
-  async confirmBooking(bookingId: string) {
+  async confirmBooking(bookingId: string, confirmLocale?: string) {
     try {
       // Find booking
       const booking = await this.prisma.booking.findUnique({
@@ -1842,6 +1850,7 @@ export class BookingsService {
           dateTime: updatedBooking.dateTime, // Pass dateTime for Google Calendar
           salonTimezone:
             (updatedBooking.Salon as any)?.timezone || 'Asia/Ho_Chi_Minh',
+          locale: this.normalizeEmailLocale(confirmLocale),
         },
       );
 

@@ -1160,6 +1160,7 @@ export class AuthService {
               description: true,
               photos: true,
               status: true,
+              autoConfirmBookings: true,
             },
           });
 

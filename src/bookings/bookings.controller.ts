@@ -23,6 +23,15 @@ export class BookingsController {
     private readonly authService: AuthService,
   ) {}
 
+  /** Parse Accept-Language header to email locale: en, ru, vi */
+  private parseEmailLocale(acceptLanguage?: string): 'en' | 'ru' | 'vi' {
+    if (!acceptLanguage) return 'en';
+    const lower = acceptLanguage.toLowerCase();
+    if (lower.includes('ru')) return 'ru';
+    if (lower.includes('vi')) return 'vi';
+    return 'en';
+  }
+
   @Post()
   async createBooking(
     @Body() data: CreateBookingDto,
@@ -517,8 +526,10 @@ export class BookingsController {
       time?: string;
       notes?: string;
       status?: string;
+      locale?: string;
     },
     @Headers('authorization') authHeader: string,
+    @Headers('accept-language') acceptLanguage?: string,
   ) {
     try {
       console.log('📝 Update booking request:', {
@@ -541,9 +552,10 @@ export class BookingsController {
         );
       }
 
+      const locale = data.locale || this.parseEmailLocale(acceptLanguage);
       const updatedBooking = await this.bookingsService.updateBooking(
         bookingId,
-        data,
+        { ...data, locale },
         currentUser.user.id,
       );
 
@@ -617,11 +629,17 @@ export class BookingsController {
   }
 
   @Put(':id/confirm')
-  async confirmBooking(@Param('id') bookingId: string) {
+  async confirmBooking(
+    @Param('id') bookingId: string,
+    @Headers('accept-language') acceptLanguage?: string,
+  ) {
     try {
       console.log('✅ Confirm booking request:', bookingId);
-
-      const result = await this.bookingsService.confirmBooking(bookingId);
+      const locale = this.parseEmailLocale(acceptLanguage);
+      const result = await this.bookingsService.confirmBooking(
+        bookingId,
+        locale,
+      );
 
       console.log('✅ Booking confirmed successfully:', bookingId);
       return {

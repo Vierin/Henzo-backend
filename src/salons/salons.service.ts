@@ -752,6 +752,7 @@ export class SalonsService {
         slug: true,
         timezone: true,
         status: true,
+        autoConfirmBookings: true,
         Service: {
           include: {
             ServiceGroup: true,

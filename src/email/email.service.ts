@@ -223,6 +223,81 @@ export class EmailService {
     return `https://www.google.com/maps/dir/?api=1&destination=${encodedAddress}`;
   }
 
+  private static readonly BOOKING_CONFIRMATION_STRINGS: Record<
+    string,
+    Record<string, string>
+  > = {
+    en: {
+      title: 'Booking Confirmed!',
+      subtitle: 'Your appointment at {salonName} has been confirmed',
+      thankYou: 'Thank you for booking with us. Here are your appointment details:',
+      appointmentDetails: 'Appointment Details',
+      service: 'Service',
+      dateTime: 'Date & Time',
+      duration: 'Duration',
+      minutes: 'minutes',
+      price: 'Price',
+      staff: 'Staff',
+      salonInfo: 'Salon Information',
+      name: 'Name',
+      address: 'Address',
+      phone: 'Phone',
+      notProvided: 'Not provided',
+      important: 'Please arrive 5-10 minutes before your appointment time.',
+      rescheduleNote: 'If you need to reschedule or cancel, please contact the salon directly.',
+      addToCalendar: 'Add to Google Calendar',
+      getDirections: 'Get Directions',
+      footer: 'This is an automated message. Please do not reply to this email.',
+      subject: 'Booking Confirmation - {salonName}',
+    },
+    ru: {
+      title: 'Бронирование подтверждено!',
+      subtitle: 'Ваша запись в {salonName} подтверждена',
+      thankYou: 'Спасибо за бронирование. Детали записи:',
+      appointmentDetails: 'Детали записи',
+      service: 'Услуга',
+      dateTime: 'Дата и время',
+      duration: 'Длительность',
+      minutes: 'мин',
+      price: 'Цена',
+      staff: 'Специалист',
+      salonInfo: 'Информация о салоне',
+      name: 'Название',
+      address: 'Адрес',
+      phone: 'Телефон',
+      notProvided: 'Не указано',
+      important: 'Пожалуйста, приходите за 5–10 минут до времени записи.',
+      rescheduleNote: 'Чтобы перенести или отменить запись, свяжитесь с салоном напрямую.',
+      addToCalendar: 'Добавить в Google Календарь',
+      getDirections: 'Как добраться',
+      footer: 'Это автоматическое сообщение. Пожалуйста, не отвечайте на это письмо.',
+      subject: 'Подтверждение бронирования - {salonName}',
+    },
+    vi: {
+      title: 'Đặt chỗ đã được xác nhận!',
+      subtitle: 'Lịch hẹn của bạn tại {salonName} đã được xác nhận',
+      thankYou: 'Cảm ơn bạn đã đặt chỗ. Chi tiết lịch hẹn:',
+      appointmentDetails: 'Chi tiết lịch hẹn',
+      service: 'Dịch vụ',
+      dateTime: 'Ngày & Giờ',
+      duration: 'Thời lượng',
+      minutes: 'phút',
+      price: 'Giá',
+      staff: 'Nhân viên',
+      salonInfo: 'Thông tin salon',
+      name: 'Tên',
+      address: 'Địa chỉ',
+      phone: 'Điện thoại',
+      notProvided: 'Chưa cung cấp',
+      important: 'Vui lòng đến trước 5-10 phút so với giờ hẹn.',
+      rescheduleNote: 'Nếu cần đổi lịch hoặc hủy, vui lòng liên hệ trực tiếp với salon.',
+      addToCalendar: 'Thêm vào Google Calendar',
+      getDirections: 'Chỉ đường',
+      footer: 'Đây là tin nhắn tự động. Vui lòng không trả lời email này.',
+      subject: 'Xác nhận đặt chỗ - {salonName}',
+    },
+  };
+
   async sendBookingConfirmation(
     clientEmail: string,
     clientName: string,
@@ -238,17 +313,24 @@ export class EmailService {
       staffName?: string;
       dateTime?: Date | string; // ISO string or Date object
       salonTimezone?: string; // IANA timezone identifier (e.g., "Asia/Ho_Chi_Minh")
+      locale?: 'en' | 'ru' | 'vi';
     },
   ) {
     try {
       console.log('📧 Sending booking confirmation to:', clientEmail);
+
+      const locale =
+        bookingData.locale && EmailService.BOOKING_CONFIRMATION_STRINGS[bookingData.locale]
+          ? bookingData.locale
+          : 'en';
+      const L = EmailService.BOOKING_CONFIRMATION_STRINGS[locale];
 
       const htmlContent = `
         <!DOCTYPE html>
         <html>
         <head>
           <meta charset="utf-8">
-          <title>Booking Confirmation - ${bookingData.salonName}</title>
+          <title>${L.subject.replace('{salonName}', bookingData.salonName)}</title>
           <style>
             body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
             .container { max-width: 600px; margin: 0 auto; padding: 20px; }
@@ -273,36 +355,36 @@ export class EmailService {
         <body>
           <div class="container">
             <div class="header">
-              <h1>Booking Confirmed!</h1>
-              <p>Your appointment at ${bookingData.salonName} has been confirmed</p>
+              <h1>${L.title}</h1>
+              <p>${L.subtitle.replace('{salonName}', bookingData.salonName)}</p>
             </div>
             
             <div class="content">
-              <p>Thank you for booking with us. Here are your appointment details:</p>
+              <p>${L.thankYou}</p>
               
               <div class="booking-details">
-                <h3>Appointment Details</h3>
+                <h3>${L.appointmentDetails}</h3>
                 <div class="detail-row">
-                  <span class="detail-label">Service:</span>
+                  <span class="detail-label">${L.service}:</span>
                   <span class="detail-value">${bookingData.serviceName}</span>
                 </div>
                 <div class="detail-row">
-                  <span class="detail-label">Date & Time:</span>
+                  <span class="detail-label">${L.dateTime}:</span>
                   <span class="detail-value">${bookingData.date} - ${bookingData.time}</span>
                 </div>
                 <div class="detail-row">
-                  <span class="detail-label">Duration:</span>
-                  <span class="detail-value">${bookingData.duration} minutes</span>
+                  <span class="detail-label">${L.duration}:</span>
+                  <span class="detail-value">${bookingData.duration} ${L.minutes}</span>
                 </div>
                 <div class="detail-row">
-                  <span class="detail-label">Price:</span>
+                  <span class="detail-label">${L.price}:</span>
                   <span class="detail-value">${this.formatVND(bookingData.price)}</span>
                 </div>
                 ${
                   bookingData.staffName
                     ? `
                 <div class="detail-row">
-                  <span class="detail-label">Staff:</span>
+                  <span class="detail-label">${L.staff}:</span>
                   <span class="detail-value">${bookingData.staffName}</span>
                 </div>
                 `
@@ -311,27 +393,27 @@ export class EmailService {
               </div>
 
               <div class="booking-details">
-                <h3>🏢 Salon Information</h3>
+                <h3>🏢 ${L.salonInfo}</h3>
                 <div class="detail-row">
-                  <span class="detail-label">Name:</span>
+                  <span class="detail-label">${L.name}:</span>
                   <span class="detail-value">${bookingData.salonName}</span>
                 </div>
                 <div class="detail-row">
-                  <span class="detail-label">Address:</span>
+                  <span class="detail-label">${L.address}:</span>
                   <span class="detail-value">${
-                    bookingData.salonAddress || 'Not provided'
+                    bookingData.salonAddress || L.notProvided
                   }</span>
                 </div>
                 <div class="detail-row">
-                  <span class="detail-label">Phone:</span>
+                  <span class="detail-label">${L.phone}:</span>
                   <span class="detail-value">${
-                    bookingData.salonPhone || 'Not provided'
+                    bookingData.salonPhone || L.notProvided
                   }</span>
                 </div>
               </div>
 
-              <p><strong>Important:</strong> Please arrive 5-10 minutes before your appointment time.</p>
-              <p>If you need to reschedule or cancel, please contact the salon directly.</p>
+              <p><strong>${locale === 'en' ? 'Important:' : locale === 'ru' ? 'Важно:' : 'Quan trọng:'}</strong> ${L.important}</p>
+              <p>${L.rescheduleNote}</p>
               
               ${
                 bookingData.dateTime
@@ -350,7 +432,7 @@ export class EmailService {
                   rel="noopener noreferrer"
                   class="button"
                   style="display: inline-block; background-color: #4285f4; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 10px; font-weight: bold;">
-                  📅 Add to Google Calendar
+                  📅 ${L.addToCalendar}
                 </a>
                 ${
                   bookingData.salonAddress
@@ -360,7 +442,7 @@ export class EmailService {
                   rel="noopener noreferrer"
                   class="button"
                   style="display: inline-block; background-color: #ff5b5b; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 10px; font-weight: bold;">
-                  🗺️ Get Directions
+                  🗺️ ${L.getDirections}
                 </a>
                 `
                     : ''
@@ -368,11 +450,11 @@ export class EmailService {
               </div>
               `
                   : ''
-              }
+                }
             </div>
             
             <div class="footer">
-              <p>This is an automated message. Please do not reply to this email.</p>
+              <p>${L.footer}</p>
             </div>
           </div>
         </body>
@@ -387,7 +469,7 @@ export class EmailService {
             'noreply@henzo.app',
           name: 'Henzo Booking System',
         },
-        subject: `Booking Confirmation - ${bookingData.salonName}`,
+        subject: L.subject.replace('{salonName}', bookingData.salonName),
         htmlContent: htmlContent,
       };
 
