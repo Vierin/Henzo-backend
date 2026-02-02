@@ -36,6 +36,7 @@ export class BookingsController {
   async createBooking(
     @Body() data: CreateBookingDto,
     @Headers('authorization') authHeader: string,
+    @Headers('accept-language') acceptLanguage?: string,
   ) {
     try {
       console.log('📅 Received booking request:', {
@@ -150,10 +151,12 @@ export class BookingsController {
         }
       }
 
+      const emailLocale = this.parseEmailLocale(acceptLanguage);
       const booking = await this.bookingsService.createBooking(
         data,
         bookingUserId,
-        isOwnerCreated, // Pass flag to set status as CONFIRMED if owner created
+        isOwnerCreated,
+        emailLocale,
       );
 
       console.log('✅ Booking created successfully:', booking.id);

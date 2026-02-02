@@ -128,6 +128,7 @@ export class BookingsService {
     data: CreateBookingDto,
     userId: string,
     isOwnerCreated: boolean = false,
+    emailLocale?: 'en' | 'ru' | 'vi',
   ) {
     try {
       // Validate that the service exists and belongs to the salon
@@ -272,7 +273,7 @@ export class BookingsService {
             booking,
             isOwnerCreated,
             data.clientName,
-            data.preferredLocale,
+            emailLocale ?? (data as { preferredLocale?: string }).preferredLocale,
           );
           this.logger.log('Email notifications sent successfully');
         } catch (emailError) {

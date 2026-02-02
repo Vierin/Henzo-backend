@@ -30,9 +30,4 @@ export class CreateBookingDto {
   @IsOptional()
   @IsString()
   clientPhone?: string;
-
-  /** Client preferred language for confirmation email: en, ru, vi */
-  @IsOptional()
-  @IsString()
-  preferredLocale?: string;
 }
