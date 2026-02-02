@@ -319,11 +319,8 @@ export class EmailService {
     try {
       console.log('📧 Sending booking confirmation to:', clientEmail);
 
-      const locale =
-        bookingData.locale && EmailService.BOOKING_CONFIRMATION_STRINGS[bookingData.locale]
-          ? bookingData.locale
-          : 'en';
-      const L = EmailService.BOOKING_CONFIRMATION_STRINGS[locale];
+      // All confirmation emails in English only
+      const L = EmailService.BOOKING_CONFIRMATION_STRINGS['en'];
 
       const htmlContent = `
         <!DOCTYPE html>
