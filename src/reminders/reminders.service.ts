@@ -198,12 +198,30 @@ export class RemindersService {
               continue;
             }
 
-            // Check if reminder for this interval was already sent
-            const sentIntervals =
-              (booking.remindersSentIntervals as number[]) || [];
+            // Check if reminder for this interval was already sent (normalize to numbers: JSON may return strings)
+            const rawSent = booking.remindersSentIntervals;
+            const sentIntervals = Array.isArray(rawSent)
+              ? rawSent.map((x) => Number(x)).filter((n) => !Number.isNaN(n))
+              : [];
             if (sentIntervals.includes(intervalHours)) {
               console.log(
                 `⏭️ Skipping booking ${booking.id}: ${intervalHours}h reminder already sent (sent: ${sentIntervals.join(', ')})`,
+              );
+              continue;
+            }
+
+            // Re-fetch to avoid duplicate send when cron runs overlap or multiple workers
+            const fresh = await this.prisma.booking.findUnique({
+              where: { id: booking.id },
+              select: { remindersSentIntervals: true },
+            });
+            const freshSent = fresh?.remindersSentIntervals;
+            const freshIntervals = Array.isArray(freshSent)
+              ? freshSent.map((x) => Number(x)).filter((n) => !Number.isNaN(n))
+              : [];
+            if (freshIntervals.includes(intervalHours)) {
+              console.log(
+                `⏭️ Skipping booking ${booking.id}: ${intervalHours}h reminder already sent (re-check, sent: ${freshIntervals.join(', ')})`,
               );
               continue;
             }
@@ -240,8 +258,8 @@ export class RemindersService {
               bookingData,
             );
 
-            // Mark this interval as sent
-            const updatedSentIntervals = [...sentIntervals, intervalHours];
+            // Mark this interval as sent (use freshIntervals so we don't overwrite intervals added by another worker)
+            const updatedSentIntervals = [...freshIntervals, intervalHours];
             await this.prisma.booking.update({
               where: { id: booking.id },
               data: {
