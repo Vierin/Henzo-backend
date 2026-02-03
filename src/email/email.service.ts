@@ -409,7 +409,7 @@ export class EmailService {
                 </div>
               </div>
 
-              <p><strong>${locale === 'en' ? 'Important:' : locale === 'ru' ? 'Важно:' : 'Quan trọng:'}</strong> ${L.important}</p>
+              <p><strong>Important:</strong> ${L.important}</p>
               <p>${L.rescheduleNote}</p>
               
               ${
