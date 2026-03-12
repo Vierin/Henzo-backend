@@ -31,9 +31,9 @@ export class JwtVerifierService implements OnModuleInit {
   }
 
   async onModuleInit() {
-    // Инициализация JWKS клиента для автоматической загрузки публичных ключей
+    // Supabase Auth exposes JWKS at /auth/v1/.well-known/jwks.json (not /.well-known/jwks.json)
     this.jwksClient = jwksRsa({
-      jwksUri: `${this.supabaseUrl}/.well-known/jwks.json`,
+      jwksUri: `${this.supabaseUrl}/auth/v1/.well-known/jwks.json`,
       cache: true,
       cacheMaxAge: 86400000, // 24 часа
       rateLimit: true,

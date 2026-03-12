@@ -94,6 +94,39 @@ export class StripeService {
   }
 
   /**
+   * Retrieve a checkout session by ID (for confirm-checkout after redirect when webhook missed).
+   */
+  async retrieveCheckoutSession(sessionId: string): Promise<Stripe.Checkout.Session | null> {
+    if (!this.stripe) return null;
+    try {
+      const session = await this.stripe.checkout.sessions.retrieve(sessionId, {
+        expand: ['subscription'],
+      });
+      return session;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Resolve Stripe customer ID from a checkout session (for webhook).
+   * session.customer can be missing in payload; fallback: fetch subscription and use subscription.customer.
+   */
+  async getCustomerIdFromCheckoutSession(session: Stripe.Checkout.Session): Promise<string | null> {
+    const direct = typeof session.customer === 'string' ? session.customer : (session.customer as { id?: string } | null)?.id ?? null;
+    if (direct) return direct;
+    const subId = typeof session.subscription === 'string' ? session.subscription : (session.subscription as { id?: string } | null)?.id ?? null;
+    if (!this.stripe || !subId) return null;
+    try {
+      const sub = await this.stripe.subscriptions.retrieve(subId, { expand: [] });
+      const cust = (sub as { customer?: string }).customer;
+      return typeof cust === 'string' ? cust : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * List active subscriptions for a Stripe customer. Returns the first active subscription if any.
    * Used to sync DB when webhook was missed (e.g. amount still 0 but customer has paid).
    */
@@ -118,6 +151,44 @@ export class StripeService {
       interval: isAnnual ? 'annual' : 'monthly',
       currentPeriodEnd: periodEnd,
     };
+  }
+
+  /**
+   * List invoices for a Stripe customer (for billing history table).
+   */
+  async listInvoices(customerId: string, limit = 12): Promise<Array<{
+    id: string;
+    number: string | null;
+    date: string;
+    amount: number;
+    currency: string;
+    status: string;
+    pdfUrl: string | null;
+  }>> {
+    if (!this.stripe) return [];
+    try {
+      const res = await this.stripe.invoices.list({
+        customer: customerId,
+        limit,
+        status: 'paid',
+      });
+      return res.data.map((inv) => {
+        const currency = (inv.currency ?? 'vnd').toLowerCase();
+        const isZeroDecimal = ['jpy', 'krw', 'vnd'].includes(currency);
+        const amount = inv.amount_paid ?? 0;
+        return {
+          id: inv.id,
+          number: inv.number ?? null,
+          date: new Date((inv.status_transitions?.paid_at ?? inv.created) * 1000).toISOString().slice(0, 10),
+          amount: isZeroDecimal ? amount : amount / 100,
+          currency: currency.toUpperCase(),
+          status: inv.status ?? 'paid',
+          pdfUrl: inv.invoice_pdf ?? null,
+        };
+      });
+    } catch {
+      return [];
+    }
   }
 
   /**

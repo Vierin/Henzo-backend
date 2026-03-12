@@ -25,6 +25,29 @@ export class SubscriptionsController {
     private readonly configService: ConfigService,
   ) {}
 
+  @Get('invoices')
+  async getInvoices(@Headers('authorization') authHeader: string) {
+    try {
+      const currentUser = await this.authService.getCurrentUser(authHeader);
+      if (currentUser.user.role !== 'OWNER') {
+        throw new HttpException('Only salon owners can access invoices', HttpStatus.FORBIDDEN);
+      }
+      const subscription = await this.subscriptionsService.getCurrentSubscription(currentUser.user.id);
+      const customerId = (subscription as { stripeCustomerId?: string | null }).stripeCustomerId;
+      if (!customerId) {
+        return { invoices: [] };
+      }
+      const invoices = await this.stripeService.listInvoices(customerId);
+      return { invoices };
+    } catch (error: any) {
+      console.error('❌ Get invoices failed:', error.message);
+      throw new HttpException(
+        error?.message ?? 'Failed to get invoices',
+        error?.status ?? HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
   @Get('current')
   async getCurrentSubscription(@Headers('authorization') authHeader: string) {
     try {
@@ -118,7 +141,7 @@ export class SubscriptionsController {
       const { url } = await this.stripeService.createCheckoutSession({
         customerEmail: currentUser.user.email,
         interval,
-        successUrl: `${frontendUrl}/subscription?success=1`,
+        successUrl: `${frontendUrl}/subscription?success=1&session_id={CHECKOUT_SESSION_ID}`,
         cancelUrl: `${frontendUrl}/subscription?canceled=1`,
         metadata: {
           userId: currentUser.user.id,
@@ -131,6 +154,36 @@ export class SubscriptionsController {
       throw new HttpException(
         error.message || 'Failed to create checkout session',
         error.status || HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Post('confirm-checkout')
+  async confirmCheckout(
+    @Headers('authorization') authHeader: string,
+    @Body('session_id') sessionId: string,
+  ) {
+    try {
+      const currentUser = await this.authService.getCurrentUser(authHeader);
+      if (currentUser.user.role !== 'OWNER') {
+        throw new HttpException('Only salon owners can confirm checkout', HttpStatus.FORBIDDEN);
+      }
+      if (!sessionId || typeof sessionId !== 'string') {
+        throw new HttpException('session_id is required', HttpStatus.BAD_REQUEST);
+      }
+      const result = await this.subscriptionsService.confirmCheckoutSession(
+        sessionId.trim(),
+        currentUser.user.id,
+      );
+      if (!result.ok) {
+        throw new HttpException(result.error ?? 'Confirm failed', HttpStatus.BAD_REQUEST);
+      }
+      return { ok: true };
+    } catch (error: any) {
+      console.error('❌ confirm-checkout failed:', error?.message);
+      throw new HttpException(
+        error?.message ?? 'Failed to confirm checkout',
+        error?.status ?? HttpStatus.BAD_REQUEST,
       );
     }
   }
@@ -154,10 +207,27 @@ export class SubscriptionsController {
     console.log(`[Stripe webhook] event.type=${event.type} id=${event.id}`);
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object as Stripe.Checkout.Session;
-      console.log(`[Stripe webhook] checkout.session.completed sessionId=${session.id} metadata=${JSON.stringify(session.metadata ?? {})}`);
+      const sessionForLog = {
+        id: session.id,
+        customer: session.customer,
+        subscription: session.subscription,
+        metadata: session.metadata,
+        mode: session.mode,
+        status: session.status,
+        payment_status: (session as { payment_status?: string }).payment_status,
+      };
+      console.log('[Stripe webhook] checkout.session.completed FULL SESSION:', JSON.stringify(sessionForLog, null, 2));
       const userId = session.metadata?.userId as string | undefined;
       const interval = session.metadata?.interval as 'monthly' | 'annual' | undefined;
-      const stripeCustomerId = typeof session.customer === 'string' ? session.customer : session.customer?.id ?? null;
+      if (!userId || !interval || !['monthly', 'annual'].includes(interval)) {
+        console.warn('[Stripe webhook] SKIP activation: missing metadata. userId=', userId, 'interval=', interval, 'metadata=', session.metadata);
+      }
+      let stripeCustomerId = typeof session.customer === 'string' ? session.customer : (session.customer as { id?: string } | null)?.id ?? null;
+      if (!stripeCustomerId) {
+        stripeCustomerId = await this.stripeService.getCustomerIdFromCheckoutSession(session);
+        if (stripeCustomerId) console.log(`[Stripe webhook] customer resolved via subscription fallback: ${stripeCustomerId}`);
+        else console.warn('[Stripe webhook] customer ID missing on session and could not resolve from subscription');
+      }
       if (userId && interval && ['monthly', 'annual'].includes(interval)) {
         try {
           await this.subscriptionsService.activateSubscriptionAfterStripePayment(
@@ -165,7 +235,7 @@ export class SubscriptionsController {
             interval,
             stripeCustomerId,
           );
-          console.log(`✅ Subscription activated for user ${userId}, interval: ${interval}`);
+          console.log(`✅ Subscription activated for user ${userId}, interval: ${interval}, stripeCustomerId=${stripeCustomerId ?? 'null'}`);
         } catch (e: any) {
           console.error('❌ activateSubscriptionAfterStripePayment failed:', e?.message);
           throw new HttpException(

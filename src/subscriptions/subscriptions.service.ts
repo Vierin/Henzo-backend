@@ -149,7 +149,39 @@ export class SubscriptionsService {
   }
 
   /**
+   * Confirm checkout after redirect: fetch session from Stripe and activate subscription.
+   * Used when webhook didn't run or didn't have metadata (e.g. local dev, webhook URL not reachable).
+   */
+  async confirmCheckoutSession(sessionId: string, userId: string): Promise<{ ok: boolean; error?: string }> {
+    const session = await this.stripeService.retrieveCheckoutSession(sessionId);
+    if (!session) {
+      return { ok: false, error: 'Session not found' };
+    }
+    if (session.status !== 'complete') {
+      return { ok: false, error: 'Session not complete' };
+    }
+    const metaUserId = session.metadata?.userId as string | undefined;
+    if (metaUserId && metaUserId !== userId) {
+      return { ok: false, error: 'Session does not belong to this user' };
+    }
+    const interval = (session.metadata?.interval as 'monthly' | 'annual') || null;
+    if (!interval || !['monthly', 'annual'].includes(interval)) {
+      return { ok: false, error: 'Missing or invalid interval in session' };
+    }
+    const stripeCustomerId = typeof session.customer === 'string'
+      ? session.customer
+      : (session.customer as { id?: string } | null)?.id ?? await this.stripeService.getCustomerIdFromCheckoutSession(session);
+    try {
+      await this.activateSubscriptionAfterStripePayment(metaUserId || userId, interval, stripeCustomerId);
+      return { ok: true };
+    } catch (e: any) {
+      return { ok: false, error: e?.message ?? 'Activation failed' };
+    }
+  }
+
+  /**
    * Called by Stripe webhook when checkout.session.completed — activate paid subscription.
+   * If trial is still active (trialEndDate > now), paid period starts at trialEndDate, not at payment date.
    */
   async activateSubscriptionAfterStripePayment(
     userId: string,
@@ -165,7 +197,18 @@ export class SubscriptionsService {
     }
 
     const now = new Date();
-    const endDate = new Date(now);
+    const current = await this.prisma.subscription.findUnique({
+      where: { salonId: salon.id },
+      select: { trialEndDate: true },
+    });
+
+    // Если триал ещё действует — платный период начинается с даты окончания триала
+    const paidStart =
+      current?.trialEndDate && new Date(current.trialEndDate) > now
+        ? new Date(current.trialEndDate)
+        : now;
+
+    const endDate = new Date(paidStart);
     if (interval === 'annual') {
       endDate.setFullYear(endDate.getFullYear() + 1);
     } else {
@@ -174,13 +217,12 @@ export class SubscriptionsService {
 
     const amount = interval === 'annual' ? 120 : 15;
 
-    // Keep trialEndDate so we can show "trial was until X, paid until Y"
     await this.prisma.subscription.update({
       where: { salonId: salon.id },
       data: {
         type: 'STARTER',
         status: 'ACTIVE',
-        startDate: now, // start of paid period
+        startDate: paidStart,
         endDate,
         nextPaymentDate: endDate,
         ...(stripeCustomerId && { stripeCustomerId }),
