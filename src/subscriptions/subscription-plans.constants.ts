@@ -3,12 +3,12 @@
  * Centralized constants for subscription plans and pricing
  */
 
-export type SubscriptionPlanType = 'BASIC';
+export type SubscriptionPlanType = 'STARTER';
 
 /**
  * Subscription plan prices (in VND)
  */
 export const SUBSCRIPTION_PRICES: Record<SubscriptionPlanType, number> = {
-	BASIC: 390000,
+	STARTER: 390000,
 } as const;
 

@@ -92,4 +92,55 @@ export class StripeService {
 
     return { url: session.url };
   }
+
+  /**
+   * List active subscriptions for a Stripe customer. Returns the first active subscription if any.
+   * Used to sync DB when webhook was missed (e.g. amount still 0 but customer has paid).
+   */
+  async getActiveSubscriptionForCustomer(customerId: string): Promise<{
+    interval: 'monthly' | 'annual';
+    currentPeriodEnd: number;
+  } | null> {
+    if (!this.stripe) return null;
+    const subs = await this.stripe.subscriptions.list({
+      customer: customerId,
+      status: 'active',
+      limit: 1,
+      expand: ['data.items.data.price'],
+    });
+    const sub = subs.data[0];
+    if (!sub?.items?.data[0]?.price?.id) return null;
+    const priceId = sub.items.data[0].price.id;
+    const isAnnual = priceId === this.annualPriceId;
+    return {
+      interval: isAnnual ? 'annual' : 'monthly',
+      currentPeriodEnd: sub.current_period_end,
+    };
+  }
+
+  /**
+   * Create Stripe Customer Portal session for managing payment methods and billing.
+   */
+  async createBillingPortalSession(params: {
+    customerId: string;
+    returnUrl: string;
+  }): Promise<{ url: string }> {
+    if (!this.stripe) {
+      throw new HttpException(
+        'Stripe is not configured.',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+    const session = await this.stripe.billingPortal.sessions.create({
+      customer: params.customerId,
+      return_url: params.returnUrl,
+    });
+    if (!session.url) {
+      throw new HttpException(
+        'Stripe did not return a portal URL',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+    return { url: session.url };
+  }
 }

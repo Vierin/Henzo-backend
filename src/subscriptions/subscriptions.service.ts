@@ -1,10 +1,14 @@
 import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { StripeService } from './stripe.service';
 import { SUBSCRIPTION_PRICES } from './subscription-plans.constants';
 
 @Injectable()
 export class SubscriptionsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private stripeService: StripeService,
+  ) {}
 
   async getCurrentSubscription(userId: string) {
     try {
@@ -30,7 +34,7 @@ export class SubscriptionsService {
       });
 
       if (!subscription) {
-        // If no subscription exists, create BASIC subscription with 3-month trial
+        // If no subscription exists, create TRIAL subscription with 3-month trial
         // This handles cases where salon was created before subscription system
         const now = new Date();
         const trialEndDate = new Date();
@@ -41,8 +45,8 @@ export class SubscriptionsService {
         const newSubscription = await this.prisma.subscription.create({
           data: {
             salonId: salon.id,
-            type: 'BASIC' as any,
-            status: 'ACTIVE' as any,
+            type: 'TRIAL',
+            status: 'ACTIVE',
             startDate: now,
             endDate: oneMonthFromTrialEnd,
             nextPaymentDate: oneMonthFromTrialEnd,
@@ -55,6 +59,34 @@ export class SubscriptionsService {
         return newSubscription;
       }
 
+      // Sync from Stripe if we have customer id but amount still 0 (e.g. webhook was missed)
+      if (subscription.stripeCustomerId && (subscription.amount == null || subscription.amount === 0)) {
+        try {
+          const stripeSub = await this.stripeService.getActiveSubscriptionForCustomer(subscription.stripeCustomerId);
+          if (stripeSub) {
+            const amount = stripeSub.interval === 'annual' ? 120 : 15;
+            const endDate = new Date(stripeSub.currentPeriodEnd * 1000);
+            await this.prisma.subscription.update({
+              where: { salonId: salon.id },
+              data: {
+                type: 'STARTER',
+                status: 'ACTIVE',
+                endDate,
+                nextPaymentDate: endDate,
+                amount,
+                updatedAt: new Date(),
+              },
+            });
+            const updated = await this.prisma.subscription.findUnique({
+              where: { salonId: salon.id },
+            });
+            if (updated) return updated;
+          }
+        } catch (e) {
+          console.warn('Stripe sync on getCurrentSubscription failed:', (e as Error)?.message);
+        }
+      }
+
       return subscription;
     } catch (error) {
       console.error('❌ Error getting subscription:', error);
@@ -62,7 +94,7 @@ export class SubscriptionsService {
     }
   }
 
-  async switchSubscription(userId: string, planType: 'BASIC') {
+  async switchSubscription(userId: string, planType: 'STARTER') {
     try {
       // Find user's salon
       const salon = await this.prisma.salon.findFirst({
@@ -99,8 +131,8 @@ export class SubscriptionsService {
           salonId: salon.id,
         },
         data: {
-          type: planType as any,
-          status: 'ACTIVE' as any,
+          type: planType,
+          status: 'ACTIVE',
           startDate: now,
           endDate: oneMonthFromNow,
           nextPaymentDate: oneMonthFromNow,
@@ -122,6 +154,7 @@ export class SubscriptionsService {
   async activateSubscriptionAfterStripePayment(
     userId: string,
     interval: 'monthly' | 'annual',
+    stripeCustomerId: string | null = null,
   ) {
     const salon = await this.prisma.salon.findFirst({
       where: { ownerId: userId },
@@ -145,12 +178,12 @@ export class SubscriptionsService {
     await this.prisma.subscription.update({
       where: { salonId: salon.id },
       data: {
-        type: 'BASIC' as any,
-        status: 'ACTIVE' as any,
+        type: 'STARTER',
+        status: 'ACTIVE',
         startDate: now, // start of paid period
         endDate,
         nextPaymentDate: endDate,
-        // trialEndDate: leave unchanged — preserves "trial was until X"
+        ...(stripeCustomerId && { stripeCustomerId }),
         amount,
         updatedAt: now,
       },

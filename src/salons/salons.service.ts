@@ -908,7 +908,7 @@ export class SalonsService {
           },
         });
 
-        // Create BASIC subscription with 3-month trial for the new salon
+        // Create TRIAL subscription with 3-month trial for the new salon
         const now = new Date();
         const trialEndDate = new Date();
         trialEndDate.setMonth(now.getMonth() + 3); // 3 months trial
@@ -918,8 +918,8 @@ export class SalonsService {
         await prisma.subscription.create({
           data: {
             salonId: salon.id,
-            type: 'BASIC' as any,
-            status: 'ACTIVE' as any,
+            type: 'TRIAL',
+            status: 'ACTIVE',
             startDate: now,
             endDate: oneMonthFromTrialEnd,
             nextPaymentDate: oneMonthFromTrialEnd,
@@ -991,7 +991,7 @@ export class SalonsService {
       (result as any).services = services;
 
       console.log(
-        `✅ Created salon "${result.name}" with BASIC subscription and 3-month trial`,
+        `✅ Created salon "${result.name}" with TRIAL subscription and 3-month trial`,
       );
       return result;
     } catch (error) {

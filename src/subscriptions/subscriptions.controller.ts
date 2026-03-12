@@ -55,7 +55,7 @@ export class SubscriptionsController {
   @Post('switch')
   async switchSubscription(
     @Headers('authorization') authHeader: string,
-    @Body('planType') planType: 'BASIC',
+    @Body('planType') planType: 'STARTER',
   ) {
     try {
       const currentUser = await this.authService.getCurrentUser(authHeader);
@@ -67,9 +67,9 @@ export class SubscriptionsController {
         );
       }
 
-      if (!planType || !['BASIC'].includes(planType)) {
+      if (!planType || !['STARTER'].includes(planType)) {
         throw new HttpException(
-          'Invalid plan type. Must be BASIC',
+          'Invalid plan type. Must be STARTER',
           HttpStatus.BAD_REQUEST,
         );
       }
@@ -151,15 +151,19 @@ export class SubscriptionsController {
       console.error('❌ Stripe webhook signature verification failed:', err.message);
       throw new BadRequestException(`Webhook Error: ${err.message}`);
     }
+    console.log(`[Stripe webhook] event.type=${event.type} id=${event.id}`);
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object as Stripe.Checkout.Session;
+      console.log(`[Stripe webhook] checkout.session.completed sessionId=${session.id} metadata=${JSON.stringify(session.metadata ?? {})}`);
       const userId = session.metadata?.userId as string | undefined;
       const interval = session.metadata?.interval as 'monthly' | 'annual' | undefined;
+      const stripeCustomerId = typeof session.customer === 'string' ? session.customer : session.customer?.id ?? null;
       if (userId && interval && ['monthly', 'annual'].includes(interval)) {
         try {
           await this.subscriptionsService.activateSubscriptionAfterStripePayment(
             userId,
             interval,
+            stripeCustomerId,
           );
           console.log(`✅ Subscription activated for user ${userId}, interval: ${interval}`);
         } catch (e: any) {
@@ -172,6 +176,42 @@ export class SubscriptionsController {
       }
     }
     return { received: true };
+  }
+
+  @Post('create-portal-session')
+  async createPortalSession(@Headers('authorization') authHeader: string) {
+    try {
+      const currentUser = await this.authService.getCurrentUser(authHeader);
+      if (currentUser.user.role !== 'OWNER') {
+        throw new HttpException(
+          'Only salon owners can access billing portal',
+          HttpStatus.FORBIDDEN,
+        );
+      }
+      const subscription =
+        await this.subscriptionsService.getCurrentSubscription(currentUser.user.id);
+      const stripeCustomerId = (subscription as { stripeCustomerId?: string | null })?.stripeCustomerId;
+      if (!stripeCustomerId) {
+        throw new HttpException(
+          'No billing account linked. Complete a payment first.',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      const frontendUrl =
+        this.configService.get<string>('FRONTEND_URL') ||
+        (process.env.NODE_ENV === 'production' ? 'https://henzo.app' : 'http://localhost:3000');
+      const { url } = await this.stripeService.createBillingPortalSession({
+        customerId: stripeCustomerId,
+        returnUrl: `${frontendUrl}/subscription`,
+      });
+      return { url };
+    } catch (error: any) {
+      console.error('❌ Create portal session failed:', error?.message);
+      throw new HttpException(
+        error?.message || 'Failed to open billing portal',
+        error?.status || HttpStatus.BAD_REQUEST,
+      );
+    }
   }
 }
 
