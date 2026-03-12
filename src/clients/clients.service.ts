@@ -418,7 +418,7 @@ export class ClientsService {
 
       const salonIds = ownerSalons.map((salon) => salon.id);
 
-      const notes = await this.prisma.clientNote.findMany({
+      const notes = await (this.prisma as any).clientNote.findMany({
         where: {
           userId: clientId,
           salonId: { in: salonIds },
@@ -478,7 +478,7 @@ export class ClientsService {
         );
       }
 
-      const clientNote = await this.prisma.clientNote.create({
+      const clientNote = await (this.prisma as any).clientNote.create({
         data: {
           salonId,
           userId: clientId,
@@ -509,7 +509,7 @@ export class ClientsService {
   ) {
     try {
       // Verify owner owns the salon for this note
-      const existingNote = await this.prisma.clientNote.findUnique({
+      const existingNote = await (this.prisma as any).clientNote.findUnique({
         where: { id: noteId },
         include: {
           Salon: {
@@ -531,7 +531,7 @@ export class ClientsService {
         );
       }
 
-      const updatedNote = await this.prisma.clientNote.update({
+      const updatedNote = await (this.prisma as any).clientNote.update({
         where: { id: noteId },
         data: { note },
       });
@@ -555,7 +555,7 @@ export class ClientsService {
   async deleteClientNote(ownerId: string, noteId: string) {
     try {
       // Verify owner owns the salon for this note
-      const existingNote = await this.prisma.clientNote.findUnique({
+      const existingNote = await (this.prisma as any).clientNote.findUnique({
         where: { id: noteId },
         include: {
           Salon: {
@@ -577,7 +577,7 @@ export class ClientsService {
         );
       }
 
-      await this.prisma.clientNote.delete({
+      await (this.prisma as any).clientNote.delete({
         where: { id: noteId },
       });
 

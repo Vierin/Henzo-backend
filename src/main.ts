@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter';
 import { MonitoringInterceptor } from './common/interceptors/monitoring.interceptor';
@@ -51,10 +52,10 @@ async function bootstrap() {
   try {
     console.log('🚀 Starting backend server...');
 
-    const app = await NestFactory.create(AppModule, {
+    const app = await NestFactory.create<NestExpressApplication>(AppModule, {
       logger: ['error', 'warn', 'log'],
       bodyParser: true,
-      rawBody: false,
+      rawBody: true, // required for Stripe webhook signature verification
     });
 
     // Handle common browser requests (favicon, robots.txt, etc.) to reduce log noise

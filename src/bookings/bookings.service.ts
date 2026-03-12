@@ -221,7 +221,7 @@ export class BookingsService {
         where: { id: data.salonId },
         select: { autoConfirmBookings: true },
       });
-      const autoConfirm = salon?.autoConfirmBookings === true;
+      const autoConfirm = (salon as { autoConfirmBookings?: boolean } | null)?.autoConfirmBookings === true;
       const bookingStatus =
         isOwnerCreated || autoConfirm ? 'CONFIRMED' : 'PENDING';
 

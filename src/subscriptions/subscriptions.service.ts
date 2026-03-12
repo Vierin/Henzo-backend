@@ -115,4 +115,45 @@ export class SubscriptionsService {
       throw error;
     }
   }
+
+  /**
+   * Called by Stripe webhook when checkout.session.completed — activate paid subscription.
+   */
+  async activateSubscriptionAfterStripePayment(
+    userId: string,
+    interval: 'monthly' | 'annual',
+  ) {
+    const salon = await this.prisma.salon.findFirst({
+      where: { ownerId: userId },
+      select: { id: true },
+    });
+    if (!salon) {
+      throw new HttpException('Salon not found', HttpStatus.NOT_FOUND);
+    }
+
+    const now = new Date();
+    const endDate = new Date(now);
+    if (interval === 'annual') {
+      endDate.setFullYear(endDate.getFullYear() + 1);
+    } else {
+      endDate.setMonth(endDate.getMonth() + 1);
+    }
+
+    const amount = interval === 'annual' ? 120 : 15;
+
+    // Keep trialEndDate so we can show "trial was until X, paid until Y"
+    await this.prisma.subscription.update({
+      where: { salonId: salon.id },
+      data: {
+        type: 'BASIC' as any,
+        status: 'ACTIVE' as any,
+        startDate: now, // start of paid period
+        endDate,
+        nextPaymentDate: endDate,
+        // trialEndDate: leave unchanged — preserves "trial was until X"
+        amount,
+        updatedAt: now,
+      },
+    });
+  }
 }

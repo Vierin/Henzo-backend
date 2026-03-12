@@ -766,16 +766,15 @@ export class SalonsService {
             email: true,
           },
         },
-      },
+      } as any,
     });
 
     console.log('🔍 Salon found:', salon ? `ID: ${salon.id}` : 'None');
     if (salon) {
       // Derive categories from services instead of salon.categoryIds
+      const services = (salon as { Service?: { serviceCategoryId: number | null }[] }).Service ?? [];
       const serviceCategoryIds = Array.from(
-        new Set(
-          salon.Service.map((s: any) => s.serviceCategoryId).filter(Boolean),
-        ),
+        new Set(services.map((s) => s.serviceCategoryId).filter(Boolean)),
       );
       (salon as any).categories = serviceCategoryIds;
     }

@@ -84,6 +84,27 @@ export class EnvironmentVariables {
   @IsString()
   @IsOptional()
   ENABLE_SENTRY_IN_DEV?: string;
+
+  // Stripe (optional; required for subscription checkout)
+  @IsString()
+  @IsOptional()
+  STRIPE_SECRET_KEY?: string;
+
+  @IsString()
+  @IsOptional()
+  STRIPE_MONTHLY_PRICE_ID?: string;
+
+  @IsString()
+  @IsOptional()
+  STRIPE_ANNUAL_PRICE_ID?: string;
+
+  @IsString()
+  @IsOptional()
+  STRIPE_YEARLY_PRICE_ID?: string;
+
+  @IsString()
+  @IsOptional()
+  STRIPE_WEBHOOK_SECRET?: string;
 }
 
 export function validate(config: Record<string, unknown>) {
