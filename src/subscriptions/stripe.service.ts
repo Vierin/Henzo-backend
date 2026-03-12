@@ -108,13 +108,15 @@ export class StripeService {
       limit: 1,
       expand: ['data.items.data.price'],
     });
-    const sub = subs.data[0];
+    const sub = subs.data[0] as Stripe.Subscription | undefined;
     if (!sub?.items?.data[0]?.price?.id) return null;
     const priceId = sub.items.data[0].price.id;
     const isAnnual = priceId === this.annualPriceId;
+    const periodEnd = (sub as { current_period_end?: number }).current_period_end;
+    if (periodEnd == null) return null;
     return {
       interval: isAnnual ? 'annual' : 'monthly',
-      currentPeriodEnd: sub.current_period_end,
+      currentPeriodEnd: periodEnd,
     };
   }
 
