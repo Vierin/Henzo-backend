@@ -127,6 +127,63 @@ export class StripeService {
   }
 
   /**
+   * Get first active subscription for customer.
+   * Used for sync, cancel flow, and returning cancel status in getCurrentSubscription.
+   */
+  async getActiveSubscription(customerId: string): Promise<{
+    id: string;
+    interval: 'monthly' | 'annual';
+    current_period_end: number;
+    cancel_at_period_end: boolean;
+    cancel_at: number | null;
+  } | null> {
+    if (!this.stripe) return null;
+    // status: 'all' then filter — Stripe can use different statuses (e.g. trialing) or list can return empty by status
+    const list = await this.stripe.subscriptions.list({
+      customer: customerId,
+      status: 'all',
+      limit: 20,
+      expand: ['data.items.data.price'],
+    });
+    const statusOk = ['active', 'trialing', 'past_due', 'incomplete'] as const;
+    const sub = list.data.find(
+      (s) => statusOk.includes((s as { status?: string }).status as any),
+    ) as Stripe.Subscription | undefined;
+    if (!sub?.id) {
+      if (list.data.length > 0) {
+        console.warn(
+          '[Stripe] getActiveSubscription: customer has subscriptions but none with active/trialing/past_due/incomplete. Statuses:',
+          list.data.map((s) => (s as { status?: string }).status),
+        );
+      } else {
+        console.warn(
+          '[Stripe] getActiveSubscription: customer has 0 subscriptions in Stripe. customerId=',
+          customerId,
+        );
+      }
+      return null;
+    }
+    const rawPrice = sub?.items?.data?.[0]?.price;
+    const priceId = typeof rawPrice === 'string' ? rawPrice : (rawPrice as { id?: string } | undefined)?.id;
+    if (!priceId) {
+      console.warn('[Stripe] getActiveSubscription: subscription has no price on first item', sub.id);
+      return null;
+    }
+    const isAnnual = priceId === this.annualPriceId;
+    const periodEnd = (sub as { current_period_end?: number }).current_period_end;
+    const cancelAt = (sub as { cancel_at?: number | null }).cancel_at ?? null;
+    const cancelAtPeriodEnd = (sub as { cancel_at_period_end?: boolean }).cancel_at_period_end ?? false;
+    if (periodEnd == null) return null;
+    return {
+      id: sub.id,
+      interval: isAnnual ? 'annual' : 'monthly',
+      current_period_end: periodEnd,
+      cancel_at_period_end: cancelAtPeriodEnd,
+      cancel_at: cancelAt,
+    };
+  }
+
+  /**
    * List active subscriptions for a Stripe customer. Returns the first active subscription if any.
    * Used to sync DB when webhook was missed (e.g. amount still 0 but customer has paid).
    */
@@ -134,23 +191,24 @@ export class StripeService {
     interval: 'monthly' | 'annual';
     currentPeriodEnd: number;
   } | null> {
-    if (!this.stripe) return null;
-    const subs = await this.stripe.subscriptions.list({
-      customer: customerId,
-      status: 'active',
-      limit: 1,
-      expand: ['data.items.data.price'],
-    });
-    const sub = subs.data[0] as Stripe.Subscription | undefined;
-    if (!sub?.items?.data[0]?.price?.id) return null;
-    const priceId = sub.items.data[0].price.id;
-    const isAnnual = priceId === this.annualPriceId;
-    const periodEnd = (sub as { current_period_end?: number }).current_period_end;
-    if (periodEnd == null) return null;
+    const full = await this.getActiveSubscription(customerId);
+    if (!full) return null;
     return {
-      interval: isAnnual ? 'annual' : 'monthly',
-      currentPeriodEnd: periodEnd,
+      interval: full.interval,
+      currentPeriodEnd: full.current_period_end,
     };
+  }
+
+  /**
+   * Set subscription to cancel at the end of the current billing period.
+   */
+  async cancelSubscriptionAtPeriodEnd(subscriptionId: string): Promise<void> {
+    if (!this.stripe) {
+      throw new HttpException('Stripe is not configured', HttpStatus.SERVICE_UNAVAILABLE);
+    }
+    await this.stripe.subscriptions.update(subscriptionId, {
+      cancel_at_period_end: true,
+    });
   }
 
   /**
@@ -164,6 +222,7 @@ export class StripeService {
     currency: string;
     status: string;
     pdfUrl: string | null;
+    hostedInvoiceUrl: string | null;
   }>> {
     if (!this.stripe) return [];
     try {
@@ -184,6 +243,7 @@ export class StripeService {
           currency: currency.toUpperCase(),
           status: inv.status ?? 'paid',
           pdfUrl: inv.invoice_pdf ?? null,
+          hostedInvoiceUrl: inv.hosted_invoice_url ?? null,
         };
       });
     } catch {

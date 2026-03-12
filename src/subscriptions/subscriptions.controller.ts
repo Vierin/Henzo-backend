@@ -158,6 +158,24 @@ export class SubscriptionsController {
     }
   }
 
+  @Post('cancel')
+  async cancelSubscription(@Headers('authorization') authHeader: string) {
+    try {
+      const currentUser = await this.authService.getCurrentUser(authHeader);
+      if (currentUser.user.role !== 'OWNER') {
+        throw new HttpException('Only salon owners can cancel subscription', HttpStatus.FORBIDDEN);
+      }
+      await this.subscriptionsService.cancelSubscription(currentUser.user.id);
+      return { ok: true };
+    } catch (error: any) {
+      console.error('❌ Cancel subscription failed:', error?.message);
+      throw new HttpException(
+        error?.message ?? 'Failed to cancel subscription',
+        error?.status ?? HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
   @Post('confirm-checkout')
   async confirmCheckout(
     @Headers('authorization') authHeader: string,

@@ -80,18 +80,92 @@ export class SubscriptionsService {
             const updated = await this.prisma.subscription.findUnique({
               where: { salonId: salon.id },
             });
-            if (updated) return updated;
+            if (updated) return this.attachStripeCancelStatus(updated);
           }
         } catch (e) {
           console.warn('Stripe sync on getCurrentSubscription failed:', (e as Error)?.message);
         }
       }
 
-      return subscription;
+      return this.attachStripeCancelStatus(subscription);
     } catch (error) {
       console.error('❌ Error getting subscription:', error);
       throw error;
     }
+  }
+
+  private async attachStripeCancelStatus<T extends { stripeCustomerId?: string | null }>(
+    subscription: T,
+  ): Promise<T & { cancelAtPeriodEnd?: boolean; cancelAt?: string | null }> {
+    const customerId = subscription.stripeCustomerId;
+    if (!customerId) {
+      return { ...subscription, cancelAtPeriodEnd: false, cancelAt: null };
+    }
+    try {
+      const stripeSub = await this.stripeService.getActiveSubscription(customerId);
+      if (!stripeSub) {
+        return { ...subscription, cancelAtPeriodEnd: false, cancelAt: null };
+      }
+      return {
+        ...subscription,
+        cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
+        cancelAt: stripeSub.cancel_at
+          ? new Date(stripeSub.cancel_at * 1000).toISOString()
+          : null,
+      };
+    } catch {
+      return { ...subscription, cancelAtPeriodEnd: false, cancelAt: null };
+    }
+  }
+
+  async cancelSubscription(userId: string): Promise<{ cancelledInStripe: boolean }> {
+    const salon = await this.prisma.salon.findFirst({
+      where: { ownerId: userId },
+      select: { id: true },
+    });
+    if (!salon) {
+      throw new HttpException('Salon not found', HttpStatus.NOT_FOUND);
+    }
+    const subscription = await this.prisma.subscription.findUnique({
+      where: { salonId: salon.id },
+    });
+    if (!subscription) {
+      throw new HttpException('Subscription not found', HttpStatus.NOT_FOUND);
+    }
+
+    let cancelledInStripe = false;
+
+    if (subscription.stripeCustomerId) {
+      try {
+        const stripeSub = await this.stripeService.getActiveSubscription(subscription.stripeCustomerId);
+        if (stripeSub) {
+          await this.stripeService.cancelSubscriptionAtPeriodEnd(stripeSub.id);
+          cancelledInStripe = true;
+          console.log(`✅ Stripe subscription ${stripeSub.id} set to cancel_at_period_end`);
+        } else {
+          console.warn(
+            '[Subscriptions] cancelSubscription: no active subscription in Stripe for customerId=',
+            subscription.stripeCustomerId,
+            '- marking cancelled in DB only.',
+          );
+        }
+      } catch (e) {
+        console.warn('[Subscriptions] cancelSubscription: Stripe API error, marking cancelled in DB only.', (e as Error)?.message);
+      }
+    }
+
+    // Always mark in our DB: status CANCELLED, endDate = current endDate or nextPaymentDate
+    const cancelDate = subscription.endDate ?? subscription.nextPaymentDate ?? new Date();
+    await this.prisma.subscription.update({
+      where: { salonId: salon.id },
+      data: {
+        status: 'CANCELLED',
+        endDate: cancelDate,
+        updatedAt: new Date(),
+      },
+    });
+
+    return { cancelledInStripe };
   }
 
   async switchSubscription(userId: string, planType: 'STARTER') {
