@@ -22,6 +22,7 @@ RUN if [ -f package-lock.json ]; then \
 COPY . .
 
 RUN npx prisma generate
+ENV NODE_OPTIONS="--max-old-space-size=4096"
 RUN npm run build
 
 FROM node:20-alpine AS production
