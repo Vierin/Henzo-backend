@@ -246,9 +246,7 @@ export class NotificationsService {
         console.log(`📤 Sending ${nativeTokens.length} native token(s) (FCM/APNs) via Firebase Admin...`);
         if (this.firebaseAdmin.isInitialized()) {
           try {
-            const channelId =
-              androidChannelId ??
-              (data?.type === 'NEW_BOOKING' ? 'bookings' : 'henzo_default');
+            const channelId = androidChannelId ?? 'henzo_default';
             console.log(`[Push] FCM channelId: ${channelId}`);
             const response = await this.firebaseAdmin.sendMulticast(
               nativeTokens.map(t => t.token),
