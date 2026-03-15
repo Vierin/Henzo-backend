@@ -1,9 +1,6 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-# Обновляем npm до последней версии
-RUN npm install -g npm@latest
-
 # Skip Puppeteer browser download to save disk space during build
 ENV PUPPETEER_SKIP_DOWNLOAD=true
 
@@ -30,7 +27,7 @@ WORKDIR /app
 
 RUN apk add --no-cache openssl chromium
 
-# Skip Puppeteer browser download - we'll use system Chromium instead
+# Use system Chromium for Puppeteer
 ENV PUPPETEER_SKIP_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
