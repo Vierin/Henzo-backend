@@ -18,13 +18,11 @@ fi
 echo "🛑 Остановка старых контейнеров..."
 docker-compose down
 
-# Удаление старых образов (опционально)
-read -p "Удалить старые Docker образы? (y/n) " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    echo "🗑️  Удаление старых образов..."
-    docker system prune -f
-fi
+# Очистка кэша и мусора перед сборкой (освобождаем место под ENOSPC)
+echo "🧹 Очистка Docker build cache и неиспользуемых данных..."
+docker builder prune -af
+docker image prune -f
+echo "   Готово."
 
 # Сборка новых образов
 echo "🔨 Сборка Docker образов..."

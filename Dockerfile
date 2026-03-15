@@ -30,9 +30,6 @@ WORKDIR /app
 
 RUN apk add --no-cache openssl chromium
 
-# Обновляем npm до последней версии
-RUN npm install -g npm@latest
-
 # Skip Puppeteer browser download - we'll use system Chromium instead
 ENV PUPPETEER_SKIP_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
