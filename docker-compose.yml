@@ -1,7 +1,7 @@
-version: '3.8'
-
+# version is obsolete in Compose V2, removed to avoid warning
 services:
   backend:
+    image: ${BACKEND_IMAGE:-henzo-backend:local}
     build:
       context: .
       dockerfile: Dockerfile
