@@ -782,15 +782,16 @@ export class SalonsService {
       );
       (salon as any).categories = serviceCategoryIds;
       // Average rating from reviews (как в веб — 5.0)
+      const salonId = (salon as unknown as { id: string }).id;
       const ratingAgg = await this.prisma.review.aggregate({
-        where: { salonId: salon.id },
+        where: { salonId },
         _avg: { rating: true },
         _count: { rating: true },
       });
+      const countRating = (ratingAgg._count as { rating?: number })?.rating ?? 0;
+      const avgRating = (ratingAgg._avg as { rating?: number | null })?.rating ?? null;
       const avg =
-        ratingAgg._count.rating > 0 && ratingAgg._avg.rating != null
-          ? ratingAgg._avg.rating
-          : null;
+        countRating > 0 && avgRating != null ? avgRating : null;
       (salon as any).rating =
         avg != null ? Math.round(avg * 10) / 10 : undefined;
     }
