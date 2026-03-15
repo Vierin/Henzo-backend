@@ -58,11 +58,21 @@ async function bootstrap() {
       rawBody: true, // required for Stripe webhook signature verification
     });
 
-    // Handle common browser requests (favicon, robots.txt, etc.) to reduce log noise
+    // Handle common browser/scanner requests to reduce log noise (return 404 without exception)
     app.use((req, res, next) => {
-      const ignoredPaths = ['/favicon.ico', '/robots.txt', '/apple-touch-icon.png', '/favicon.png'];
-      if (ignoredPaths.some(path => req.url.includes(path))) {
-        // Return 404 without creating an exception
+      const ignoredPaths = [
+        '/favicon.ico',
+        '/robots.txt',
+        '/apple-touch-icon.png',
+        '/favicon.png',
+        '/.env',
+        '/.env.dev',
+        '/.env.local',
+        '/.env.production',
+        '/.env.example',
+      ];
+      const path = req.path || req.url?.split('?')[0] || '';
+      if (ignoredPaths.some((p) => path === p || path.startsWith(p + '/'))) {
         return res.status(404).json({
           error: 'Not Found',
           message: 'Resource not found',
