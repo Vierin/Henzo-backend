@@ -68,6 +68,25 @@ export class NotificationsService {
     }
   }
 
+  /** Send test notification to user (for debugging). Uses channel henzo_default on Android. */
+  async sendTestPush(userId: string): Promise<void> {
+    const tokens = await this.getPushTokensByUserId(userId);
+    console.log(`[Push] test-push: user=${userId} tokens=${tokens.length}`);
+    if (tokens.length === 0) {
+      console.warn('[Push] test-push: no tokens for user, register from app first');
+      throw new Error('No push tokens for this user. Open the app and log in to register a token.');
+    }
+    await this.sendPushNotification(
+      tokens,
+      'Henzo Test',
+      'If you see this, push works',
+      { type: 'TEST' },
+      undefined,
+      'henzo_default',
+    );
+    console.log('[Push] test-push sent');
+  }
+
   async getPushTokensByUserId(userId: string): Promise<Array<{ token: string; language: string }>> {
     try {
       const tokens = await this.prisma.pushToken.findMany({
@@ -118,6 +137,7 @@ export class NotificationsService {
     body: string,
     data?: Record<string, any>,
     actions?: Array<{ action: string; title: string }>,
+    androidChannelId?: string,
   ): Promise<void> {
     try {
       console.log(`📤 Sending push notification to ${tokens.length} token(s)`);
@@ -226,6 +246,10 @@ export class NotificationsService {
         console.log(`📤 Sending ${nativeTokens.length} native token(s) (FCM/APNs) via Firebase Admin...`);
         if (this.firebaseAdmin.isInitialized()) {
           try {
+            const channelId =
+              androidChannelId ??
+              (data?.type === 'NEW_BOOKING' ? 'bookings' : 'henzo_default');
+            console.log(`[Push] FCM channelId: ${channelId}`);
             const response = await this.firebaseAdmin.sendMulticast(
               nativeTokens.map(t => t.token),
               { title, body },
@@ -236,7 +260,7 @@ export class NotificationsService {
                   }, {} as Record<string, string>)
                 : undefined,
               {
-                channelId: data?.type === 'NEW_BOOKING' ? 'bookings' : 'default',
+                channelId,
                 priority: 'high',
                 actions,
               },
