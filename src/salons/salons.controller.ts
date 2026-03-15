@@ -513,10 +513,10 @@ export class SalonsController {
       res.end(pdfBuffer);
     } catch (error) {
       console.error('Error generating PDF:', error);
-      throw new HttpException(
-        'Failed to generate PDF',
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+      const message = error?.message?.includes('Executable doesn\'t exist') || error?.message?.includes('Could not find Chromium')
+        ? 'PDF export is not available on this server (Chromium not installed).'
+        : 'Failed to generate PDF';
+      throw new HttpException(message, HttpStatus.SERVICE_UNAVAILABLE);
     }
   }
 
