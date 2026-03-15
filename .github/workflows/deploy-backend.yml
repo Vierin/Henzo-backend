@@ -65,7 +65,7 @@ jobs:
               echo "${{ secrets.GHCR_TOKEN }}" | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
             fi
             export BACKEND_IMAGE=${{ env.IMAGE_FULL }}
-            docker compose pull backend
+            docker compose pull backend || { echo "Pull denied. Add GHCR_TOKEN secret (PAT with read:packages) or make package public."; exit 1; }
             docker compose up -d --no-deps backend
             sleep 10
             curl -f http://localhost/health || exit 1
