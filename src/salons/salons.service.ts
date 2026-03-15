@@ -781,6 +781,18 @@ export class SalonsService {
         new Set(services.map((s) => s.serviceCategoryId).filter(Boolean)),
       );
       (salon as any).categories = serviceCategoryIds;
+      // Average rating from reviews (как в веб — 5.0)
+      const ratingAgg = await this.prisma.review.aggregate({
+        where: { salonId: salon.id },
+        _avg: { rating: true },
+        _count: { rating: true },
+      });
+      const avg =
+        ratingAgg._count.rating > 0 && ratingAgg._avg.rating != null
+          ? ratingAgg._avg.rating
+          : null;
+      (salon as any).rating =
+        avg != null ? Math.round(avg * 10) / 10 : undefined;
     }
     return salon;
   }
