@@ -60,7 +60,7 @@ async function bootstrap() {
 
     // Handle common browser/scanner requests to reduce log noise (return 404 without exception)
     app.use((req, res, next) => {
-      const ignoredPaths = [
+      const exactPaths = [
         '/favicon.ico',
         '/robots.txt',
         '/apple-touch-icon.png',
@@ -71,8 +71,12 @@ async function bootstrap() {
         '/.env.production',
         '/.env.example',
       ];
+      const prefixPaths = ['/ecp/', '/owa/', '/autodiscover', '/.well-known/'];
       const path = req.path || req.url?.split('?')[0] || '';
-      if (ignoredPaths.some((p) => path === p || path.startsWith(p + '/'))) {
+      if (
+        exactPaths.some((p) => path === p || path.startsWith(p + '/')) ||
+        prefixPaths.some((p) => path.startsWith(p))
+      ) {
         return res.status(404).json({
           error: 'Not Found',
           message: 'Resource not found',
@@ -226,9 +230,10 @@ async function bootstrap() {
     console.log('✅ CORS enabled for:', allowedOrigins.join(', '));
 
     const port = process.env.PORT ?? 3001;
-    await app.listen(port);
+    const host = process.env.HOST ?? '0.0.0.0'; // 0.0.0.0 so Docker/external can reach the app
+    await app.listen(port, host);
 
-    console.log(`🚀 Backend is running on: http://localhost:${port}`);
+    console.log(`🚀 Backend is running on: http://${host}:${port}`);
     console.log(`📝 Environment: ${process.env.NODE_ENV || 'development'}`);
     console.log(`🔗 Health check: http://localhost:${port}/health`);
     console.log(`📊 Metrics: http://localhost:${port}/metrics`);
