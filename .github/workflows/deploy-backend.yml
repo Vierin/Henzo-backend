@@ -38,8 +38,6 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: ${{ env.IMAGE_FULL }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
   deploy:
     name: Deploy to server
