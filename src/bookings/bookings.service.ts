@@ -282,11 +282,15 @@ export class BookingsService {
         }
       });
 
-      // Send push notifications if booking is PENDING (also async)
-      if (booking.status === 'PENDING') {
+      // Send push to salon owner for every new booking created by a client (not by owner)
+      if (!isOwnerCreated) {
+        this.logger.log('Push: scheduling notification for new client booking', {
+          bookingId: booking.id,
+          salonId: booking.salonId,
+          status: booking.status,
+        });
         setImmediate(async () => {
           try {
-            // If owner created booking without email, use clientName from DTO or "Anonymous Client"
             const salonOwnerId =
               booking.Salon?.ownerId || booking.Salon?.User?.id;
             const isOwnerBookingWithoutEmail =
@@ -310,13 +314,15 @@ export class BookingsService {
               clientName,
               serviceName,
               booking.dateTime,
+              booking.status === 'CONFIRMED' ? 'CONFIRMED' : 'PENDING',
             );
             this.logger.log('Push notification sent successfully');
           } catch (pushError) {
             this.logger.error('Error sending push notification', pushError);
-            // Don't fail the booking creation if push notification fails
           }
         });
+      } else {
+        this.logger.log('Push: skipped (booking created by owner)');
       }
 
       return booking;

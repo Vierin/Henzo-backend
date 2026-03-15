@@ -298,9 +298,11 @@ export class NotificationsService {
     clientName: string,
     serviceName: string,
     dateTime: Date,
+    bookingStatus: 'PENDING' | 'CONFIRMED' = 'PENDING',
   ): Promise<void> {
     try {
-      console.log(`📤 Preparing to send booking notification for salon: ${salonId}`);
+      const isInformational = bookingStatus === 'CONFIRMED';
+      console.log(`📤 Preparing to send booking notification for salon: ${salonId} (${isInformational ? 'informational' : 'request to confirm'})`);
       const tokens = await this.getPushTokensBySalonOwner(salonId);
 
       console.log(`📱 Found ${tokens.length} push token(s) for salon owner`);
@@ -325,34 +327,48 @@ export class NotificationsService {
 
       // Send notification for each language group
       for (const [language, languageTokens] of tokensByLanguage.entries()) {
-        const title = getNotificationText(language, 'newBookingRequest');
-        const requestedText = getNotificationText(language, 'requested');
-        const body = `${requestedText} ${serviceName}`;
-        
-        // Use emoji icons instead of text: ✓ for confirm, ✕ for reject
-        const actions = [
-          { action: 'CONFIRM_BOOKING', title: '✓' },
-          { action: 'REJECT_BOOKING', title: '✕' },
-        ];
-
-        const formattedDate = new Date(dateTime).toLocaleString(language === 'ru' ? 'ru-RU' : language === 'vi' ? 'vi-VN' : 'en-US', {
+        const locale = language === 'ru' ? 'ru-RU' : language === 'vi' ? 'vi-VN' : 'en-US';
+        const formattedDateStr = new Date(dateTime).toLocaleString(locale, {
           month: 'short',
           day: 'numeric',
           hour: '2-digit',
           minute: '2-digit',
         });
 
-        console.log(`📤 Sending booking notification (${language}):`, { title, body, bookingId, dateTime });
+        const title = isInformational
+          ? getNotificationText(language, 'newBookingConfirmed')
+          : getNotificationText(language, 'newBookingRequest');
+        const verbText = isInformational
+          ? getNotificationText(language, 'booked')
+          : getNotificationText(language, 'requested');
+        const body = `${verbText} ${serviceName}`;
 
-        await this.sendPushNotification(languageTokens, title, body, {
-          type: 'NEW_BOOKING',
-          bookingId,
-          salonId,
-          clientName,
-          serviceName,
-          dateTime: dateTime.toISOString(),
-          formattedDate,
-        }, actions);
+        // Only show confirm/reject actions when booking is PENDING
+        const actions = isInformational
+          ? undefined
+          : [
+              { action: 'CONFIRM_BOOKING', title: '✓' },
+              { action: 'REJECT_BOOKING', title: '✕' },
+            ];
+
+        console.log(`📤 Sending booking notification (${language}):`, { title, body, bookingId, isInformational });
+
+        await this.sendPushNotification(
+          languageTokens,
+          title,
+          body,
+          {
+            type: 'NEW_BOOKING',
+            bookingId,
+            salonId,
+            clientName,
+            serviceName,
+            dateTime: dateTime.toISOString(),
+            formattedDate: formattedDateStr,
+          },
+          actions,
+          'henzo_default',
+        );
       }
 
       console.log('✅ Booking notification sent successfully');
