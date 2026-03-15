@@ -30,10 +30,17 @@ export class SubscriptionsController {
     try {
       const currentUser = await this.authService.getCurrentUser(authHeader);
       if (currentUser.user.role !== 'OWNER') {
-        throw new HttpException('Only salon owners can access invoices', HttpStatus.FORBIDDEN);
+        throw new HttpException(
+          'Only salon owners can access invoices',
+          HttpStatus.FORBIDDEN,
+        );
       }
-      const subscription = await this.subscriptionsService.getCurrentSubscription(currentUser.user.id);
-      const customerId = (subscription as { stripeCustomerId?: string | null }).stripeCustomerId;
+      const subscription =
+        await this.subscriptionsService.getCurrentSubscription(
+          currentUser.user.id,
+        );
+      const customerId = (subscription as { stripeCustomerId?: string | null })
+        .stripeCustomerId;
       if (!customerId) {
         return { invoices: [] };
       }
@@ -136,7 +143,9 @@ export class SubscriptionsController {
 
       const frontendUrl =
         this.configService.get<string>('FRONTEND_URL') ||
-        (process.env.NODE_ENV === 'production' ? 'https://henzo.app' : 'http://localhost:3000');
+        (process.env.NODE_ENV === 'production'
+          ? 'https://henzo.app'
+          : 'http://localhost:3000');
 
       const { url } = await this.stripeService.createCheckoutSession({
         customerEmail: currentUser.user.email,
@@ -163,7 +172,10 @@ export class SubscriptionsController {
     try {
       const currentUser = await this.authService.getCurrentUser(authHeader);
       if (currentUser.user.role !== 'OWNER') {
-        throw new HttpException('Only salon owners can cancel subscription', HttpStatus.FORBIDDEN);
+        throw new HttpException(
+          'Only salon owners can cancel subscription',
+          HttpStatus.FORBIDDEN,
+        );
       }
       await this.subscriptionsService.cancelSubscription(currentUser.user.id);
       return { ok: true };
@@ -184,17 +196,26 @@ export class SubscriptionsController {
     try {
       const currentUser = await this.authService.getCurrentUser(authHeader);
       if (currentUser.user.role !== 'OWNER') {
-        throw new HttpException('Only salon owners can confirm checkout', HttpStatus.FORBIDDEN);
+        throw new HttpException(
+          'Only salon owners can confirm checkout',
+          HttpStatus.FORBIDDEN,
+        );
       }
       if (!sessionId || typeof sessionId !== 'string') {
-        throw new HttpException('session_id is required', HttpStatus.BAD_REQUEST);
+        throw new HttpException(
+          'session_id is required',
+          HttpStatus.BAD_REQUEST,
+        );
       }
       const result = await this.subscriptionsService.confirmCheckoutSession(
         sessionId.trim(),
         currentUser.user.id,
       );
       if (!result.ok) {
-        throw new HttpException(result.error ?? 'Confirm failed', HttpStatus.BAD_REQUEST);
+        throw new HttpException(
+          result.error ?? 'Confirm failed',
+          HttpStatus.BAD_REQUEST,
+        );
       }
       return { ok: true };
     } catch (error: any) {
@@ -219,7 +240,10 @@ export class SubscriptionsController {
     try {
       event = this.stripeService.constructWebhookEvent(rawBody, signature);
     } catch (err: any) {
-      console.error('❌ Stripe webhook signature verification failed:', err.message);
+      console.error(
+        '❌ Stripe webhook signature verification failed:',
+        err.message,
+      );
       throw new BadRequestException(`Webhook Error: ${err.message}`);
     }
     console.log(`[Stripe webhook] event.type=${event.type} id=${event.id}`);
@@ -234,17 +258,40 @@ export class SubscriptionsController {
         status: session.status,
         payment_status: (session as { payment_status?: string }).payment_status,
       };
-      console.log('[Stripe webhook] checkout.session.completed FULL SESSION:', JSON.stringify(sessionForLog, null, 2));
+      console.log(
+        '[Stripe webhook] checkout.session.completed FULL SESSION:',
+        JSON.stringify(sessionForLog, null, 2),
+      );
       const userId = session.metadata?.userId as string | undefined;
-      const interval = session.metadata?.interval as 'monthly' | 'annual' | undefined;
+      const interval = session.metadata?.interval as
+        | 'monthly'
+        | 'annual'
+        | undefined;
       if (!userId || !interval || !['monthly', 'annual'].includes(interval)) {
-        console.warn('[Stripe webhook] SKIP activation: missing metadata. userId=', userId, 'interval=', interval, 'metadata=', session.metadata);
+        console.warn(
+          '[Stripe webhook] SKIP activation: missing metadata. userId=',
+          userId,
+          'interval=',
+          interval,
+          'metadata=',
+          session.metadata,
+        );
       }
-      let stripeCustomerId = typeof session.customer === 'string' ? session.customer : (session.customer as { id?: string } | null)?.id ?? null;
+      let stripeCustomerId =
+        typeof session.customer === 'string'
+          ? session.customer
+          : ((session.customer as { id?: string } | null)?.id ?? null);
       if (!stripeCustomerId) {
-        stripeCustomerId = await this.stripeService.getCustomerIdFromCheckoutSession(session);
-        if (stripeCustomerId) console.log(`[Stripe webhook] customer resolved via subscription fallback: ${stripeCustomerId}`);
-        else console.warn('[Stripe webhook] customer ID missing on session and could not resolve from subscription');
+        stripeCustomerId =
+          await this.stripeService.getCustomerIdFromCheckoutSession(session);
+        if (stripeCustomerId)
+          console.log(
+            `[Stripe webhook] customer resolved via subscription fallback: ${stripeCustomerId}`,
+          );
+        else
+          console.warn(
+            '[Stripe webhook] customer ID missing on session and could not resolve from subscription',
+          );
       }
       if (userId && interval && ['monthly', 'annual'].includes(interval)) {
         try {
@@ -253,9 +300,14 @@ export class SubscriptionsController {
             interval,
             stripeCustomerId,
           );
-          console.log(`✅ Subscription activated for user ${userId}, interval: ${interval}, stripeCustomerId=${stripeCustomerId ?? 'null'}`);
+          console.log(
+            `✅ Subscription activated for user ${userId}, interval: ${interval}, stripeCustomerId=${stripeCustomerId ?? 'null'}`,
+          );
         } catch (e: any) {
-          console.error('❌ activateSubscriptionAfterStripePayment failed:', e?.message);
+          console.error(
+            '❌ activateSubscriptionAfterStripePayment failed:',
+            e?.message,
+          );
           throw new HttpException(
             e?.message || 'Failed to activate subscription',
             HttpStatus.INTERNAL_SERVER_ERROR,
@@ -277,8 +329,12 @@ export class SubscriptionsController {
         );
       }
       const subscription =
-        await this.subscriptionsService.getCurrentSubscription(currentUser.user.id);
-      const stripeCustomerId = (subscription as { stripeCustomerId?: string | null })?.stripeCustomerId;
+        await this.subscriptionsService.getCurrentSubscription(
+          currentUser.user.id,
+        );
+      const stripeCustomerId = (
+        subscription as { stripeCustomerId?: string | null }
+      )?.stripeCustomerId;
       if (!stripeCustomerId) {
         throw new HttpException(
           'No billing account linked. Complete a payment first.',
@@ -287,7 +343,9 @@ export class SubscriptionsController {
       }
       const frontendUrl =
         this.configService.get<string>('FRONTEND_URL') ||
-        (process.env.NODE_ENV === 'production' ? 'https://henzo.app' : 'http://localhost:3000');
+        (process.env.NODE_ENV === 'production'
+          ? 'https://henzo.app'
+          : 'http://localhost:3000');
       const { url } = await this.stripeService.createBillingPortalSession({
         customerId: stripeCustomerId,
         returnUrl: `${frontendUrl}/subscription`,
@@ -302,4 +360,3 @@ export class SubscriptionsController {
     }
   }
 }
-

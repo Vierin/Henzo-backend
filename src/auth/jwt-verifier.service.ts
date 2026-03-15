@@ -42,13 +42,17 @@ export class JwtVerifierService implements OnModuleInit {
 
     // Попытка получить JWT secret из конфига (если есть)
     // Supabase использует свой собственный секрет, но можно попробовать использовать его
-    this.jwtSecret = this.configService.get<string>('SUPABASE_JWT_SECRET') || null;
+    this.jwtSecret =
+      this.configService.get<string>('SUPABASE_JWT_SECRET') || null;
   }
 
   /**
    * Получить ключ для верификации JWT
    */
-  private getKey = (header: jwt.JwtHeader, callback: jwt.SigningKeyCallback) => {
+  private getKey = (
+    header: jwt.JwtHeader,
+    callback: jwt.SigningKeyCallback,
+  ) => {
     if (!header.kid) {
       callback(new Error('No kid in header'));
       return;
@@ -134,4 +138,3 @@ export class JwtVerifierService implements OnModuleInit {
     return token.sub;
   }
 }
-

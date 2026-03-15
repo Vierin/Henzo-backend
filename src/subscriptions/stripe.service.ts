@@ -15,7 +15,8 @@ export class StripeService {
     const secretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (secretKey) {
       this.stripe = new Stripe(secretKey);
-      this.monthlyPriceId = this.configService.get<string>('STRIPE_MONTHLY_PRICE_ID') ?? null;
+      this.monthlyPriceId =
+        this.configService.get<string>('STRIPE_MONTHLY_PRICE_ID') ?? null;
       this.annualPriceId =
         this.configService.get<string>('STRIPE_ANNUAL_PRICE_ID') ??
         this.configService.get<string>('STRIPE_YEARLY_PRICE_ID') ??
@@ -43,11 +44,7 @@ export class StripeService {
   }
 
   isConfigured(): boolean {
-    return !!(
-      this.stripe &&
-      this.monthlyPriceId &&
-      this.annualPriceId
-    );
+    return !!(this.stripe && this.monthlyPriceId && this.annualPriceId);
   }
 
   async createCheckoutSession(params: {
@@ -64,7 +61,8 @@ export class StripeService {
       );
     }
 
-    const priceId = params.interval === 'annual' ? this.annualPriceId : this.monthlyPriceId;
+    const priceId =
+      params.interval === 'annual' ? this.annualPriceId : this.monthlyPriceId;
     const session = await this.stripe.checkout.sessions.create({
       mode: 'subscription',
       customer_email: params.customerEmail,
@@ -96,7 +94,9 @@ export class StripeService {
   /**
    * Retrieve a checkout session by ID (for confirm-checkout after redirect when webhook missed).
    */
-  async retrieveCheckoutSession(sessionId: string): Promise<Stripe.Checkout.Session | null> {
+  async retrieveCheckoutSession(
+    sessionId: string,
+  ): Promise<Stripe.Checkout.Session | null> {
     if (!this.stripe) return null;
     try {
       const session = await this.stripe.checkout.sessions.retrieve(sessionId, {
@@ -112,13 +112,23 @@ export class StripeService {
    * Resolve Stripe customer ID from a checkout session (for webhook).
    * session.customer can be missing in payload; fallback: fetch subscription and use subscription.customer.
    */
-  async getCustomerIdFromCheckoutSession(session: Stripe.Checkout.Session): Promise<string | null> {
-    const direct = typeof session.customer === 'string' ? session.customer : (session.customer as { id?: string } | null)?.id ?? null;
+  async getCustomerIdFromCheckoutSession(
+    session: Stripe.Checkout.Session,
+  ): Promise<string | null> {
+    const direct =
+      typeof session.customer === 'string'
+        ? session.customer
+        : ((session.customer as { id?: string } | null)?.id ?? null);
     if (direct) return direct;
-    const subId = typeof session.subscription === 'string' ? session.subscription : (session.subscription as { id?: string } | null)?.id ?? null;
+    const subId =
+      typeof session.subscription === 'string'
+        ? session.subscription
+        : ((session.subscription as { id?: string } | null)?.id ?? null);
     if (!this.stripe || !subId) return null;
     try {
-      const sub = await this.stripe.subscriptions.retrieve(subId, { expand: [] });
+      const sub = await this.stripe.subscriptions.retrieve(subId, {
+        expand: [],
+      });
       const cust = (sub as { customer?: string }).customer;
       return typeof cust === 'string' ? cust : null;
     } catch {
@@ -146,8 +156,8 @@ export class StripeService {
       expand: ['data.items.data.price'],
     });
     const statusOk = ['active', 'trialing', 'past_due', 'incomplete'] as const;
-    const sub = list.data.find(
-      (s) => statusOk.includes((s as { status?: string }).status as any),
+    const sub = list.data.find((s) =>
+      statusOk.includes((s as { status?: string }).status as any),
     ) as Stripe.Subscription | undefined;
     if (!sub?.id) {
       if (list.data.length > 0) {
@@ -164,15 +174,23 @@ export class StripeService {
       return null;
     }
     const rawPrice = sub?.items?.data?.[0]?.price;
-    const priceId = typeof rawPrice === 'string' ? rawPrice : (rawPrice as { id?: string } | undefined)?.id;
+    const priceId =
+      typeof rawPrice === 'string'
+        ? rawPrice
+        : (rawPrice as { id?: string } | undefined)?.id;
     if (!priceId) {
-      console.warn('[Stripe] getActiveSubscription: subscription has no price on first item', sub.id);
+      console.warn(
+        '[Stripe] getActiveSubscription: subscription has no price on first item',
+        sub.id,
+      );
       return null;
     }
     const isAnnual = priceId === this.annualPriceId;
-    const periodEnd = (sub as { current_period_end?: number }).current_period_end;
+    const periodEnd = (sub as { current_period_end?: number })
+      .current_period_end;
     const cancelAt = (sub as { cancel_at?: number | null }).cancel_at ?? null;
-    const cancelAtPeriodEnd = (sub as { cancel_at_period_end?: boolean }).cancel_at_period_end ?? false;
+    const cancelAtPeriodEnd =
+      (sub as { cancel_at_period_end?: boolean }).cancel_at_period_end ?? false;
     if (periodEnd == null) return null;
     return {
       id: sub.id,
@@ -204,7 +222,10 @@ export class StripeService {
    */
   async cancelSubscriptionAtPeriodEnd(subscriptionId: string): Promise<void> {
     if (!this.stripe) {
-      throw new HttpException('Stripe is not configured', HttpStatus.SERVICE_UNAVAILABLE);
+      throw new HttpException(
+        'Stripe is not configured',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
     }
     await this.stripe.subscriptions.update(subscriptionId, {
       cancel_at_period_end: true,
@@ -214,16 +235,21 @@ export class StripeService {
   /**
    * List invoices for a Stripe customer (for billing history table).
    */
-  async listInvoices(customerId: string, limit = 12): Promise<Array<{
-    id: string;
-    number: string | null;
-    date: string;
-    amount: number;
-    currency: string;
-    status: string;
-    pdfUrl: string | null;
-    hostedInvoiceUrl: string | null;
-  }>> {
+  async listInvoices(
+    customerId: string,
+    limit = 12,
+  ): Promise<
+    Array<{
+      id: string;
+      number: string | null;
+      date: string;
+      amount: number;
+      currency: string;
+      status: string;
+      pdfUrl: string | null;
+      hostedInvoiceUrl: string | null;
+    }>
+  > {
     if (!this.stripe) return [];
     try {
       const res = await this.stripe.invoices.list({
@@ -238,7 +264,11 @@ export class StripeService {
         return {
           id: inv.id,
           number: inv.number ?? null,
-          date: new Date((inv.status_transitions?.paid_at ?? inv.created) * 1000).toISOString().slice(0, 10),
+          date: new Date(
+            (inv.status_transitions?.paid_at ?? inv.created) * 1000,
+          )
+            .toISOString()
+            .slice(0, 10),
           amount: isZeroDecimal ? amount : amount / 100,
           currency: currency.toUpperCase(),
           status: inv.status ?? 'paid',

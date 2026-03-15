@@ -60,9 +60,15 @@ export class SubscriptionsService {
       }
 
       // Sync from Stripe if we have customer id but amount still 0 (e.g. webhook was missed)
-      if (subscription.stripeCustomerId && (subscription.amount == null || subscription.amount === 0)) {
+      if (
+        subscription.stripeCustomerId &&
+        (subscription.amount == null || subscription.amount === 0)
+      ) {
         try {
-          const stripeSub = await this.stripeService.getActiveSubscriptionForCustomer(subscription.stripeCustomerId);
+          const stripeSub =
+            await this.stripeService.getActiveSubscriptionForCustomer(
+              subscription.stripeCustomerId,
+            );
           if (stripeSub) {
             const amount = stripeSub.interval === 'annual' ? 120 : 15;
             const endDate = new Date(stripeSub.currentPeriodEnd * 1000);
@@ -83,7 +89,10 @@ export class SubscriptionsService {
             if (updated) return this.attachStripeCancelStatus(updated);
           }
         } catch (e) {
-          console.warn('Stripe sync on getCurrentSubscription failed:', (e as Error)?.message);
+          console.warn(
+            'Stripe sync on getCurrentSubscription failed:',
+            (e as Error)?.message,
+          );
         }
       }
 
@@ -94,7 +103,9 @@ export class SubscriptionsService {
     }
   }
 
-  private async attachStripeCancelStatus<T extends { stripeCustomerId?: string | null }>(
+  private async attachStripeCancelStatus<
+    T extends { stripeCustomerId?: string | null },
+  >(
     subscription: T,
   ): Promise<T & { cancelAtPeriodEnd?: boolean; cancelAt?: string | null }> {
     const customerId = subscription.stripeCustomerId;
@@ -102,7 +113,8 @@ export class SubscriptionsService {
       return { ...subscription, cancelAtPeriodEnd: false, cancelAt: null };
     }
     try {
-      const stripeSub = await this.stripeService.getActiveSubscription(customerId);
+      const stripeSub =
+        await this.stripeService.getActiveSubscription(customerId);
       if (!stripeSub) {
         return { ...subscription, cancelAtPeriodEnd: false, cancelAt: null };
       }
@@ -118,7 +130,9 @@ export class SubscriptionsService {
     }
   }
 
-  async cancelSubscription(userId: string): Promise<{ cancelledInStripe: boolean }> {
+  async cancelSubscription(
+    userId: string,
+  ): Promise<{ cancelledInStripe: boolean }> {
     const salon = await this.prisma.salon.findFirst({
       where: { ownerId: userId },
       select: { id: true },
@@ -137,11 +151,15 @@ export class SubscriptionsService {
 
     if (subscription.stripeCustomerId) {
       try {
-        const stripeSub = await this.stripeService.getActiveSubscription(subscription.stripeCustomerId);
+        const stripeSub = await this.stripeService.getActiveSubscription(
+          subscription.stripeCustomerId,
+        );
         if (stripeSub) {
           await this.stripeService.cancelSubscriptionAtPeriodEnd(stripeSub.id);
           cancelledInStripe = true;
-          console.log(`✅ Stripe subscription ${stripeSub.id} set to cancel_at_period_end`);
+          console.log(
+            `✅ Stripe subscription ${stripeSub.id} set to cancel_at_period_end`,
+          );
         } else {
           console.warn(
             '[Subscriptions] cancelSubscription: no active subscription in Stripe for customerId=',
@@ -150,12 +168,16 @@ export class SubscriptionsService {
           );
         }
       } catch (e) {
-        console.warn('[Subscriptions] cancelSubscription: Stripe API error, marking cancelled in DB only.', (e as Error)?.message);
+        console.warn(
+          '[Subscriptions] cancelSubscription: Stripe API error, marking cancelled in DB only.',
+          (e as Error)?.message,
+        );
       }
     }
 
     // Always mark in our DB: status CANCELLED, endDate = current endDate or nextPaymentDate
-    const cancelDate = subscription.endDate ?? subscription.nextPaymentDate ?? new Date();
+    const cancelDate =
+      subscription.endDate ?? subscription.nextPaymentDate ?? new Date();
     await this.prisma.subscription.update({
       where: { salonId: salon.id },
       data: {
@@ -226,7 +248,10 @@ export class SubscriptionsService {
    * Confirm checkout after redirect: fetch session from Stripe and activate subscription.
    * Used when webhook didn't run or didn't have metadata (e.g. local dev, webhook URL not reachable).
    */
-  async confirmCheckoutSession(sessionId: string, userId: string): Promise<{ ok: boolean; error?: string }> {
+  async confirmCheckoutSession(
+    sessionId: string,
+    userId: string,
+  ): Promise<{ ok: boolean; error?: string }> {
     const session = await this.stripeService.retrieveCheckoutSession(sessionId);
     if (!session) {
       return { ok: false, error: 'Session not found' };
@@ -238,15 +263,22 @@ export class SubscriptionsService {
     if (metaUserId && metaUserId !== userId) {
       return { ok: false, error: 'Session does not belong to this user' };
     }
-    const interval = (session.metadata?.interval as 'monthly' | 'annual') || null;
+    const interval =
+      (session.metadata?.interval as 'monthly' | 'annual') || null;
     if (!interval || !['monthly', 'annual'].includes(interval)) {
       return { ok: false, error: 'Missing or invalid interval in session' };
     }
-    const stripeCustomerId = typeof session.customer === 'string'
-      ? session.customer
-      : (session.customer as { id?: string } | null)?.id ?? await this.stripeService.getCustomerIdFromCheckoutSession(session);
+    const stripeCustomerId =
+      typeof session.customer === 'string'
+        ? session.customer
+        : ((session.customer as { id?: string } | null)?.id ??
+          (await this.stripeService.getCustomerIdFromCheckoutSession(session)));
     try {
-      await this.activateSubscriptionAfterStripePayment(metaUserId || userId, interval, stripeCustomerId);
+      await this.activateSubscriptionAfterStripePayment(
+        metaUserId || userId,
+        interval,
+        stripeCustomerId,
+      );
       return { ok: true };
     } catch (e: any) {
       return { ok: false, error: e?.message ?? 'Activation failed' };

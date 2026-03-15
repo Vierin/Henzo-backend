@@ -349,8 +349,10 @@ export class SalonsService {
 
     // Location filter - check cities table first
     if (location.trim()) {
-      const normalizedLocation = this.normalizeLocationForSearch(location.trim());
-      
+      const normalizedLocation = this.normalizeLocationForSearch(
+        location.trim(),
+      );
+
       // Try to find city in cities table
       const city = await this.prisma.city.findFirst({
         where: {
@@ -366,7 +368,7 @@ export class SalonsService {
       const locationVariations = new Set<string>();
       locationVariations.add(normalizedLocation);
       locationVariations.add(location.trim());
-      
+
       // If city found in table, add its name to variations
       if (city) {
         locationVariations.add(city.name);
@@ -380,7 +382,7 @@ export class SalonsService {
         locationVariations.add('Da Nang, Vietnam');
         locationVariations.add('Đà Nẵng, Vietnam');
       }
-      
+
       // Ho Chi Minh City / Hồ Chí Minh
       if (/hồ chí minh|ho chi minh/i.test(normalizedLocation)) {
         locationVariations.add('Ho Chi Minh City');
@@ -404,10 +406,7 @@ export class SalonsService {
       // If we already have OR conditions (from search), wrap everything in AND
       if (where.OR) {
         const existingOR = where.OR;
-        where.AND = [
-          { OR: existingOR },
-          { OR: addressConditions },
-        ];
+        where.AND = [{ OR: existingOR }, { OR: addressConditions }];
         delete where.OR;
       } else {
         // If no OR conditions, use OR for address conditions directly
@@ -497,7 +496,10 @@ export class SalonsService {
     const salonIds = salons.map((s) => s.id);
 
     // Calculate average ratings for all salons in one query (only if we have salons)
-    let ratingMap = new Map<string, { avgRating: number; reviewCount: number }>();
+    let ratingMap = new Map<
+      string,
+      { avgRating: number; reviewCount: number }
+    >();
     if (salonIds.length > 0) {
       const ratingAggregates = await this.prisma.review.groupBy({
         by: ['salonId'],
@@ -772,7 +774,9 @@ export class SalonsService {
     console.log('🔍 Salon found:', salon ? `ID: ${salon.id}` : 'None');
     if (salon) {
       // Derive categories from services instead of salon.categoryIds
-      const services = (salon as { Service?: { serviceCategoryId: number | null }[] }).Service ?? [];
+      const services =
+        (salon as { Service?: { serviceCategoryId: number | null }[] })
+          .Service ?? [];
       const serviceCategoryIds = Array.from(
         new Set(services.map((s) => s.serviceCategoryId).filter(Boolean)),
       );
@@ -795,10 +799,14 @@ export class SalonsService {
       // Validate photos - reject URLs
       if (createSalonDto.photos && Array.isArray(createSalonDto.photos)) {
         const hasUrl = createSalonDto.photos.some(
-          (photo) => typeof photo === 'string' && (photo.startsWith('http://') || photo.startsWith('https://'))
+          (photo) =>
+            typeof photo === 'string' &&
+            (photo.startsWith('http://') || photo.startsWith('https://')),
         );
         if (hasUrl) {
-          throw new Error('Photo URLs are not allowed. Please upload files only.');
+          throw new Error(
+            'Photo URLs are not allowed. Please upload files only.',
+          );
         }
       }
 
@@ -1020,10 +1028,14 @@ export class SalonsService {
     // Validate photos - reject URLs
     if (updateSalonDto.photos && Array.isArray(updateSalonDto.photos)) {
       const hasUrl = updateSalonDto.photos.some(
-        (photo) => typeof photo === 'string' && (photo.startsWith('http://') || photo.startsWith('https://'))
+        (photo) =>
+          typeof photo === 'string' &&
+          (photo.startsWith('http://') || photo.startsWith('https://')),
       );
       if (hasUrl) {
-        throw new Error('Photo URLs are not allowed. Please upload files only.');
+        throw new Error(
+          'Photo URLs are not allowed. Please upload files only.',
+        );
       }
     }
 
@@ -1802,7 +1814,8 @@ export class SalonsService {
     const categoryIdsMap = new Map<string, Set<number>>();
     categoryData.forEach((item) => {
       if (!item.service_categories || !item.serviceCategoryId) return;
-      const categoryName = item.service_categories.name_en || item.service_categories.name_vn;
+      const categoryName =
+        item.service_categories.name_en || item.service_categories.name_vn;
       if (!categoryName) return;
 
       if (!categoryMap.has(item.salonId)) {
