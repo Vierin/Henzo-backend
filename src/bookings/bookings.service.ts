@@ -221,7 +221,9 @@ export class BookingsService {
         where: { id: data.salonId },
         select: { autoConfirmBookings: true },
       });
-      const autoConfirm = (salon as { autoConfirmBookings?: boolean } | null)?.autoConfirmBookings === true;
+      const autoConfirm =
+        (salon as { autoConfirmBookings?: boolean } | null)
+          ?.autoConfirmBookings === true;
       const bookingStatus =
         isOwnerCreated || autoConfirm ? 'CONFIRMED' : 'PENDING';
 
@@ -273,7 +275,8 @@ export class BookingsService {
             booking,
             isOwnerCreated,
             data.clientName,
-            emailLocale ?? (data as { preferredLocale?: string }).preferredLocale,
+            emailLocale ??
+              (data as { preferredLocale?: string }).preferredLocale,
           );
           this.logger.log('Email notifications sent successfully');
         } catch (emailError) {
@@ -284,11 +287,14 @@ export class BookingsService {
 
       // Send push to salon owner for every new booking created by a client (not by owner)
       if (!isOwnerCreated) {
-        this.logger.log('Push: scheduling notification for new client booking', {
-          bookingId: booking.id,
-          salonId: booking.salonId,
-          status: booking.status,
-        });
+        this.logger.log(
+          'Push: scheduling notification for new client booking',
+          {
+            bookingId: booking.id,
+            salonId: booking.salonId,
+            status: booking.status,
+          },
+        );
         setImmediate(async () => {
           try {
             const salonOwnerId =
@@ -1231,24 +1237,20 @@ export class BookingsService {
             salonTimezone,
           );
 
-          await this.emailService.sendBookingPending(
-            clientEmail,
-            clientName,
-            {
-              serviceName: booking.Service?.name || '',
-              date: formattedDate,
-              time: formattedTime,
-              duration: booking.Service?.duration || 0,
-              price: booking.Service?.price || 0,
-              salonName: booking.Salon?.name || '',
-              salonAddress: booking.Salon?.address || null,
-              salonPhone: booking.Salon?.phone || null,
-              staffName: booking.Staff?.name,
-              dateTime: booking.dateTime,
-              salonTimezone: salonTimezone,
-              isWithinWorkingHours: isWithinWorkingHours,
-            },
-          );
+          await this.emailService.sendBookingPending(clientEmail, clientName, {
+            serviceName: booking.Service?.name || '',
+            date: formattedDate,
+            time: formattedTime,
+            duration: booking.Service?.duration || 0,
+            price: booking.Service?.price || 0,
+            salonName: booking.Salon?.name || '',
+            salonAddress: booking.Salon?.address || null,
+            salonPhone: booking.Salon?.phone || null,
+            staffName: booking.Staff?.name,
+            dateTime: booking.dateTime,
+            salonTimezone: salonTimezone,
+            isWithinWorkingHours: isWithinWorkingHours,
+          });
           this.logger.log('Client pending booking email sent', { clientEmail });
         } catch (clientEmailError) {
           this.logger.error(

@@ -788,10 +788,11 @@ export class SalonsService {
         _avg: { rating: true },
         _count: { rating: true },
       });
-      const countRating = (ratingAgg._count as { rating?: number })?.rating ?? 0;
-      const avgRating = (ratingAgg._avg as { rating?: number | null })?.rating ?? null;
-      const avg =
-        countRating > 0 && avgRating != null ? avgRating : null;
+      const countRating =
+        (ratingAgg._count as { rating?: number })?.rating ?? 0;
+      const avgRating =
+        (ratingAgg._avg as { rating?: number | null })?.rating ?? null;
+      const avg = countRating > 0 && avgRating != null ? avgRating : null;
       (salon as any).rating =
         avg != null ? Math.round(avg * 10) / 10 : undefined;
     }

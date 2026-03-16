@@ -61,7 +61,11 @@ export class NotificationsService {
         });
       }
 
-      console.log('✅ Push token saved successfully:', { userId, platform, language });
+      console.log('✅ Push token saved successfully:', {
+        userId,
+        platform,
+        language,
+      });
     } catch (error) {
       console.error('❌ Error saving push token:', error);
       throw error;
@@ -73,8 +77,12 @@ export class NotificationsService {
     const tokens = await this.getPushTokensByUserId(userId);
     console.log(`[Push] test-push: user=${userId} tokens=${tokens.length}`);
     if (tokens.length === 0) {
-      console.warn('[Push] test-push: no tokens for user, register from app first');
-      throw new Error('No push tokens for this user. Open the app and log in to register a token.');
+      console.warn(
+        '[Push] test-push: no tokens for user, register from app first',
+      );
+      throw new Error(
+        'No push tokens for this user. Open the app and log in to register a token.',
+      );
     }
     await this.sendPushNotification(
       tokens,
@@ -87,7 +95,9 @@ export class NotificationsService {
     console.log('[Push] test-push sent');
   }
 
-  async getPushTokensByUserId(userId: string): Promise<Array<{ token: string; language: string }>> {
+  async getPushTokensByUserId(
+    userId: string,
+  ): Promise<Array<{ token: string; language: string }>> {
     try {
       const tokens = await this.prisma.pushToken.findMany({
         where: {
@@ -110,7 +120,9 @@ export class NotificationsService {
     }
   }
 
-  async getPushTokensBySalonOwner(salonId: string): Promise<Array<{ token: string; language: string }>> {
+  async getPushTokensBySalonOwner(
+    salonId: string,
+  ): Promise<Array<{ token: string; language: string }>> {
     try {
       // Find salon owner
       const salon = await this.prisma.salon.findUnique({
@@ -144,19 +156,20 @@ export class NotificationsService {
       console.log(`   Title: ${title}`);
       console.log(`   Body: ${body}`);
       console.log(`   Data:`, data);
-      
+
       if (tokens.length === 0) {
         console.log('⚠️ No push tokens available');
         return;
       }
 
       // Normalize tokens to array of objects
-      const tokenObjects: Array<{ token: string; language: string }> = tokens.map((t) => {
-        if (typeof t === 'string') {
-          return { token: t, language: 'en' };
-        }
-        return t;
-      });
+      const tokenObjects: Array<{ token: string; language: string }> =
+        tokens.map((t) => {
+          if (typeof t === 'string') {
+            return { token: t, language: 'en' };
+          }
+          return t;
+        });
 
       // Separate Expo tokens and FCM/APNs tokens
       const expoTokens: Array<{ token: string; language: string }> = [];
@@ -164,7 +177,10 @@ export class NotificationsService {
 
       tokenObjects.forEach((tokenObj) => {
         // Expo tokens start with ExponentPushToken or ExpoPushToken
-        if (tokenObj.token.startsWith('ExponentPushToken[') || tokenObj.token.startsWith('ExpoPushToken')) {
+        if (
+          tokenObj.token.startsWith('ExponentPushToken[') ||
+          tokenObj.token.startsWith('ExpoPushToken')
+        ) {
           expoTokens.push(tokenObj);
         } else {
           // Native tokens (FCM/APNs) - any other format
@@ -172,11 +188,15 @@ export class NotificationsService {
         }
       });
 
-      console.log(`📱 Token types: ${expoTokens.length} Expo, ${nativeTokens.length} Native (FCM/APNs)`);
+      console.log(
+        `📱 Token types: ${expoTokens.length} Expo, ${nativeTokens.length} Native (FCM/APNs)`,
+      );
 
       // Send Expo tokens via Expo API
       if (expoTokens.length > 0) {
-        console.log(`📤 Sending ${expoTokens.length} Expo token(s) via Expo API...`);
+        console.log(
+          `📤 Sending ${expoTokens.length} Expo token(s) via Expo API...`,
+        );
         try {
           const messages = expoTokens.map((tokenObj) => ({
             to: tokenObj.token,
@@ -189,7 +209,10 @@ export class NotificationsService {
             channelId: data?.type === 'NEW_BOOKING' ? 'bookings' : 'default',
           }));
 
-          console.log(`📤 Sending to Expo API:`, JSON.stringify(messages, null, 2));
+          console.log(
+            `📤 Sending to Expo API:`,
+            JSON.stringify(messages, null, 2),
+          );
 
           const response = await fetch('https://exp.host/--/api/v2/push/send', {
             method: 'POST',
@@ -208,7 +231,10 @@ export class NotificationsService {
           }
 
           const result = await response.json();
-          console.log('✅ Expo push notifications sent:', JSON.stringify(result, null, 2));
+          console.log(
+            '✅ Expo push notifications sent:',
+            JSON.stringify(result, null, 2),
+          );
 
           // Check for errors in response
           if (result.data && Array.isArray(result.data)) {
@@ -243,19 +269,24 @@ export class NotificationsService {
 
       // Send native tokens (FCM/APNs) via Firebase Admin
       if (nativeTokens.length > 0) {
-        console.log(`📤 Sending ${nativeTokens.length} native token(s) (FCM/APNs) via Firebase Admin...`);
+        console.log(
+          `📤 Sending ${nativeTokens.length} native token(s) (FCM/APNs) via Firebase Admin...`,
+        );
         if (this.firebaseAdmin.isInitialized()) {
           try {
             const channelId = androidChannelId ?? 'henzo_default';
             console.log(`[Push] FCM channelId: ${channelId}`);
             const response = await this.firebaseAdmin.sendMulticast(
-              nativeTokens.map(t => t.token),
+              nativeTokens.map((t) => t.token),
               { title, body },
               data
-                ? Object.keys(data).reduce((acc, key) => {
-                    acc[key] = String(data[key]);
-                    return acc;
-                  }, {} as Record<string, string>)
+                ? Object.keys(data).reduce(
+                    (acc, key) => {
+                      acc[key] = String(data[key]);
+                      return acc;
+                    },
+                    {} as Record<string, string>,
+                  )
                 : undefined,
               {
                 channelId,
@@ -302,12 +333,17 @@ export class NotificationsService {
   ): Promise<void> {
     try {
       const isInformational = bookingStatus === 'CONFIRMED';
-      console.log(`📤 Preparing to send booking notification for salon: ${salonId} (${isInformational ? 'informational' : 'request to confirm'})`);
+      console.log(
+        `📤 Preparing to send booking notification for salon: ${salonId} (${isInformational ? 'informational' : 'request to confirm'})`,
+      );
       const tokens = await this.getPushTokensBySalonOwner(salonId);
 
       console.log(`📱 Found ${tokens.length} push token(s) for salon owner`);
       if (tokens.length > 0) {
-        console.log(`📱 Tokens:`, tokens.map(t => t.token.substring(0, 30) + '...'));
+        console.log(
+          `📱 Tokens:`,
+          tokens.map((t) => t.token.substring(0, 30) + '...'),
+        );
       }
 
       if (tokens.length === 0) {
@@ -316,7 +352,10 @@ export class NotificationsService {
       }
 
       // Group tokens by language
-      const tokensByLanguage = new Map<string, Array<{ token: string; language: string }>>();
+      const tokensByLanguage = new Map<
+        string,
+        Array<{ token: string; language: string }>
+      >();
       tokens.forEach((tokenObj) => {
         const lang = tokenObj.language || 'en';
         if (!tokensByLanguage.has(lang)) {
@@ -327,7 +366,8 @@ export class NotificationsService {
 
       // Send notification for each language group
       for (const [language, languageTokens] of tokensByLanguage.entries()) {
-        const locale = language === 'ru' ? 'ru-RU' : language === 'vi' ? 'vi-VN' : 'en-US';
+        const locale =
+          language === 'ru' ? 'ru-RU' : language === 'vi' ? 'vi-VN' : 'en-US';
         const formattedDateStr = new Date(dateTime).toLocaleString(locale, {
           month: 'short',
           day: 'numeric',
@@ -351,7 +391,12 @@ export class NotificationsService {
               { action: 'REJECT_BOOKING', title: '✕' },
             ];
 
-        console.log(`📤 Sending booking notification (${language}):`, { title, body, bookingId, isInformational });
+        console.log(`📤 Sending booking notification (${language}):`, {
+          title,
+          body,
+          bookingId,
+          isInformational,
+        });
 
         await this.sendPushNotification(
           languageTokens,
@@ -386,12 +431,17 @@ export class NotificationsService {
     dateTime: Date,
   ): Promise<void> {
     try {
-      console.log(`📤 Preparing to send booking cancellation notification for salon: ${salonId}`);
+      console.log(
+        `📤 Preparing to send booking cancellation notification for salon: ${salonId}`,
+      );
       const tokens = await this.getPushTokensBySalonOwner(salonId);
 
       console.log(`📱 Found ${tokens.length} push token(s) for salon owner`);
       if (tokens.length > 0) {
-        console.log(`📱 Tokens:`, tokens.map(t => t.token.substring(0, 30) + '...'));
+        console.log(
+          `📱 Tokens:`,
+          tokens.map((t) => t.token.substring(0, 30) + '...'),
+        );
       }
 
       if (tokens.length === 0) {
@@ -400,7 +450,10 @@ export class NotificationsService {
       }
 
       // Group tokens by language
-      const tokensByLanguage = new Map<string, Array<{ token: string; language: string }>>();
+      const tokensByLanguage = new Map<
+        string,
+        Array<{ token: string; language: string }>
+      >();
       tokens.forEach((tokenObj) => {
         const lang = tokenObj.language || 'en';
         if (!tokensByLanguage.has(lang)) {
@@ -415,14 +468,20 @@ export class NotificationsService {
         const cancelledByText = getNotificationText(language, 'cancelledBy');
         const body = `${cancelledByText} ${clientName}. ${serviceName}`;
 
-        const formattedDate = new Date(dateTime).toLocaleString(language === 'ru' ? 'ru-RU' : language === 'vi' ? 'vi-VN' : 'en-US', {
-          month: 'short',
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-        });
+        const formattedDate = new Date(dateTime).toLocaleString(
+          language === 'ru' ? 'ru-RU' : language === 'vi' ? 'vi-VN' : 'en-US',
+          {
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          },
+        );
 
-        console.log(`📤 Sending booking cancellation notification (${language}):`, { title, body, bookingId, dateTime });
+        console.log(
+          `📤 Sending booking cancellation notification (${language}):`,
+          { title, body, bookingId, dateTime },
+        );
 
         await this.sendPushNotification(languageTokens, title, body, {
           type: 'BOOKING_CANCELLED',
@@ -437,7 +496,10 @@ export class NotificationsService {
 
       console.log('✅ Booking cancellation notification sent successfully');
     } catch (error) {
-      console.error('❌ Error sending booking cancellation notification:', error);
+      console.error(
+        '❌ Error sending booking cancellation notification:',
+        error,
+      );
       // Don't throw - we don't want to fail booking cancellation if notification fails
     }
   }

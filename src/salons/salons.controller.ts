@@ -223,7 +223,14 @@ export class SalonsController {
       // Get user's salon
       const salon = await this.prisma.salon.findFirst({
         where: { ownerId: currentUser.user.id },
-        select: { id: true, slug: true, name: true, address: true, phone: true, email: true },
+        select: {
+          id: true,
+          slug: true,
+          name: true,
+          address: true,
+          phone: true,
+          email: true,
+        },
       });
 
       if (!salon) {
@@ -232,18 +239,25 @@ export class SalonsController {
 
       // Use slug from DB or generate if not exists
       const baseUrl = process.env.FRONTEND_URL || 'https://henzo.app';
-      const slug = salon.slug || generateSalonSlug(
-        salon.name,
-        salon.id,
-        salon.address || undefined,
-      );
+      const slug =
+        salon.slug ||
+        generateSalonSlug(salon.name, salon.id, salon.address || undefined);
       const salonUrl = `${baseUrl}/salon/${slug}`;
 
       // Generate QR code URL (increased size to match PDF display)
       const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(salonUrl)}`;
 
       // PDF translations based on locale
-      const pdfTranslations: Record<string, { title1: string; title2: string; description: string; footer1: string; footer2: string }> = {
+      const pdfTranslations: Record<
+        string,
+        {
+          title1: string;
+          title2: string;
+          description: string;
+          footer1: string;
+          footer2: string;
+        }
+      > = {
         en: {
           title1: 'BOOK YOUR',
           title2: 'APPOINTMENT',
@@ -268,8 +282,10 @@ export class SalonsController {
       };
 
       // Get translations for the requested locale (default to 'en')
-      const validLocale = locale && ['en', 'ru', 'vi'].includes(locale) ? locale : 'en';
-      const translations = pdfTranslations[validLocale] || pdfTranslations['en'];
+      const validLocale =
+        locale && ['en', 'ru', 'vi'].includes(locale) ? locale : 'en';
+      const translations =
+        pdfTranslations[validLocale] || pdfTranslations['en'];
 
       // Dynamic import for Puppeteer to avoid issues
       const puppeteer = await import('puppeteer');
@@ -513,9 +529,11 @@ export class SalonsController {
       res.end(pdfBuffer);
     } catch (error) {
       console.error('Error generating PDF:', error);
-      const message = error?.message?.includes('Executable doesn\'t exist') || error?.message?.includes('Could not find Chromium')
-        ? 'PDF export is not available on this server (Chromium not installed).'
-        : 'Failed to generate PDF';
+      const message =
+        error?.message?.includes("Executable doesn't exist") ||
+        error?.message?.includes('Could not find Chromium')
+          ? 'PDF export is not available on this server (Chromium not installed).'
+          : 'Failed to generate PDF';
       throw new HttpException(message, HttpStatus.SERVICE_UNAVAILABLE);
     }
   }
@@ -563,7 +581,7 @@ export class SalonsController {
   ) {
     try {
       const currentUser = await this.authService.getCurrentUser(authHeader);
-      
+
       // Verify salon belongs to user
       const salon = await this.prisma.salon.findFirst({
         where: { id, ownerId: currentUser.user.id },
