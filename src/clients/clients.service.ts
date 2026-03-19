@@ -44,7 +44,9 @@ export class ClientsService {
       const searchPattern = search ? `%${search}%` : '%';
 
       // Total count of distinct clients (with optional search)
-      const countResult = await this.prisma.$queryRawUnsafe<[{ count: bigint }]>(
+      const countResult = await this.prisma.$queryRawUnsafe<
+        [{ count: bigint }]
+      >(
         `SELECT COUNT(*)::int as count FROM (
           SELECT b."userId" FROM "Booking" b
           INNER JOIN "User" u ON u.id = b."userId"
@@ -72,7 +74,9 @@ export class ClientsService {
       }
 
       // One page of userIds ordered by last booking date desc
-      const userIdRows = await this.prisma.$queryRawUnsafe<{ userId: string }[]>(
+      const userIdRows = await this.prisma.$queryRawUnsafe<
+        { userId: string }[]
+      >(
         `SELECT b."userId" FROM "Booking" b
          INNER JOIN "User" u ON u.id = b."userId"
          WHERE b."salonId" = ANY($1::text[]) AND u.email NOT LIKE '%@anonymous.local%'
@@ -147,7 +151,12 @@ export class ClientsService {
 
       const statsMap = new Map<
         string,
-        { visitCount: number; lastVisit: Date | null; totalSpent: number; completedVisits: number }
+        {
+          visitCount: number;
+          lastVisit: Date | null;
+          totalSpent: number;
+          completedVisits: number;
+        }
       >();
       for (const stat of bookingStats) {
         statsMap.set(stat.userId, {
@@ -312,8 +321,7 @@ export class ClientsService {
         (b) => b.status === 'COMPLETED',
       ).length;
 
-      const lastVisit =
-        bookings.length > 0 ? bookings[0].dateTime : null;
+      const lastVisit = bookings.length > 0 ? bookings[0].dateTime : null;
 
       return {
         ...user,
@@ -498,11 +506,7 @@ export class ClientsService {
   /**
    * Update a client note
    */
-  async updateClientNote(
-    ownerId: string,
-    noteId: string,
-    note: string,
-  ) {
+  async updateClientNote(ownerId: string, noteId: string, note: string) {
     try {
       // Verify owner owns the salon for this note
       const existingNote = await (this.prisma as any).clientNote.findUnique({
@@ -521,10 +525,7 @@ export class ClientsService {
       }
 
       if (existingNote.Salon.ownerId !== ownerId) {
-        throw new HttpException(
-          'Access denied',
-          HttpStatus.FORBIDDEN,
-        );
+        throw new HttpException('Access denied', HttpStatus.FORBIDDEN);
       }
 
       const updatedNote = await (this.prisma as any).clientNote.update({
@@ -567,10 +568,7 @@ export class ClientsService {
       }
 
       if (existingNote.Salon.ownerId !== ownerId) {
-        throw new HttpException(
-          'Access denied',
-          HttpStatus.FORBIDDEN,
-        );
+        throw new HttpException('Access denied', HttpStatus.FORBIDDEN);
       }
 
       await (this.prisma as any).clientNote.delete({
@@ -590,4 +588,3 @@ export class ClientsService {
     }
   }
 }
-

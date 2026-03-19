@@ -235,50 +235,50 @@ export class AdminService {
           skip,
           take: limit,
           select: {
-          id: true,
-          name: true,
-          description: true,
-          address: true,
-          phone: true,
-          email: true,
-          website: true,
-          instagram: true,
-          photos: true,
-          workingHours: true,
-          reminderSettings: true,
-          ownerId: true,
-          createdAt: true,
-          latitude: true,
-          longitude: true,
-          descriptionEn: true,
-          descriptionVi: true,
-          descriptionRu: true,
-          User: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
+            id: true,
+            name: true,
+            description: true,
+            address: true,
+            phone: true,
+            email: true,
+            website: true,
+            instagram: true,
+            photos: true,
+            workingHours: true,
+            reminderSettings: true,
+            ownerId: true,
+            createdAt: true,
+            latitude: true,
+            longitude: true,
+            descriptionEn: true,
+            descriptionVi: true,
+            descriptionRu: true,
+            User: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+            _count: {
+              select: {
+                Booking: true,
+                Review: true,
+                Staff: true,
+                Service: true,
+              },
+            },
+            Subscription: {
+              select: {
+                type: true,
+                status: true,
+                amount: true,
+                startDate: true,
+                endDate: true,
+                nextPaymentDate: true,
+              },
             },
           },
-          _count: {
-            select: {
-              Booking: true,
-              Review: true,
-              Staff: true,
-              Service: true,
-            },
-          },
-          Subscription: {
-            select: {
-              type: true,
-              status: true,
-              amount: true,
-              startDate: true,
-              endDate: true,
-              nextPaymentDate: true,
-            },
-          },
-        },
           orderBy: {
             createdAt: 'desc',
           },
@@ -290,7 +290,7 @@ export class AdminService {
       const data = salons.map((salon) => {
         // Ensure User data is available
         const userData = salon.User;
-        
+
         return {
           id: salon.id,
           name: salon.name,
@@ -302,34 +302,42 @@ export class AdminService {
           instagram: salon.instagram || undefined,
           photos: Array.isArray(salon.photos) ? salon.photos : [],
           workingHours: salon.workingHours || undefined,
-          createdAt: salon.createdAt instanceof Date 
-            ? salon.createdAt.toISOString() 
-            : salon.createdAt,
-          owner: userData ? {
-            id: userData.id,
-            name: userData.name || undefined,
-            email: userData.email,
-          } : undefined,
+          createdAt:
+            salon.createdAt instanceof Date
+              ? salon.createdAt.toISOString()
+              : salon.createdAt,
+          owner: userData
+            ? {
+                id: userData.id,
+                name: userData.name || undefined,
+                email: userData.email,
+              }
+            : undefined,
           _count: {
             bookings: salon._count?.Booking || 0,
             reviews: salon._count?.Review || 0,
             staff: salon._count?.Staff || 0,
             services: salon._count?.Service || 0,
           },
-          subscription: salon.Subscription ? {
-            type: salon.Subscription.type,
-            status: salon.Subscription.status,
-            amount: salon.Subscription.amount,
-            startDate: salon.Subscription.startDate instanceof Date 
-              ? salon.Subscription.startDate.toISOString() 
-              : salon.Subscription.startDate,
-            endDate: salon.Subscription.endDate instanceof Date 
-              ? salon.Subscription.endDate.toISOString() 
-              : salon.Subscription.endDate || undefined,
-            nextPaymentDate: salon.Subscription.nextPaymentDate instanceof Date 
-              ? salon.Subscription.nextPaymentDate.toISOString() 
-              : salon.Subscription.nextPaymentDate || undefined,
-          } : undefined,
+          subscription: salon.Subscription
+            ? {
+                type: salon.Subscription.type,
+                status: salon.Subscription.status,
+                amount: salon.Subscription.amount,
+                startDate:
+                  salon.Subscription.startDate instanceof Date
+                    ? salon.Subscription.startDate.toISOString()
+                    : salon.Subscription.startDate,
+                endDate:
+                  salon.Subscription.endDate instanceof Date
+                    ? salon.Subscription.endDate.toISOString()
+                    : salon.Subscription.endDate || undefined,
+                nextPaymentDate:
+                  salon.Subscription.nextPaymentDate instanceof Date
+                    ? salon.Subscription.nextPaymentDate.toISOString()
+                    : salon.Subscription.nextPaymentDate || undefined,
+              }
+            : undefined,
         };
       });
 
@@ -453,24 +461,32 @@ export class AdminService {
         status: booking.status,
         notes: booking.notes || undefined,
         createdAt: booking.createdAt.toISOString(),
-        salon: booking.Salon ? {
-          id: booking.Salon.id,
-          name: booking.Salon.name,
-        } : undefined,
-        user: booking.User ? {
-          id: booking.User.id,
-          name: booking.User.name || undefined,
-          email: booking.User.email,
-        } : undefined,
-        service: booking.Service ? {
-          id: booking.Service.id,
-          name: booking.Service.name,
-          price: booking.Service.price,
-        } : undefined,
-        staff: booking.Staff ? {
-          id: booking.Staff.id,
-          name: booking.Staff.name,
-        } : undefined,
+        salon: booking.Salon
+          ? {
+              id: booking.Salon.id,
+              name: booking.Salon.name,
+            }
+          : undefined,
+        user: booking.User
+          ? {
+              id: booking.User.id,
+              name: booking.User.name || undefined,
+              email: booking.User.email,
+            }
+          : undefined,
+        service: booking.Service
+          ? {
+              id: booking.Service.id,
+              name: booking.Service.name,
+              price: booking.Service.price,
+            }
+          : undefined,
+        staff: booking.Staff
+          ? {
+              id: booking.Staff.id,
+              name: booking.Staff.name,
+            }
+          : undefined,
       }));
 
       const totalPages = Math.ceil(total / limit);
@@ -568,14 +584,14 @@ export class AdminService {
         // Рассчитываем все месяцы оплаты подписки
         const startDate = new Date(sub.startDate);
         const endDate = sub.endDate ? new Date(sub.endDate) : new Date();
-        
+
         // Начинаем с даты начала подписки
         let paymentDate = new Date(startDate);
-        
+
         // Генерируем все месяцы оплаты до конца подписки или текущей даты
         while (paymentDate <= endDate) {
           const monthKey = `${paymentDate.getFullYear()}-${String(paymentDate.getMonth() + 1).padStart(2, '0')}`;
-          
+
           if (!monthlyRevenue[monthKey]) {
             monthlyRevenue[monthKey] = 0;
           }
@@ -744,34 +760,37 @@ export class AdminService {
       });
 
       // Group services by salon
-      const servicesBySalon = services.reduce((acc, service) => {
-        const salonId = service.salonId;
-        const salonName = service.Salon?.name || 'Unknown Salon';
+      const servicesBySalon = services.reduce(
+        (acc, service) => {
+          const salonId = service.salonId;
+          const salonName = service.Salon?.name || 'Unknown Salon';
 
-        if (!acc[salonId]) {
-          acc[salonId] = {
-            salonId,
-            salonName,
-            salonSlug: service.Salon?.slug || null,
-            services: [],
-          };
-        }
+          if (!acc[salonId]) {
+            acc[salonId] = {
+              salonId,
+              salonName,
+              salonSlug: service.Salon?.slug || null,
+              services: [],
+            };
+          }
 
-        acc[salonId].services.push({
-          id: service.id,
-          name: service.name,
-          nameEn: service.nameEn || service.name,
-          nameVi: service.nameVi || service.name,
-          nameRu: service.nameRu || service.name,
-          price: service.price,
-          duration: service.duration,
-        });
+          acc[salonId].services.push({
+            id: service.id,
+            name: service.name,
+            nameEn: service.nameEn || service.name,
+            nameVi: service.nameVi || service.name,
+            nameRu: service.nameRu || service.name,
+            price: service.price,
+            duration: service.duration,
+          });
 
-        return acc;
-      }, {} as Record<string, any>);
+          return acc;
+        },
+        {} as Record<string, any>,
+      );
 
       const salons = Object.values(servicesBySalon).sort((a: any, b: any) =>
-        a.salonName.localeCompare(b.salonName)
+        a.salonName.localeCompare(b.salonName),
       );
 
       return {
@@ -781,7 +800,9 @@ export class AdminService {
         totalSalons: salons.length,
       };
     } catch (error) {
-      throw new Error(`Failed to get service category details: ${error.message}`);
+      throw new Error(
+        `Failed to get service category details: ${error.message}`,
+      );
     }
   }
 
@@ -817,20 +838,19 @@ export class AdminService {
       });
 
       // Get all recommended services
-      const recommendedServices = await this.prisma.recommendedService.findMany({
-        select: {
-          id: true,
-          nameEn: true,
-          nameVi: true,
-          nameRu: true,
-          categoryId: true,
-          priority: true,
+      const recommendedServices = await this.prisma.recommendedService.findMany(
+        {
+          select: {
+            id: true,
+            nameEn: true,
+            nameVi: true,
+            nameRu: true,
+            categoryId: true,
+            priority: true,
+          },
+          orderBy: [{ priority: 'desc' }, { nameEn: 'asc' }],
         },
-        orderBy: [
-          { priority: 'desc' },
-          { nameEn: 'asc' },
-        ],
-      });
+      );
 
       // Group service categories by main_category_id
       const categoriesByMain = mainCategories.map((mainCat) => {

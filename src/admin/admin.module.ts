@@ -12,6 +12,12 @@ import { RolesGuard } from '../common/guards/roles.guard';
 @Module({
   imports: [PrismaModule, AuthModule, ConfigModule],
   controllers: [AdminController],
-  providers: [AdminService, AnalyticsService, PlatformMetricsService, JwtAuthGuard, RolesGuard],
+  providers: [
+    AdminService,
+    AnalyticsService,
+    PlatformMetricsService,
+    JwtAuthGuard,
+    RolesGuard,
+  ],
 })
 export class AdminModule {}

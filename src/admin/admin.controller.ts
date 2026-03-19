@@ -174,9 +174,14 @@ export class AdminController {
     try {
       const serviceCategoryId = parseInt(id, 10);
       if (isNaN(serviceCategoryId)) {
-        throw new HttpException('Invalid service category ID', HttpStatus.BAD_REQUEST);
+        throw new HttpException(
+          'Invalid service category ID',
+          HttpStatus.BAD_REQUEST,
+        );
       }
-      return await this.adminService.getServiceCategoryDetails(serviceCategoryId);
+      return await this.adminService.getServiceCategoryDetails(
+        serviceCategoryId,
+      );
     } catch (error) {
       throw new HttpException(
         error.message || 'Failed to get service category details',
