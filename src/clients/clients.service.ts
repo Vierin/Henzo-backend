@@ -8,131 +8,147 @@ export class ClientsService {
   constructor(private prisma: PrismaService) {}
 
   /**
-   * Get all clients for a salon owner
-   * Returns unique clients with aggregated stats
+   * Get clients for a salon owner with DB-level pagination.
+   * Returns one page of unique clients with aggregated stats, ordered by last visit desc.
    */
   async getClients(
     ownerId: string,
     options?: { search?: string; page?: number; limit?: number },
   ) {
     try {
-      // Find all salons owned by this owner
       const ownerSalons = await this.prisma.salon.findMany({
         where: { ownerId },
         select: { id: true },
       });
 
       if (ownerSalons.length === 0) {
-        return [];
+        return {
+          data: [],
+          pagination: {
+            page: 1,
+            limit: options?.limit ?? 50,
+            total: 0,
+            totalPages: 0,
+            hasNextPage: false,
+            hasPreviousPage: false,
+          },
+        };
       }
 
-      const salonIds = ownerSalons.map((salon) => salon.id);
+      const salonIds = ownerSalons.map((s) => s.id);
+      const page = options?.page ?? 1;
+      const limit = Math.min(options?.limit ?? 50, 100);
+      const skip = (page - 1) * limit;
+      const search = options?.search?.trim();
 
-      // Build where condition for bookings
-      const bookingWhere: any = {
-        salonId: { in: salonIds },
-        User: {
-          email: {
-            not: { contains: '@anonymous.local' },
+      const searchPattern = search ? `%${search}%` : '%';
+
+      // Total count of distinct clients (with optional search)
+      const countResult = await this.prisma.$queryRawUnsafe<[{ count: bigint }]>(
+        `SELECT COUNT(*)::int as count FROM (
+          SELECT b."userId" FROM "Booking" b
+          INNER JOIN "User" u ON u.id = b."userId"
+          WHERE b."salonId" = ANY($1::text[]) AND u.email NOT LIKE '%@anonymous.local%'
+          AND (u.name ILIKE $2 OR u.email ILIKE $2 OR u.phone ILIKE $2)
+          GROUP BY b."userId"
+        ) sub`,
+        salonIds,
+        searchPattern,
+      );
+      const total = Number(countResult[0]?.count ?? 0);
+
+      if (total === 0) {
+        return {
+          data: [],
+          pagination: {
+            page,
+            limit,
+            total: 0,
+            totalPages: 0,
+            hasNextPage: false,
+            hasPreviousPage: false,
           },
-        },
-      };
+        };
+      }
 
-      // Build search condition for User
-      const userSearchCondition = options?.search
+      // One page of userIds ordered by last booking date desc
+      const userIdRows = await this.prisma.$queryRawUnsafe<{ userId: string }[]>(
+        `SELECT b."userId" FROM "Booking" b
+         INNER JOIN "User" u ON u.id = b."userId"
+         WHERE b."salonId" = ANY($1::text[]) AND u.email NOT LIKE '%@anonymous.local%'
+         AND (u.name ILIKE $2 OR u.email ILIKE $2 OR u.phone ILIKE $2)
+         GROUP BY b."userId"
+         ORDER BY MAX(b."dateTime") DESC NULLS LAST
+         LIMIT $3 OFFSET $4`,
+        salonIds,
+        searchPattern,
+        limit,
+        skip,
+      );
+
+      const userIds = userIdRows.map((r) => r.userId);
+      if (userIds.length === 0) {
+        return {
+          data: [],
+          pagination: {
+            page,
+            limit,
+            total,
+            totalPages: Math.ceil(total / limit),
+            hasNextPage: page * limit < total,
+            hasPreviousPage: page > 1,
+          },
+        };
+      }
+
+      const userSearchCondition = search
         ? {
             OR: [
-              { name: { contains: options.search, mode: 'insensitive' as const } },
-              { email: { contains: options.search, mode: 'insensitive' as const } },
-              { phone: { contains: options.search, mode: 'insensitive' as const } },
+              { name: { contains: search, mode: 'insensitive' as const } },
+              { email: { contains: search, mode: 'insensitive' as const } },
+              { phone: { contains: search, mode: 'insensitive' as const } },
             ],
           }
         : undefined;
 
-      if (userSearchCondition) {
-        bookingWhere.User = {
-          ...bookingWhere.User,
-          ...userSearchCondition,
-        };
-      }
-
-      // Get unique user IDs first (more efficient than loading all bookings)
-      const uniqueUserIds = await this.prisma.booking.findMany({
-        where: bookingWhere,
-        select: {
-          userId: true,
-        },
-        distinct: ['userId'],
-      });
-
-      if (uniqueUserIds.length === 0) {
-        return [];
-      }
-
-      const userIds = uniqueUserIds.map((b) => b.userId);
-
-      // Get user info for these clients
-      const users = await this.prisma.user.findMany({
-        where: {
-          id: { in: userIds },
-          email: {
-            not: { contains: '@anonymous.local' },
+      const [users, bookingStats, completedBookings] = await Promise.all([
+        this.prisma.user.findMany({
+          where: {
+            id: { in: userIds },
+            email: { not: { contains: '@anonymous.local' } },
+            ...(userSearchCondition || {}),
           },
-          ...(userSearchCondition || {}),
-        },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          phone: true,
-          createdAt: true,
-        },
-      });
-
-      // Get aggregated stats per user using groupBy
-      const bookingStats = await this.prisma.booking.groupBy({
-        by: ['userId'],
-        where: {
-          userId: { in: userIds },
-          salonId: { in: salonIds },
-        },
-        _count: {
-          id: true,
-        },
-        _max: {
-          dateTime: true,
-        },
-      });
-
-      // Get total spent per user (only completed bookings)
-      const completedBookings = await this.prisma.booking.findMany({
-        where: {
-          userId: { in: userIds },
-          salonId: { in: salonIds },
-          status: 'COMPLETED',
-        },
-        select: {
-          userId: true,
-          Service: {
-            select: {
-              price: true,
-            },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            createdAt: true,
           },
-        },
-      });
+        }),
+        this.prisma.booking.groupBy({
+          by: ['userId'],
+          where: { userId: { in: userIds }, salonId: { in: salonIds } },
+          _count: { id: true },
+          _max: { dateTime: true },
+        }),
+        this.prisma.booking.findMany({
+          where: {
+            userId: { in: userIds },
+            salonId: { in: salonIds },
+            status: 'COMPLETED',
+          },
+          select: {
+            userId: true,
+            Service: { select: { price: true } },
+          },
+        }),
+      ]);
 
-      // Calculate stats per user
       const statsMap = new Map<
         string,
-        {
-          visitCount: number;
-          lastVisit: Date | null;
-          totalSpent: number;
-          completedVisits: number;
-        }
+        { visitCount: number; lastVisit: Date | null; totalSpent: number; completedVisits: number }
       >();
-
-      // Initialize from groupBy results
       for (const stat of bookingStats) {
         statsMap.set(stat.userId, {
           visitCount: stat._count.id,
@@ -141,22 +157,20 @@ export class ClientsService {
           completedVisits: 0,
         });
       }
-
-      // Calculate total spent and completed visits
       for (const booking of completedBookings) {
-        const stats = statsMap.get(booking.userId);
-        if (stats) {
-          stats.totalSpent += booking.Service.price;
-          stats.completedVisits++;
+        const s = statsMap.get(booking.userId);
+        if (s) {
+          s.totalSpent += booking.Service?.price ?? 0;
+          s.completedVisits++;
         }
       }
 
-      // Combine user info with stats
-      const clients = users
-        .map((user) => {
-          const stats = statsMap.get(user.id);
-          if (!stats) return null;
-
+      // Preserve order of userIds (by last visit desc)
+      const data = userIds
+        .map((userId) => {
+          const user = users.find((u) => u.id === userId);
+          const stats = statsMap.get(userId);
+          if (!user || !stats) return null;
           return {
             id: user.id,
             name: user.name,
@@ -169,7 +183,7 @@ export class ClientsService {
             completedVisits: stats.completedVisits,
           };
         })
-        .filter((client) => client !== null) as Array<{
+        .filter(Boolean) as Array<{
         id: string;
         name: string | null;
         email: string;
@@ -181,27 +195,9 @@ export class ClientsService {
         completedVisits: number;
       }>;
 
-      // Sort by last visit (most recent first), then by name
-      clients.sort((a, b) => {
-        if (a.lastVisit && b.lastVisit) {
-          return b.lastVisit.getTime() - a.lastVisit.getTime();
-        }
-        if (a.lastVisit) return -1;
-        if (b.lastVisit) return 1;
-        return (a.name || a.email).localeCompare(b.name || b.email);
-      });
-
-      // Apply pagination
-      const page = options?.page || 1;
-      const limit = options?.limit || 50;
-      const total = clients.length;
       const totalPages = Math.ceil(total / limit);
-      const skip = (page - 1) * limit;
-
-      const paginatedClients = clients.slice(skip, skip + limit);
-
       return {
-        data: paginatedClients,
+        data,
         pagination: {
           page,
           limit,

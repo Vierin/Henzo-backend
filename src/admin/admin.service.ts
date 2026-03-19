@@ -223,10 +223,18 @@ export class AdminService {
     }
   }
 
-  async getAllSalons() {
+  async getAllSalons(params?: { page?: number; limit?: number }) {
     try {
-      const salons = await this.prisma.salon.findMany({
-        select: {
+      const page = params?.page ?? 1;
+      const limit = Math.min(params?.limit ?? 50, 100);
+      const skip = (page - 1) * limit;
+
+      const [total, salons] = await Promise.all([
+        this.prisma.salon.count(),
+        this.prisma.salon.findMany({
+          skip,
+          take: limit,
+          select: {
           id: true,
           name: true,
           description: true,
@@ -271,13 +279,15 @@ export class AdminService {
             },
           },
         },
-        orderBy: {
-          createdAt: 'desc',
-        },
-      });
+          orderBy: {
+            createdAt: 'desc',
+          },
+        }),
+      ]);
 
-      // Transform data to match frontend interface
-      return salons.map((salon) => {
+      const totalPages = Math.ceil(total / limit);
+
+      const data = salons.map((salon) => {
         // Ensure User data is available
         const userData = salon.User;
         
@@ -322,6 +332,18 @@ export class AdminService {
           } : undefined,
         };
       });
+
+      return {
+        data,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1,
+        },
+      };
     } catch (error) {
       throw new Error(`Failed to get salons: ${error.message}`);
     }
@@ -469,22 +491,33 @@ export class AdminService {
     }
   }
 
-  async getSubscriptions() {
+  async getSubscriptions(params?: { page?: number; limit?: number }) {
     try {
-      const subscriptions = await this.prisma.subscription.findMany({
-        include: {
-          Salon: {
-            select: {
-              name: true,
+      const page = params?.page ?? 1;
+      const limit = Math.min(params?.limit ?? 50, 100);
+      const skip = (page - 1) * limit;
+
+      const [total, subscriptions] = await Promise.all([
+        this.prisma.subscription.count(),
+        this.prisma.subscription.findMany({
+          skip,
+          take: limit,
+          include: {
+            Salon: {
+              select: {
+                name: true,
+              },
             },
           },
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-      });
+          orderBy: {
+            createdAt: 'desc',
+          },
+        }),
+      ]);
 
-      return subscriptions.map((sub) => ({
+      const totalPages = Math.ceil(total / limit);
+
+      const data = subscriptions.map((sub) => ({
         id: sub.id,
         salon: sub.Salon.name,
         subscriptionType: sub.type,
@@ -494,6 +527,18 @@ export class AdminService {
         startDate: sub.startDate,
         endDate: sub.endDate,
       }));
+
+      return {
+        data,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1,
+        },
+      };
     } catch (error) {
       throw new Error(`Failed to get subscriptions: ${error.message}`);
     }
@@ -551,45 +596,102 @@ export class AdminService {
   }
 
   async getSmsUsage() {
-    // Mock data for now since we don't have SMS usage table yet
-    return [
-      {
-        salon: 'Salon A',
-        sent: 150,
-        balance: 850,
-      },
-      {
-        salon: 'Salon B',
-        sent: 80,
-        balance: 920,
-      },
-      {
-        salon: 'Salon C',
-        sent: 200,
-        balance: 800,
-      },
-    ];
-  }
-
-  async getCustomers() {
     try {
-      const salons = await this.prisma.salon.findMany({
-        select: {
-          id: true,
-          name: true,
-          Booking: {
-            select: {
-              userId: true,
-            },
-            distinct: ['userId'],
+      const rows = await this.prisma.smsUsage.findMany({
+        orderBy: [{ year: 'desc' }, { month: 'desc' }],
+        include: {
+          Salon: {
+            select: { name: true },
           },
         },
       });
 
-      return salons.map((salon) => ({
-        salon: salon.name,
-        totalCustomers: salon.Booking.length,
+      const bySalon = new Map<
+        string,
+        { salon: string; sent: number; balance: number }
+      >();
+      for (const row of rows) {
+        if (!bySalon.has(row.salonId)) {
+          bySalon.set(row.salonId, {
+            salon: row.Salon.name,
+            sent: row.sent,
+            balance: row.balance,
+          });
+        }
+      }
+      return Array.from(bySalon.values());
+    } catch (error) {
+      return [];
+    }
+  }
+
+  async getCustomers(params?: { page?: number; limit?: number }) {
+    try {
+      const page = params?.page ?? 1;
+      const limit = Math.min(params?.limit ?? 50, 100);
+      const skip = (page - 1) * limit;
+
+      const [total, salons] = await Promise.all([
+        this.prisma.salon.count(),
+        this.prisma.salon.findMany({
+          skip,
+          take: limit,
+          select: {
+            id: true,
+            name: true,
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+        }),
+      ]);
+
+      if (salons.length === 0) {
+        return {
+          data: [],
+          pagination: {
+            page,
+            limit,
+            total: 0,
+            totalPages: 0,
+            hasNextPage: false,
+            hasPreviousPage: false,
+          },
+        };
+      }
+
+      const salonIds = salons.map((s) => s.id);
+      const distinctCounts = await this.prisma.booking.groupBy({
+        by: ['salonId', 'userId'],
+        where: { salonId: { in: salonIds } },
+      });
+
+      const countBySalon = distinctCounts.reduce(
+        (acc, row) => {
+          acc[row.salonId] = (acc[row.salonId] ?? 0) + 1;
+          return acc;
+        },
+        {} as Record<string, number>,
+      );
+
+      const data = salons.map((s) => ({
+        salon: s.name,
+        totalCustomers: countBySalon[s.id] ?? 0,
       }));
+
+      const totalPages = Math.ceil(total / limit);
+
+      return {
+        data,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1,
+        },
+      };
     } catch (error) {
       throw new Error(`Failed to get customers: ${error.message}`);
     }

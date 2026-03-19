@@ -1,18 +1,23 @@
 import {
   Controller,
   Get,
-  Headers,
   HttpException,
   HttpStatus,
   Query,
   Param,
+  UseGuards,
 } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { AuthService } from '../auth/auth.service';
 import { AnalyticsService } from './analytics.service';
 import { PlatformMetricsService } from './platform-metrics.service';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
 
 @Controller('admin')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('ADMIN')
 export class AdminController {
   constructor(
     private readonly adminService: AdminService,
@@ -22,17 +27,8 @@ export class AdminController {
   ) {}
 
   @Get('dashboard')
-  async getDashboard(
-    @Headers('authorization') authHeader: string,
-    @Query('period') period?: string,
-  ) {
+  async getDashboard(@Query('period') period?: string) {
     try {
-      const currentUser = await this.authService.getCurrentUser(authHeader);
-
-      if (currentUser.user.role !== 'ADMIN') {
-        throw new HttpException('Access denied', HttpStatus.FORBIDDEN);
-      }
-
       const dashboard = await this.adminService.getDashboardStats(
         period || '30d',
       );
@@ -46,16 +42,15 @@ export class AdminController {
   }
 
   @Get('salons')
-  async getAllSalons(@Headers('authorization') authHeader: string) {
+  async getAllSalons(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
     try {
-      const currentUser = await this.authService.getCurrentUser(authHeader);
-
-      if (currentUser.user.role !== 'ADMIN') {
-        throw new HttpException('Access denied', HttpStatus.FORBIDDEN);
-      }
-
-      const salons = await this.adminService.getAllSalons();
-      return salons;
+      return await this.adminService.getAllSalons({
+        page: page ? parseInt(page, 10) : undefined,
+        limit: limit ? parseInt(limit, 10) : undefined,
+      });
     } catch (error) {
       throw new HttpException(
         error.message || 'Failed to get salons',
@@ -65,16 +60,23 @@ export class AdminController {
   }
 
   @Get('bookings')
-  async getAllBookings(@Headers('authorization') authHeader: string) {
+  async getAllBookings(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('status') status?: string,
+    @Query('search') search?: string,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortOrder') sortOrder?: 'asc' | 'desc',
+  ) {
     try {
-      const currentUser = await this.authService.getCurrentUser(authHeader);
-
-      if (currentUser.user.role !== 'ADMIN') {
-        throw new HttpException('Access denied', HttpStatus.FORBIDDEN);
-      }
-
-      const bookings = await this.adminService.getAllBookings();
-      return bookings;
+      return await this.adminService.getAllBookings({
+        page: page ? parseInt(page, 10) : undefined,
+        limit: limit ? parseInt(limit, 10) : undefined,
+        status,
+        search,
+        sortBy,
+        sortOrder,
+      });
     } catch (error) {
       throw new HttpException(
         error.message || 'Failed to get bookings',
@@ -84,16 +86,15 @@ export class AdminController {
   }
 
   @Get('subscriptions')
-  async getSubscriptions(@Headers('authorization') authHeader: string) {
+  async getSubscriptions(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
     try {
-      const currentUser = await this.authService.getCurrentUser(authHeader);
-
-      if (currentUser.user.role !== 'ADMIN') {
-        throw new HttpException('Access denied', HttpStatus.FORBIDDEN);
-      }
-
-      const subscriptions = await this.adminService.getSubscriptions();
-      return subscriptions;
+      return await this.adminService.getSubscriptions({
+        page: page ? parseInt(page, 10) : undefined,
+        limit: limit ? parseInt(limit, 10) : undefined,
+      });
     } catch (error) {
       throw new HttpException(
         error.message || 'Failed to get subscriptions',
@@ -103,16 +104,9 @@ export class AdminController {
   }
 
   @Get('sms-usage')
-  async getSmsUsage(@Headers('authorization') authHeader: string) {
+  async getSmsUsage() {
     try {
-      const currentUser = await this.authService.getCurrentUser(authHeader);
-
-      if (currentUser.user.role !== 'ADMIN') {
-        throw new HttpException('Access denied', HttpStatus.FORBIDDEN);
-      }
-
-      const smsUsage = await this.adminService.getSmsUsage();
-      return smsUsage;
+      return await this.adminService.getSmsUsage();
     } catch (error) {
       throw new HttpException(
         error.message || 'Failed to get SMS usage',
@@ -122,16 +116,15 @@ export class AdminController {
   }
 
   @Get('customers')
-  async getCustomers(@Headers('authorization') authHeader: string) {
+  async getCustomers(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
     try {
-      const currentUser = await this.authService.getCurrentUser(authHeader);
-
-      if (currentUser.user.role !== 'ADMIN') {
-        throw new HttpException('Access denied', HttpStatus.FORBIDDEN);
-      }
-
-      const customers = await this.adminService.getCustomers();
-      return customers;
+      return await this.adminService.getCustomers({
+        page: page ? parseInt(page, 10) : undefined,
+        limit: limit ? parseInt(limit, 10) : undefined,
+      });
     } catch (error) {
       throw new HttpException(
         error.message || 'Failed to get customers',
@@ -141,21 +134,9 @@ export class AdminController {
   }
 
   @Get('analytics')
-  async getAnalytics(
-    @Headers('authorization') authHeader: string,
-    @Query('period') period?: '7d' | '30d' | '90d',
-  ) {
+  async getAnalytics(@Query('period') period?: '7d' | '30d' | '90d') {
     try {
-      const currentUser = await this.authService.getCurrentUser(authHeader);
-
-      if (currentUser.user.role !== 'ADMIN') {
-        throw new HttpException('Access denied', HttpStatus.FORBIDDEN);
-      }
-
-      const analytics = await this.analyticsService.getAnalytics(
-        period || '30d',
-      );
-      return analytics;
+      return await this.analyticsService.getAnalytics(period || '30d');
     } catch (error) {
       throw new HttpException(
         error.message || 'Failed to get analytics',
@@ -165,16 +146,9 @@ export class AdminController {
   }
 
   @Get('platform-metrics')
-  async getPlatformMetrics(@Headers('authorization') authHeader: string) {
+  async getPlatformMetrics() {
     try {
-      const currentUser = await this.authService.getCurrentUser(authHeader);
-
-      if (currentUser.user.role !== 'ADMIN') {
-        throw new HttpException('Access denied', HttpStatus.FORBIDDEN);
-      }
-
-      const metrics = await this.platformMetricsService.getPlatformMetrics();
-      return metrics;
+      return await this.platformMetricsService.getPlatformMetrics();
     } catch (error) {
       throw new HttpException(
         error.message || 'Failed to get platform metrics',
@@ -184,16 +158,9 @@ export class AdminController {
   }
 
   @Get('structure')
-  async getStructure(@Headers('authorization') authHeader: string) {
+  async getStructure() {
     try {
-      const currentUser = await this.authService.getCurrentUser(authHeader);
-
-      if (currentUser.user.role !== 'ADMIN') {
-        throw new HttpException('Access denied', HttpStatus.FORBIDDEN);
-      }
-
-      const structure = await this.adminService.getStructure();
-      return structure;
+      return await this.adminService.getStructure();
     } catch (error) {
       throw new HttpException(
         error.message || 'Failed to get structure',
@@ -203,24 +170,13 @@ export class AdminController {
   }
 
   @Get('structure/service-category/:id')
-  async getServiceCategoryDetails(
-    @Headers('authorization') authHeader: string,
-    @Param('id') id: string,
-  ) {
+  async getServiceCategoryDetails(@Param('id') id: string) {
     try {
-      const currentUser = await this.authService.getCurrentUser(authHeader);
-
-      if (currentUser.user.role !== 'ADMIN') {
-        throw new HttpException('Access denied', HttpStatus.FORBIDDEN);
-      }
-
       const serviceCategoryId = parseInt(id, 10);
       if (isNaN(serviceCategoryId)) {
         throw new HttpException('Invalid service category ID', HttpStatus.BAD_REQUEST);
       }
-
-      const details = await this.adminService.getServiceCategoryDetails(serviceCategoryId);
-      return details;
+      return await this.adminService.getServiceCategoryDetails(serviceCategoryId);
     } catch (error) {
       throw new HttpException(
         error.message || 'Failed to get service category details',

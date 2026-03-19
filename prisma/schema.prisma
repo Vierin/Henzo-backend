@@ -148,6 +148,7 @@ model Service {
   Staff              Staff[]             @relation("StaffServices")
 
   @@unique([name, salonId])
+  @@index([salonId])
 }
 
 model ServiceGroup {
@@ -193,6 +194,7 @@ model Staff {
   Service                                      Service[]        @relation("StaffServices")
 
   @@unique([name, salonId])
+  @@index([salonId])
 }
 
 model Subscription {
