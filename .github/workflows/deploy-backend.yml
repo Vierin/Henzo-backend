@@ -61,6 +61,13 @@ jobs:
           script: |
             cd /var/www/henzo/apps/backend
             git pull origin main
+            # Optional: overwrite .env.production from GitHub (never commit this file).
+            # On your machine:  [Convert]::ToBase64String([IO.File]::ReadAllBytes('.env.production'))  →  repo secret BACKEND_ENV_B64
+            # Or: base64 -w0 .env.production  (Linux)
+            if [ -n "${{ secrets.BACKEND_ENV_B64 }}" ]; then
+              echo "${{ secrets.BACKEND_ENV_B64 }}" | base64 -d > .env.production
+              chmod 600 .env.production
+            fi
             if [ -n "${{ secrets.GHCR_TOKEN }}" ]; then
               echo "${{ secrets.GHCR_TOKEN }}" | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
             fi
