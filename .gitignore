@@ -39,7 +39,7 @@ config/firebase-service-account.json
 .env
 .env.local
 .env.production
-.env.production.backup.*
+.env.production*
 .env.*.local
 
 # Prisma
