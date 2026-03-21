@@ -418,7 +418,6 @@ export class ServicesService {
     });
   }
 
-
   // --- Service groups ---
   async findGroupsBySalon(salonId: string) {
     return this.prisma.serviceGroup.findMany({

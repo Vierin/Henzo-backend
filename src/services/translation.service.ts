@@ -139,7 +139,10 @@ export class TranslationService {
 
         return translatedText;
       } catch (error) {
-        console.error('[Translation] Google error, trying LibreTranslate:', error);
+        console.error(
+          '[Translation] Google error, trying LibreTranslate:',
+          error,
+        );
         const libre = await tryLibre();
         if (libre) {
           return libre;
