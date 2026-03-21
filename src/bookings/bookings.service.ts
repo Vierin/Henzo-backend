@@ -346,6 +346,7 @@ export class BookingsService {
     return {
       id: booking.id,
       salonId: booking.salonId,
+      userId: booking.userId,
       serviceId: booking.serviceId,
       staffId: booking.staffId,
       time: booking.dateTime,
@@ -798,10 +799,12 @@ export class BookingsService {
         },
       };
 
-      // P2: По умолчанию загружаем только будущие бронирования или последние 30 дней
-      // Это значительно уменьшает количество данных
+      // Default window: past ~13 months + all future (dashboard "1 year" filter + upcoming lists)
       const now = new Date();
-      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      const defaultLookbackDays = 400;
+      const lookbackStart = new Date(
+        now.getTime() - defaultLookbackDays * 24 * 60 * 60 * 1000,
+      );
 
       if (options?.date) {
         // Parse date filter (format: YYYY-MM-DD or 'today', 'this_week', etc.)
@@ -855,9 +858,8 @@ export class BookingsService {
           }
         }
       } else {
-        // P2: По умолчанию загружаем только будущие бронирования или последние 30 дней
         where.dateTime = {
-          gte: thirtyDaysAgo,
+          gte: lookbackStart,
         };
       }
 

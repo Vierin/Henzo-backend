@@ -78,6 +78,7 @@ export class SalonsController {
   }
 
   @Get('preview')
+  @Header('Cache-Control', 'public, max-age=120, stale-while-revalidate=300')
   async getSalonsPreview(
     @Query('limit') limit?: string,
     @Query('page') page?: string,
@@ -95,7 +96,7 @@ export class SalonsController {
   }
 
   @Get('featured')
-  @Header('Cache-Control', 'public, max-age=86400') // Cache for 24 hours (featured salons rarely change)
+  @Header('Cache-Control', 'public, max-age=120, stale-while-revalidate=300')
   async getFeaturedSalons(@Query('limit') limit?: string) {
     const limitNum = limit ? parseInt(limit, 10) : 6;
     return this.salonsService.findFeaturedSalons(limitNum);
@@ -539,7 +540,7 @@ export class SalonsController {
   }
 
   @Get('by-slug/:slug')
-  @Header('Cache-Control', 'public, max-age=600') // Cache for 10 minutes
+  @Header('Cache-Control', 'public, max-age=120, stale-while-revalidate=300')
   async getSalonBySlug(@Param('slug') slug: string) {
     try {
       const result = await this.salonsService.findBySlug(slug);
@@ -554,7 +555,7 @@ export class SalonsController {
   }
 
   @Get(':id')
-  @Header('Cache-Control', 'public, max-age=600') // P1: Кэш на 10 минут
+  @Header('Cache-Control', 'public, max-age=120, stale-while-revalidate=300')
   async getSalonById(@Param('id') id: string) {
     try {
       const result = await this.salonsService.findById(id);

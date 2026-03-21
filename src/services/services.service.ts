@@ -437,13 +437,18 @@ export class ServicesService {
     const count = await this.prisma.serviceGroup.count({
       where: { salonId: data.salonId },
     });
+    const name = data.name.trim();
+    const pick = (v: string | undefined) => {
+      const t = v?.trim();
+      return t && t.length > 0 ? t : name;
+    };
     return this.prisma.serviceGroup.create({
       data: {
         salonId: data.salonId,
-        name: data.name,
-        nameEn: data.nameEn,
-        nameVi: data.nameVi,
-        nameRu: data.nameRu,
+        name,
+        nameEn: pick(data.nameEn),
+        nameVi: pick(data.nameVi),
+        nameRu: pick(data.nameRu),
         position: count * 10,
       },
     });

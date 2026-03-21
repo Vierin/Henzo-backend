@@ -3,6 +3,46 @@ import { Injectable } from '@nestjs/common';
 @Injectable()
 export class TranslationService {
   /**
+   * Public LibreTranslate-compatible API (no API key). Used when Google key is missing or fails.
+   * Override with LIBRETRANSLATE_URL (e.g. https://libretranslate.de)
+   */
+  private async translateViaLibreTranslate(
+    text: string,
+    targetLanguage: 'en' | 'vi' | 'ru',
+    sourceLanguage: 'en' | 'vi' | 'ru',
+  ): Promise<string | null> {
+    const base = (
+      process.env.LIBRETRANSLATE_URL || 'https://libretranslate.de'
+    ).replace(/\/$/, '');
+    const url = `${base}/translate`;
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 15000);
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          q: text,
+          source: sourceLanguage,
+          target: targetLanguage,
+          format: 'text',
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+      if (!res.ok) {
+        return null;
+      }
+      const data = (await res.json()) as { translatedText?: string };
+      const out = data?.translatedText?.trim();
+      return out && out.length > 0 ? out : null;
+    } catch (e) {
+      console.warn('[Translation] LibreTranslate fallback failed:', e);
+      return null;
+    }
+  }
+
+  /**
    * Detect language of text
    */
   detectLanguage(text: string): 'en' | 'vi' | 'ru' {
@@ -47,63 +87,75 @@ export class TranslationService {
 
     const apiKey = process.env.GOOGLE_TRANSLATE_API_KEY;
 
-    if (!apiKey) {
-      console.warn('GOOGLE_TRANSLATE_API_KEY not set, returning original text');
-      return text;
-    }
+    const tryLibre = () =>
+      this.translateViaLibreTranslate(text, targetLanguage, sourceLanguage);
 
-    try {
-      const url = `https://translation.googleapis.com/language/translate/v2?key=${apiKey}`;
-      const requestBody = {
-        q: text,
-        source: sourceLanguage,
-        target: targetLanguage,
-        format: 'text',
-      };
+    if (apiKey) {
+      try {
+        const url = `https://translation.googleapis.com/language/translate/v2?key=${apiKey}`;
+        const requestBody = {
+          q: text,
+          source: sourceLanguage,
+          target: targetLanguage,
+          format: 'text',
+        };
 
-      console.log(
-        `[Translation] Translating from ${sourceLanguage} to ${targetLanguage}: "${text.substring(0, 50)}..."`,
-      );
+        console.log(
+          `[Translation] Translating from ${sourceLanguage} to ${targetLanguage}: "${text.substring(0, 50)}..."`,
+        );
 
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
-      });
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestBody),
+        });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        let errorData;
-        try {
-          errorData = JSON.parse(errorText);
-        } catch {
-          errorData = { raw: errorText };
+        if (!response.ok) {
+          const errorText = await response.text();
+          let errorData;
+          try {
+            errorData = JSON.parse(errorText);
+          } catch {
+            errorData = { raw: errorText };
+          }
+          console.error(
+            `[Translation] Google API error (${response.status}):`,
+            JSON.stringify(errorData, null, 2),
+          );
+          throw new Error(
+            `Translation failed: ${errorData.error?.message || response.statusText}`,
+          );
         }
-        console.error(
-          `[Translation] API error (${response.status}):`,
-          JSON.stringify(errorData, null, 2),
+
+        const data = await response.json();
+        const translatedText =
+          data.data?.translations?.[0]?.translatedText || text;
+
+        console.log(
+          `[Translation] Result: "${text.substring(0, 30)}..." -> "${translatedText.substring(0, 30)}..."`,
         );
-        throw new Error(
-          `Translation failed: ${errorData.error?.message || response.statusText}`,
-        );
+
+        return translatedText;
+      } catch (error) {
+        console.error('[Translation] Google error, trying LibreTranslate:', error);
+        const libre = await tryLibre();
+        if (libre) {
+          return libre;
+        }
+        return text;
       }
-
-      const data = await response.json();
-      const translatedText =
-        data.data?.translations?.[0]?.translatedText || text;
-
-      console.log(
-        `[Translation] Result: "${text.substring(0, 30)}..." -> "${translatedText.substring(0, 30)}..."`,
-      );
-
-      return translatedText;
-    } catch (error) {
-      console.error('[Translation] Error:', error);
-      // Return original text on error
-      return text;
     }
+
+    const libre = await tryLibre();
+    if (libre) {
+      return libre;
+    }
+    console.warn(
+      '[Translation] No GOOGLE_TRANSLATE_API_KEY and LibreTranslate unavailable; returning source text',
+    );
+    return text;
   }
 
   /**

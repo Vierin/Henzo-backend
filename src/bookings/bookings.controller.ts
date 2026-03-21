@@ -363,7 +363,7 @@ export class BookingsController {
       }
 
       const pageNum = page ? parseInt(page, 10) : 1;
-      const limitNum = limit ? parseInt(limit, 10) : 50; // Default 50 instead of 100
+      const limitNum = limit ? parseInt(limit, 10) : 500; // Dashboard needs a wide window
 
       const bookings = await this.bookingsService.getOwnerBookings(
         currentUser.user.id,
